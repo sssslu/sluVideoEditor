@@ -1,0 +1,625 @@
+@font-face {
+  font-family: 'SluCompany Sans';
+  src: url('./assets/fonts/Inter-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+
+/* Import last. This theme styles editor chrome and its interaction states. */
+:root {
+  --slu-ink: #f4f3ef;
+  --slu-muted: #a9a79f;
+  --slu-bg: #0d0d0d;
+  --slu-surface: #161615;
+  --slu-raised: #20201e;
+  --slu-hover: #2a2926;
+  --slu-input: #111110;
+  --slu-line: #34332f;
+  --slu-line-strong: #4b4942;
+  --slu-accent: #ffd6a0;
+  --slu-selected: #352b20;
+  --slu-selected-line: #9b7b53;
+  --slu-error: #e8a49a;
+  --slu-error-bg: #342523;
+  --accent: var(--slu-accent);
+  --accent-dim: var(--slu-selected);
+  --panel: var(--slu-surface);
+  --panel-raised: var(--slu-raised);
+  --panel-2: var(--slu-input);
+  --header: var(--slu-bg);
+  --line: var(--slu-line);
+  --border: var(--slu-line);
+  --muted: var(--slu-muted);
+  --subtle: #85837c;
+  color: var(--slu-ink);
+  background: var(--slu-bg);
+  color-scheme: dark;
+}
+
+/* The wordmark is the only new font scope. */
+.brand {
+  flex: 0 0 205px;
+  width: 205px;
+  gap: 8px;
+  font-family: 'SluCompany Sans', Inter, 'Segoe UI', sans-serif;
+  color: var(--slu-ink);
+}
+.brand .brand-mark {
+  display: block;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  transform: none;
+  filter: none;
+  animation: none;
+}
+.brand strong {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -.3px;
+  line-height: 1;
+}
+.brand .brand-version {
+  color: var(--slu-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.app-shell, .app-header, .tool-rail, .status-bar, .browser-fallback {
+  background: var(--slu-bg);
+}
+.library-panel, .inspector, .panel-heading, .monitor-tabs,
+.preview-panel > .panel-heading, .source-heading, .transport,
+.source-transport, .source-edit-controls, .timeline-toolbar,
+.ruler-label, .track-label, .timeline-footer {
+  background: var(--slu-surface);
+  border-color: var(--slu-line);
+}
+.monitor-area, .preview-panel, .preview-wrap, .gpu-preview-wrap,
+.source-monitor, .source-view, .timeline-panel, .timeline-blank, .ruler {
+  background: var(--slu-bg);
+  border-color: var(--slu-line);
+}
+.app-header, .tool-rail, .library-panel, .inspector, .library-filters,
+.library-footnote, .project-card, .inspector-section, .inspector-tabs,
+.selected-clip-name, .timeline-toolbar, .track-row, .status-bar,
+.modal-actions, .shortcut-grid > div, .tracking-settings fieldset,
+.transition-pair, .speed-summary {
+  border-color: var(--slu-line);
+}
+.panel-heading, .section-heading > button, .section-label,
+.timeline-title, .library-intro h2, .library-empty h3,
+.project-card h3, .settings-values dd, .source-info > span,
+.tracking-settings legend, .caption-font-name, .speed-summary dd {
+  color: var(--slu-ink);
+}
+.text-button, .icon-button, .panel-heading > svg, .section-heading > button > svg,
+.tool-rail > button, .library-filters button, .inspector-tabs button,
+.monitor-tabs > button, .field-label, .number-field, .inline-field,
+.slider-field > div, .slider-value, .preview-meta, .preview-quality,
+.project-summary, .timecode, .source-heading > small,
+.source-marks > span, .source-marks button, .source-transport > .timecode,
+.selected-clip-name > span, .selected-clip-name > small,
+.keyframe-property, .keyframe-property > span:last-child,
+.speed-graph-heading, .speed-summary dt, .transition-duration-readout,
+.transition-pair, .tracking-source span, .tracking-status,
+.tracking-transport label, .tracking-range label, .tracking-progress,
+.tracking-settings .text-button, .tracking-anchors > span {
+  color: var(--slu-muted);
+}
+.functional-empty > span, .functional-note, .field-note, .library-footnote,
+.library-empty p, .library-intro p, .library-hint, .empty-search,
+.supported-formats, .media-spec, .asset-proxy-button,
+.effect-card small, .settings-values dt, .settings-about,
+.settings-card p, .settings-card > small, .settings-paths label,
+.toggle-row small, .source-info small, .number-field small,
+.caption-word-provenance, .caption-font-name small,
+.transition-library-note, .timeline-footer, .status-bar,
+.status-bar button, .status-version, .context-caption, .timeline-context kbd,
+.ruler-label, .ruler-ticks > span, .track-controls > span, .track-drop-hint {
+  color: var(--slu-muted);
+}
+.project-title > span, .project-title > span.unsaved,
+.media-card-info, .track-name input, .number-field input[type=number],
+.selected-clip-name input, .text-editor, .caption-row textarea {
+  color: var(--slu-ink);
+}
+.media-card-info > button, .search-field, .search-field button,
+.track-icon, .track-order > button, .track-controls > button,
+.dropdown kbd, .status-separator {
+  color: #929087;
+}
+.search-field input::placeholder {
+  color: #85837c;
+}
+.timecode > b, .keyframe-info, .scope-time {
+  color: var(--slu-ink);
+}
+
+/* Controls keep their existing size and keyboard focus geometry. */
+input, textarea, select {
+  background: var(--slu-input);
+  border-color: var(--slu-line-strong);
+  color: var(--slu-ink);
+}
+.number-field > div, .number-field input[type=color], .inline-field select,
+.selected-clip-name input, .text-editor, .source-marks input,
+.form-field select, .form-field input, .keyframe-property select,
+.keyframe-list select, .speed-control-row > select,
+.speed-graph-heading select, .speed-point-toolbar select,
+.audio-meter-heading select, .eq-toolbar select, .eq-band-options select,
+.tracking-settings input, .tracking-settings select, .tracking-transport input,
+.caption-color input[type=color], .search-field {
+  background: var(--slu-input);
+  border-color: var(--slu-line-strong);
+  color: var(--slu-ink);
+}
+.project-title input, .search-field input, .track-name input,
+.number-field input[type=number], .caption-row textarea {
+  background: transparent;
+}
+.project-title input:hover, .project-title input:focus {
+  background: var(--slu-raised);
+  border-color: var(--slu-line-strong);
+}
+input:focus, textarea:focus, select:focus,
+.number-field > div:focus-within, .search-field:focus-within,
+.caption-row textarea:focus {
+  border-color: var(--slu-selected-line);
+}
+.caption-row textarea:focus {
+  background: var(--slu-input);
+}
+input[type=range] {
+  background: var(--slu-line-strong);
+}
+.tracking-scrubber, .tracking-check input, .tracking-progress progress,
+.eq-enable input {
+  accent-color: var(--slu-accent);
+}
+::selection {
+  background: #755c3b;
+  color: var(--slu-ink);
+}
+::-webkit-scrollbar-thumb {
+  background: #45443e;
+  border-color: var(--slu-surface);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #646157;
+}
+.button.primary, .media-add {
+  background: var(--slu-accent);
+  color: #251c11;
+  border-color: var(--slu-accent);
+}
+.button.primary:hover:not(:disabled), .media-add:hover {
+  background: #ffe3bf;
+  border-color: #ffe3bf;
+}
+.button.secondary, .aspect-grid > button, .preset-buttons > button,
+.text-style-row > button, .segmented > button, .quality-options > button,
+.transition-library-grid > button, .transition-kind-grid > button,
+.caption-word-strip button, .eq-band-tabs button, .color-channel {
+  background: var(--slu-raised);
+  border-color: var(--slu-line-strong);
+}
+.button.secondary, .aspect-grid > button, .preset-buttons > button,
+.text-style-row > button, .segmented > button, .quality-options > button,
+.transition-library-grid > button, .transition-kind-grid > button,
+.caption-word-strip button {
+  color: var(--slu-ink);
+}
+.button.secondary:hover:not(:disabled), .text-button:hover,
+.icon-button:hover, .tool-rail > button:hover,
+.dropdown > button:hover, .timeline-context > button:hover,
+.play-button:hover:not(:disabled), .recovery-list > button:hover {
+  background: var(--slu-hover);
+  color: var(--slu-ink);
+  border-color: var(--slu-line-strong);
+}
+.icon-button.bordered, .segmented {
+  border-color: var(--slu-line-strong);
+}
+.icon-button.active, .tool-rail > button.active,
+.aspect-grid > button.active, .preset-buttons > button.active,
+.text-style-row > button.active, .segmented > button.active,
+.quality-options > button.active, .transition-kind-grid > button.active,
+.tracking-anchors > div.active, .caption-word-strip button.selected {
+  background: var(--slu-selected);
+  border-color: var(--slu-selected-line);
+  color: var(--slu-accent);
+}
+.monitor-tabs > button.active, .inspector-tabs button.active,
+.text-button.accent, .status-bar button.active, .status-bar button:hover,
+.library-filters button:hover, .look-tile.active > span, .speed-seek {
+  color: var(--slu-accent);
+  border-color: var(--slu-selected-line);
+}
+.library-filters button.active {
+  color: var(--slu-ink);
+  background: var(--slu-hover);
+}
+.play-button {
+  background: var(--slu-raised);
+  border-color: var(--slu-line-strong);
+  color: var(--slu-ink);
+}
+
+/* Library cards and captions retain their rendered thumbnail content. */
+.library-empty, .text-template, .effect-card, .settings-card,
+.feature-card, .project-icon, .import-icon, .tip-card,
+.caption-list > button, .caption-row, .caption-library-card,
+.caption-style-tile, .keyframe-list > div, .recovery-list > button {
+  background: var(--slu-raised);
+  border-color: var(--slu-line);
+}
+.text-template > div:last-child, .hsl-controls,
+.caption-style-editor .inspector-section, .caption-word-editor {
+  border-color: var(--slu-line);
+}
+.media-thumb {
+  background: var(--slu-raised);
+  border-color: var(--slu-line);
+  color: var(--slu-muted);
+}
+.thumb-audio {
+  background: #24302b;
+  color: #abc4b6;
+}
+.media-card.media-selected, .caption-list > button.active, .caption-row.active {
+  background: var(--slu-selected);
+  border-color: var(--slu-selected-line);
+}
+.media-card:hover .media-thumb, .text-template:hover,
+.effect-card:hover, .effect-card.active, .caption-style-tile:hover,
+.transition-library-grid > button:hover:not(:disabled),
+.transition-kind-grid > button:hover:not(:disabled),
+.keyframe-list > div.active, .look-tile.active .look-swatch {
+  border-color: var(--slu-selected-line);
+}
+.effect-card.active {
+  box-shadow: 0 0 0 1px #9b7b5340;
+}
+.media-card:hover .media-thumb > img {
+  transform: none;
+}
+.count-badge, .section-label > b, .pill, .local-badge, .encoder-tags span,
+.proxy-mark, .keycap, .shortcut-grid kbd {
+  background: var(--slu-hover);
+  border-color: var(--slu-line-strong);
+  color: var(--slu-muted);
+}
+.caption-time, .caption-list small, .caption-index, .text-template span,
+.text-template > div:last-child > svg, .look-tile > span,
+.settings-card > span, .settings-card > svg, .project-icon, .import-icon,
+.tip-card, .tip-card p, .system-mini, .system-mini b, .system-mini small {
+  color: var(--slu-muted);
+}
+.caption-list p, .feature-card h2, .small-feature h3 {
+  color: var(--slu-ink);
+}
+.feature-card p, .feature-card > small {
+  color: var(--slu-muted);
+}
+.feature-icon {
+  background: var(--slu-hover);
+  border-color: var(--slu-line-strong);
+  color: var(--slu-muted);
+}
+.settings-paths code {
+  color: var(--slu-muted);
+  background: var(--slu-input);
+}
+.caption-word-strip button.playing {
+  color: var(--slu-accent);
+  background: var(--slu-selected);
+}
+
+/* Track colors distinguish media kinds without a saturated panel background. */
+.track-lane, .lane-audio, .lane-text {
+  background-color: #121211;
+  background-image: linear-gradient(to right, #34332f55 1px, transparent 1px);
+}
+.timeline-clip {
+  background: #363832;
+  border-color: #696d5e;
+  box-shadow: 0 1px 3px #0003;
+}
+.clip-audio {
+  background: #293b32;
+  border-color: #546d5e;
+}
+.clip-text {
+  background: #3c343e;
+  border-color: #77657b;
+}
+.timeline-clip.selected, .clip-audio.selected, .clip-text.selected {
+  border-color: var(--slu-accent);
+  box-shadow: 0 0 0 1px #ffd6a04d;
+}
+.timeline-clip:hover {
+  filter: none;
+}
+.clip-label, .clip-audio .clip-label {
+  background: #0d0d0d55;
+  color: var(--slu-ink);
+}
+.clip-text .clip-label {
+  background: transparent;
+}
+.clip-label b {
+  color: #c6c4bb;
+}
+.waveform, .clip-audio .waveform {
+  fill: #a2b7a8;
+}
+.waveform-pending, .track-audio .track-icon {
+  color: #a2b7a8;
+}
+.track-text .track-icon {
+  color: #b7a6bc;
+}
+.track-controls > button:hover, .track-controls > button.active {
+  color: var(--slu-accent);
+}
+.track-controls > button.solo-active {
+  color: var(--slu-accent);
+  background: var(--slu-selected);
+}
+.track-controls > button.muted {
+  color: var(--slu-error);
+}
+.track-solo .track-label {
+  box-shadow: inset 2px 0 var(--slu-selected-line);
+}
+.ruler-ticks > span {
+  border-color: var(--slu-line-strong);
+}
+.trim-handle {
+  background: #ffd6a0b3;
+}
+.fade-handle {
+  background: #c6c4bb;
+}
+.clip-keyframe, .snap-guide {
+  background: var(--slu-accent);
+}
+.playhead-line, .playhead-head {
+  background: var(--slu-ink);
+  box-shadow: none;
+}
+.timeline-selection-box {
+  border-color: var(--slu-selected-line);
+  background: #ffd6a01a;
+}
+.source-range-fill {
+  background: #ffd6a026;
+  border-color: var(--slu-selected-line);
+}
+.timeline-transition {
+  background: repeating-linear-gradient(135deg, #45433be8, #45433be8 4px, #36352ee8 4px, #36352ee8 8px);
+  border-color: #898477;
+  color: var(--slu-ink);
+}
+.timeline-transition.selected {
+  background: var(--slu-selected);
+  border-color: var(--slu-accent);
+  box-shadow: 0 0 0 2px #ffd6a033;
+}
+.transition-add-button {
+  background: #20201ef0;
+  border-color: #898477;
+  color: var(--slu-ink);
+}
+.transition-add-button:hover {
+  background: var(--slu-selected);
+  border-color: var(--slu-selected-line);
+}
+.transition-pair > svg {
+  color: var(--slu-muted);
+}
+.panel-divider {
+  background: var(--slu-bg);
+  border-color: var(--slu-line);
+}
+.panel-divider:hover, .track-height-handle:hover {
+  background: #7b6446;
+}
+.selection-count {
+  color: var(--slu-accent);
+}
+
+/* Graph chrome changes separately from RGB channels, scopes and level colors. */
+.keyframe-graph-background {
+  fill: var(--slu-input);
+  stroke: var(--slu-line-strong);
+}
+.keyframe-grid line, .speed-grid line, .speed-time-grid, .eq-graph line {
+  stroke: var(--slu-line);
+}
+.keyframe-grid text, .keyframe-axis, .speed-grid text,
+.speed-axis-time, .eq-graph text, .color-graph text {
+  fill: var(--slu-muted);
+}
+.keyframe-curve, .speed-path, .eq-response {
+  stroke: var(--slu-accent);
+}
+.keyframe-playhead, .speed-playhead {
+  stroke: var(--slu-ink);
+}
+.keyframe-point {
+  fill: var(--slu-raised);
+  stroke: var(--slu-accent);
+}
+.keyframe-point.selected, .speed-point.selected {
+  fill: var(--slu-accent);
+  stroke: var(--slu-ink);
+}
+.keyframe-point:focus, .speed-point:hover, .speed-point:focus {
+  stroke: var(--slu-ink);
+}
+.speed-point {
+  fill: #c7b08f;
+  stroke: var(--slu-input);
+}
+.speed-area {
+  fill: var(--slu-accent);
+}
+.speed-unity line {
+  stroke: #78766e;
+}
+.speed-unity text {
+  fill: var(--slu-ink);
+}
+.speed-graph, .eq-graph, .scope-panel, .audio-meter {
+  background: var(--slu-input);
+  border-color: var(--slu-line);
+}
+.color-graph-bg {
+  fill: var(--slu-input);
+}
+.color-grid {
+  stroke: var(--slu-line);
+}
+.color-point {
+  fill: var(--slu-raised);
+}
+.color-point.selected {
+  fill: currentColor;
+}
+.color-channel.active, .eq-band-tabs button.active {
+  background: var(--slu-hover);
+}
+.scope-toolbar button, .scope-range, .audio-meter-heading,
+.audio-meter-row, .audio-meter-scale {
+  color: var(--slu-muted);
+}
+.scope-toolbar button {
+  border-color: var(--slu-line-strong);
+}
+.scope-toolbar button.active {
+  color: var(--slu-accent);
+  border-color: var(--slu-selected-line);
+}
+.audio-meter-track {
+  background: #080807;
+  border-color: var(--slu-line);
+}
+.meter-maximum:not(.overload) {
+  background: var(--slu-raised);
+  border-color: var(--slu-line-strong);
+  color: var(--slu-ink);
+}
+.meter-maximum:focus-visible {
+  outline-color: var(--slu-accent);
+}
+
+/* Floating UI and status feedback use the same surface palette. */
+.modal-backdrop {
+  background: #050504b8;
+}
+.modal, .jobs-panel, .dropdown, .timeline-context {
+  background: #1c1c1a;
+  border-color: var(--slu-line-strong);
+}
+.jobs-panel .panel-heading {
+  background: var(--slu-raised);
+}
+.export-summary, .export-device, .transcribe-source, .model-setup,
+.recovery-card, .job-card, .tracking-anchors > div {
+  background: var(--slu-surface);
+  border-color: var(--slu-line);
+}
+.modal-heading h2, .export-summary strong, .transcribe-source b,
+.recovery-card h3, .job-title b, .dropdown > button,
+.timeline-context > button, .tracking-anchors button {
+  color: var(--slu-ink);
+}
+.modal-heading p, .export-summary span:not(.local-badge),
+.form-field > span, .quality-options small, .quality-options > button.active small,
+.export-device, .export-device b, .export-device small, .transcribe-source,
+.transcribe-source span, .model-setup, .model-setup p,
+.shortcut-grid > div, .recovery-card p, .recovery-card small,
+.job-title, .job-title > span, .job-title > button, .job-card p,
+.jobs-empty, .browser-fallback p {
+  color: var(--slu-muted);
+}
+.recovery-icon, .export-summary-icon {
+  background: var(--slu-hover);
+  border-color: var(--slu-line-strong);
+  color: var(--slu-muted);
+}
+.timeline-context hr {
+  border-color: var(--slu-line);
+}
+.progress-track {
+  background: var(--slu-line);
+}
+.toast {
+  background: var(--slu-raised);
+  border-color: var(--slu-line-strong);
+  color: #abc4b6;
+}
+.toast > span {
+  color: var(--slu-ink);
+}
+.toast > button {
+  color: var(--slu-muted);
+}
+.toast-error, .job-error {
+  background: var(--slu-error-bg);
+  border-color: #79534c;
+}
+.toast-error, .toast-error > span, .job-error .job-title,
+.job-error p, .enhancement-error, .audio-meter-error {
+  color: var(--slu-error);
+}
+.inline-warning, .tracking-error, .gpu-issues > div {
+  background: #30271d;
+  border-color: #715b3f;
+  color: #e0c19a;
+}
+.drop-overlay {
+  background: #17140fe8;
+  border-color: var(--slu-selected-line);
+  color: var(--slu-accent);
+}
+.drop-overlay p {
+  color: var(--slu-muted);
+}
+.gpu-empty, .source-error, .preview-media-error {
+  background: #111110ed;
+  color: var(--slu-muted);
+}
+.preview-media-error > span {
+  color: var(--slu-muted);
+}
+.preview-media-error > button {
+  background: var(--slu-accent);
+  color: #251c11;
+}
+.gpu-stats, .gpu-seeking {
+  background: #161615ed;
+  border-color: var(--slu-line-strong);
+  color: var(--slu-muted);
+}
+.gpu-stats b {
+  color: var(--slu-ink);
+}
+.tracking-view, .enhancement-pictures figure {
+  background: var(--slu-bg);
+  border-color: var(--slu-line);
+}
+.tracking-loading, .enhancement-video-message {
+  background: #0d0d0dcc;
+  color: var(--slu-muted);
+}
+.enhancement-pictures figcaption {
+  color: var(--slu-ink);
+  background: var(--slu-surface);
+}

@@ -1,0 +1,20 @@
+SLU Studio — 자동 자막
+
+Whisper.cpp CPU 엔진을 포함합니다. Base, Small, Large-v3-turbo Q5 모델과
+선택적 CUDA 음성 엔진은 앱에서 설치하며 고정 SHA-256을 확인합니다.
+모델 설치 후 음성 인식은 PC에서 실행하며 영상·음성을 업로드하지 않습니다.
+
+선택한 클립의 원본 구간을 인식한 뒤 편집 시간으로 매핑합니다.
+토큰의 추정 시간을 사용하여 문장을 지정한 글자 수와 시간으로 나눕니다.
+무음·음악·겹친 목소리와 고유명사에서는 문구와 타이밍을 검토하세요.
+
+파일 자막은 UTF-8 SRT/WebVTT 읽기와 SRT 쓰기를 지원합니다.
+겹치는 자막과 여러 줄 텍스트를 보존하며 모양은 프로젝트에서 편집합니다.
+
+재검증:
+  npm test
+  npx tsx scripts/speech-integration.ts
+
+공식 문서:
+  https://github.com/ggml-org/whisper.cpp
+  https://huggingface.co/ggerganov/whisper.cpp

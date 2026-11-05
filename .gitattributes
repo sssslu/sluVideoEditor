@@ -1,0 +1,3 @@
+# Keep verified source and license bytes intact across Windows/Linux checkouts.
+# Build recipes and model provenance include exact source hashes.
+* -text

@@ -1,0 +1,437 @@
+[
+  {
+    "fixture": "jfk",
+    "engine": "whisper.cpp 1.8.7 CPU",
+    "model": "multilingual base",
+    "transcription": [
+      {
+        "offsets": {
+          "from": 0,
+          "to": 10500
+        },
+        "text": " And so my fellow Americans ask not what your country can do for you, ask what you can do for your country.",
+        "tokens": [
+          {
+            "text": "[_BEG_]",
+            "offsets": {
+              "from": 0,
+              "to": 0
+            }
+          },
+          {
+            "text": " And",
+            "offsets": {
+              "from": 320,
+              "to": 400
+            }
+          },
+          {
+            "text": " so",
+            "offsets": {
+              "from": 400,
+              "to": 520
+            }
+          },
+          {
+            "text": " my",
+            "offsets": {
+              "from": 690,
+              "to": 940
+            }
+          },
+          {
+            "text": " fellow",
+            "offsets": {
+              "from": 940,
+              "to": 1750
+            }
+          },
+          {
+            "text": " Americans",
+            "offsets": {
+              "from": 1750,
+              "to": 2110
+            }
+          },
+          {
+            "text": " ask",
+            "offsets": {
+              "from": 3290,
+              "to": 3650
+            }
+          },
+          {
+            "text": " not",
+            "offsets": {
+              "from": 4020,
+              "to": 4280
+            }
+          },
+          {
+            "text": " what",
+            "offsets": {
+              "from": 4280,
+              "to": 4990
+            }
+          },
+          {
+            "text": " your",
+            "offsets": {
+              "from": 5410,
+              "to": 5500
+            }
+          },
+          {
+            "text": " country",
+            "offsets": {
+              "from": 5500,
+              "to": 6390
+            }
+          },
+          {
+            "text": " can",
+            "offsets": {
+              "from": 6390,
+              "to": 6630
+            }
+          },
+          {
+            "text": " do",
+            "offsets": {
+              "from": 6640,
+              "to": 6920
+            }
+          },
+          {
+            "text": " for",
+            "offsets": {
+              "from": 7010,
+              "to": 7140
+            }
+          },
+          {
+            "text": " you",
+            "offsets": {
+              "from": 7160,
+              "to": 7280
+            }
+          },
+          {
+            "text": ",",
+            "offsets": {
+              "from": 7280,
+              "to": 7490
+            }
+          },
+          {
+            "text": " ask",
+            "offsets": {
+              "from": 8190,
+              "to": 8490
+            }
+          },
+          {
+            "text": " what",
+            "offsets": {
+              "from": 8630,
+              "to": 8750
+            }
+          },
+          {
+            "text": " you",
+            "offsets": {
+              "from": 8910,
+              "to": 9000
+            }
+          },
+          {
+            "text": " can",
+            "offsets": {
+              "from": 9000,
+              "to": 9360
+            }
+          },
+          {
+            "text": " do",
+            "offsets": {
+              "from": 9360,
+              "to": 9520
+            }
+          },
+          {
+            "text": " for",
+            "offsets": {
+              "from": 9520,
+              "to": 9760
+            }
+          },
+          {
+            "text": " your",
+            "offsets": {
+              "from": 9760,
+              "to": 9990
+            }
+          },
+          {
+            "text": " country",
+            "offsets": {
+              "from": 10000,
+              "to": 10350
+            }
+          },
+          {
+            "text": ".",
+            "offsets": {
+              "from": 10460,
+              "to": 10500
+            }
+          },
+          {
+            "text": "[_TT_525]",
+            "offsets": {
+              "from": 10500,
+              "to": 10500
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "fixture": "korean",
+    "engine": "whisper.cpp 1.8.7 CPU",
+    "model": "multilingual base",
+    "transcription": [
+      {
+        "offsets": {
+          "from": 0,
+          "to": 1740
+        },
+        "text": " 안녕하세요.",
+        "tokens": [
+          {
+            "text": "[_BEG_]",
+            "offsets": {
+              "from": 0,
+              "to": 0
+            }
+          },
+          {
+            "text": " 안녕하세요",
+            "offsets": {
+              "from": 120,
+              "to": 960
+            }
+          },
+          {
+            "text": ".",
+            "offsets": {
+              "from": 1740,
+              "to": 1740
+            }
+          },
+          {
+            "text": "[_TT_87]",
+            "offsets": {
+              "from": 1740,
+              "to": 1740
+            }
+          }
+        ]
+      },
+      {
+        "offsets": {
+          "from": 1740,
+          "to": 5580
+        },
+        "text": " 오늘은 영상 편집 프로그램을 테스트 합니다.",
+        "tokens": [
+          {
+            "text": " 오늘은",
+            "offsets": {
+              "from": 1860,
+              "to": 2340
+            }
+          },
+          {
+            "text": " 영상",
+            "offsets": {
+              "from": 2460,
+              "to": 2700
+            }
+          },
+          {
+            "text": " 편",
+            "offsets": {
+              "from": 3010,
+              "to": 3010
+            }
+          },
+          {
+            "text": "집",
+            "offsets": {
+              "from": 3010,
+              "to": 3220
+            }
+          },
+          {
+            "text": " 프로",
+            "offsets": {
+              "from": 3580,
+              "to": 3640
+            }
+          },
+          {
+            "text": "그램",
+            "offsets": {
+              "from": 3640,
+              "to": 4000
+            }
+          },
+          {
+            "text": "을",
+            "offsets": {
+              "from": 4060,
+              "to": 4260
+            }
+          },
+          {
+            "text": " 테",
+            "offsets": {
+              "from": 4330,
+              "to": 4480
+            }
+          },
+          {
+            "text": "스트",
+            "offsets": {
+              "from": 4480,
+              "to": 4870
+            }
+          },
+          {
+            "text": " 합니다",
+            "offsets": {
+              "from": 5050,
+              "to": 5570
+            }
+          },
+          {
+            "text": ".",
+            "offsets": {
+              "from": 5580,
+              "to": 5580
+            }
+          },
+          {
+            "text": "[_TT_279]",
+            "offsets": {
+              "from": 5580,
+              "to": 5580
+            }
+          }
+        ]
+      },
+      {
+        "offsets": {
+          "from": 5580,
+          "to": 9840
+        },
+        "text": " 자막과 음악을 넣어 멋진 영상을 만들어보세요.",
+        "tokens": [
+          {
+            "text": " 자막",
+            "offsets": {
+              "from": 5700,
+              "to": 6000
+            }
+          },
+          {
+            "text": "과",
+            "offsets": {
+              "from": 6000,
+              "to": 6180
+            }
+          },
+          {
+            "text": " 음악",
+            "offsets": {
+              "from": 6300,
+              "to": 6540
+            }
+          },
+          {
+            "text": "을",
+            "offsets": {
+              "from": 6840,
+              "to": 6840
+            }
+          },
+          {
+            "text": " 넣",
+            "offsets": {
+              "from": 6840,
+              "to": 7050
+            }
+          },
+          {
+            "text": "어",
+            "offsets": {
+              "from": 7260,
+              "to": 7260
+            }
+          },
+          {
+            "text": " 멋",
+            "offsets": {
+              "from": 7420,
+              "to": 7470
+            }
+          },
+          {
+            "text": "진",
+            "offsets": {
+              "from": 7470,
+              "to": 7680
+            }
+          },
+          {
+            "text": " 영상을",
+            "offsets": {
+              "from": 7680,
+              "to": 8310
+            }
+          },
+          {
+            "text": " 만들",
+            "offsets": {
+              "from": 8310,
+              "to": 8710
+            }
+          },
+          {
+            "text": "어보세요",
+            "offsets": {
+              "from": 8890,
+              "to": 9570
+            }
+          },
+          {
+            "text": ".",
+            "offsets": {
+              "from": 9570,
+              "to": 9620
+            }
+          },
+          {
+            "text": "[_TT_492]",
+            "offsets": {
+              "from": 9840,
+              "to": 9840
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,8 @@
+.audio-eq-editor{border:0;margin:0;padding:0;min-width:0;display:grid;gap:10px}
+.eq-toolbar,.eq-band-options{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.eq-toolbar select,.eq-band-options select{min-width:0;flex:1;height:27px;padding:3px 6px;background:var(--panel-2,#181d23);border:1px solid var(--border,#343b45);border-radius:4px;color:inherit;font:inherit}
+.eq-enable{display:flex;align-items:center;gap:5px;white-space:nowrap;font-size:11px}.eq-enable input{accent-color:#68d7c1}
+.eq-graph{display:block;width:100%;height:auto;background:#11151a;border:1px solid #343b45;border-radius:5px;touch-action:none;overflow:visible}
+.eq-graph line{stroke:#303740;stroke-width:.7}.eq-graph text{fill:#8997a7;font:9px sans-serif}.eq-response{fill:none;stroke:#69d9bc;stroke-width:1.7;pointer-events:none}
+.eq-graph.bypassed .eq-response{stroke:#77818d;stroke-dasharray:4 3}.eq-point circle{fill:currentColor;stroke:#141a20;stroke-width:2;cursor:grab;outline:0}.eq-point.off circle{fill:#172029;stroke:currentColor;stroke-width:1.5}.eq-point.selected circle,.eq-point circle:focus-visible{stroke:#fff;stroke-width:1.5}.eq-point circle:active{cursor:grabbing}
+.eq-band-tabs{display:flex;gap:4px}.eq-band-tabs button{flex:1;height:25px;background:#252b33;border:1px solid transparent;border-radius:3px;font:11px inherit}.eq-band-tabs button.active{border-color:currentColor;background:#333b45}.eq-band-tabs button.off{opacity:.55}.audio-eq-editor:disabled{opacity:.55}.audio-eq-editor:disabled .eq-point circle{cursor:default}

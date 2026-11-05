@@ -1,0 +1,48 @@
+{
+  "version": "4.0.0",
+  "url": "https://breakfastquay.com/files/releases/rubberband-4.0.0.tar.bz2",
+  "sourceSha256": "af050313ee63bc18b35b2e064e5dce05b276aaf6d1aa2b8a82ced1fe2f8028e9",
+  "license": "GPL-2.0-or-later",
+  "helperLicense": "GPL-3.0-or-later",
+  "modification": "Continuous exact inverse time map evaluated per R3 analysis hop; source inter-channel phase relationship retained per FFT bin; source patch included",
+  "recipe": {
+    "native/audio-stretch.cpp": "f5b0e14b0abbb786e27a64e6d0763b23bb55204156dc524bf6a17a0853602721",
+    "native/patch-rubberband.mjs": "3810f3c2446a4091216162c47494a9ba5ad6f4234c37fac16f22d64677fbac23",
+    "scripts/build-audio-stretch.mjs": "7fc6667d799e941e126d3eac65eeda4632118521dfe7e87845edc56248069f9f"
+  },
+  "helper": "resources/bin/slu-audio-stretch.exe",
+  "helperSha256": "fd9f574cfe8c2472ac33534c6be5a1702f8b95dddef88b4dd71a9b8aa7c8546a",
+  "helperBytes": 1523712,
+  "banner": "SLU Audio Stretch3 / Rubber Band4.0.0 + SLU exact-hop time map / extended render ranges / 48000Hz stereo float32 / GPL-3.0-or-later",
+  "compiler": "g++.exe (MinGW-W64 x86_64-ucrt-posix-seh, built by Brecht Sanders, r3) 16.1.0",
+  "dependencies": [
+    "KERNEL32.dll",
+    "api-ms-win-crt-convert-l1-1-0.dll",
+    "api-ms-win-crt-environment-l1-1-0.dll",
+    "api-ms-win-crt-filesystem-l1-1-0.dll",
+    "api-ms-win-crt-heap-l1-1-0.dll",
+    "api-ms-win-crt-locale-l1-1-0.dll",
+    "api-ms-win-crt-math-l1-1-0.dll",
+    "api-ms-win-crt-private-l1-1-0.dll",
+    "api-ms-win-crt-runtime-l1-1-0.dll",
+    "api-ms-win-crt-stdio-l1-1-0.dll",
+    "api-ms-win-crt-string-l1-1-0.dll",
+    "api-ms-win-crt-time-l1-1-0.dll",
+    "api-ms-win-crt-utility-l1-1-0.dll"
+  ],
+  "buildCommand": [
+    "g++.exe",
+    "-O3",
+    "-std=c++17",
+    "-static",
+    "-static-libgcc",
+    "-static-libstdc++",
+    "-s",
+    "-I",
+    ".build-cache/audio-stretch/rubberband-4.0.0",
+    "native/audio-stretch.cpp",
+    "-o",
+    "resources/bin/slu-audio-stretch.exe"
+  ],
+  "builtAt": "2026-10-30T10:00:46.535Z"
+}

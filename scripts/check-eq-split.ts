@@ -1,0 +1,12 @@
+import {promises as fs} from 'node:fs';
+import path from 'node:path';
+import {newProject,newClip,splitClip} from '../shared/project';
+import {defaultEQ} from '../shared/audio-eq';
+import {TimelineAudioMixer} from '../electron/render-audio';
+import {probeMedia,runProcess} from '../electron/media';
+const root=path.resolve('.test-artifacts/audio-eq/split-review'),rate=48000,ctx={ffmpeg:path.resolve('resources/bin/ffmpeg.exe'),ffprobe:path.resolve('resources/bin/ffprobe.exe'),cacheDir:path.join(root,'cache')};await fs.mkdir(root,{recursive:true});
+const input=path.join(root,'tones.wav');await runProcess(ctx.ffmpeg,['-v','error','-nostdin','-y','-f','lavfi','-i','aevalsrc=0.03*sin(2*PI*20*t)+0.04*sin(2*PI*437*t)|0.02*sin(2*PI*900*t):s=48000:d=4','-c:a','pcm_f32le',input]);
+const media=await probeMedia(input,ctx,undefined,{derivatives:false}),base=newProject(),clip={...newClip('audio-1',media),in:.4,duration:3};base.media=[media];base.clips=[clip];
+const mix=async(project:typeof base)=>{const mixer=new TimelineAudioMixer(project,ctx.ffmpeg,new AbortController().signal),parts:Buffer[]=[];try{for(let at=0;at<3*rate;at+=4096)parts.push(await mixer.mix(at,Math.min(4096,3*rate-at)));return Buffer.concat(parts);}finally{await mixer.close();}};
+const reports=[];for(const type of ['flat','peaking437','peaking20','highpass'] as const){const eq=defaultEQ();eq.bands.forEach(b=>b.enabled=false);if(type!=='flat')eq.bands[2]={enabled:true,type:type==='highpass'?'highpass':'peaking',frequency:type==='peaking20'?20:type==='highpass'?80:437,gain:18,q:type==='peaking20'?10:1};const original={...base,clips:[{...clip,audioEQ:eq}]},split={...original,clips:splitClip(original.clips[0],1.137)!};const before=await mix(original),after=await mix(split);let max=0,sum=0,lastDifferent=0;for(let frame=0;frame<3*rate;frame++){let delta=0;for(let ch=0;ch<2;ch++)delta=Math.max(delta,Math.abs(before.readFloatLE(frame*8+ch*4)-after.readFloatLE(frame*8+ch*4)));max=Math.max(max,delta);sum+=delta*delta;if(delta>1e-5)lastDifferent=frame/rate;}reports.push({type,split:1.137,maximumSampleDifference:max,rmsDifference:Math.sqrt(sum/(3*rate)),lastDifferenceAbove1eMinus5:lastDifferent});}
+await fs.writeFile(path.join(root,'results.json'),JSON.stringify({scope:'Synthetic split transient investigation; differences are findings, not passing acceptance checks.',reports},null,2));console.log(JSON.stringify(reports));

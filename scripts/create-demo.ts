@@ -1,0 +1,17 @@
+import {promises as fs} from 'node:fs';
+import path from 'node:path';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {probeMedia} from '../electron/media';
+import {newProject,newClip} from '../shared/project';
+const exec=promisify(execFile),folder=path.resolve('examples');await fs.mkdir(folder,{recursive:true});
+const ctx={ffmpeg:path.resolve('resources/bin/ffmpeg.exe'),ffprobe:path.resolve('resources/bin/ffprobe.exe'),cacheDir:path.resolve('.test-artifacts/demo-cache')};
+const mediaPath=path.join(folder,'01 - Aurora motion.mp4');
+await exec(ctx.ffmpeg,['-hide_banner','-loglevel','error','-y','-f','lavfi','-i','gradients=s=1280x720:r=30:c0=0x091a27:c1=0x36a395:c2=0x102b45:c3=0xbfd6c5:n=4:type=spiral:speed=0.045:seed=12:d=12','-f','lavfi','-i','aevalsrc=0.025*(sin(2*PI*220*t)+sin(2*PI*277.18*t)+sin(2*PI*329.63*t)):s=48000:d=12','-vf','noise=alls=2:allf=t','-af','afade=t=in:d=1,afade=t=out:st=10:d=2','-c:v','h264_nvenc','-preset','p4','-cq','23','-pix_fmt','yuv420p','-c:a','aac','-b:a','192k','-shortest',mediaPath],{windowsHide:true,maxBuffer:4*1024*1024});
+const media=await probeMedia(mediaPath,ctx),p=newProject();p.name='편집 예제';p.width=1280;p.height=720;p.media=[{...media,thumbnail:undefined,waveform:media.waveform}];
+const video=newClip('video-1',media);video.fadeIn=.5;video.fadeOut=1;p.clips=[video];
+const title=newClip('text-1');title.start=.5;title.duration=5;title.text='편집 예제';title.name='자막 1';title.fontSize=88;title.textStyle='title';title.y=-25;title.animation='fade';title.fadeIn=.7;title.fadeOut=.5;p.clips.push(title);
+const sub=newClip('text-1');sub.start=1;sub.duration=4.5;sub.text='첫 번째 자막';sub.name='자막 2';sub.fontSize=30;sub.y=72;sub.textStyle='minimal';sub.color='#d9f9ee';sub.animation='fade';p.clips.push(sub);
+const second=newClip('text-1');second.start=6;second.duration=4.7;second.text='두 번째 자막';second.name='자막 3';second.fontSize=48;second.textStyle='bold';second.animation='slide';second.y=0;second.fadeOut=.6;p.clips.push(second);
+const credit=newClip('text-1');credit.start=6.5;credit.duration=4;credit.text='마지막 자막';credit.name='자막 4';credit.fontSize=22;credit.y=80;credit.textStyle='minimal';credit.color='#b5e1d6';credit.animation='fade';p.clips.push(credit);
+await fs.writeFile(path.join(folder,'AURORA.sluproj'),JSON.stringify(p,null,2));console.log(path.join(folder,'AURORA.sluproj'));

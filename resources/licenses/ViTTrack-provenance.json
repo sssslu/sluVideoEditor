@@ -1,0 +1,74 @@
+{
+  "zoo": "48b10fa505aeb51fbd127fc60a5c660040e823b7",
+  "opencv": "d195a5ad7eb52aafc3585e494a9af2dc06a3b111",
+  "adapterAuthor": "Pengyu Liu",
+  "changes": "TypeScript port: bounded direct crop sampling, validation, reusable input buffers, review/loss hints. See electron/tracking-math.ts. ONNX weights are unmodified.",
+  "assets": [
+    {
+      "file": "resources/models/object-tracking-vit.onnx",
+      "url": "https://media.githubusercontent.com/media/opencv/opencv_zoo/48b10fa505aeb51fbd127fc60a5c660040e823b7/models/object_tracking_vittrack/object_tracking_vittrack_2023sep.onnx",
+      "bytes": 714726,
+      "sha256": "2990f0b7cd44d92afa48cd97db6de7be113fc1d9594fddb74e2725c10478e91d"
+    },
+    {
+      "file": "resources/licenses/ViTTrack-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/opencv/opencv_zoo/48b10fa505aeb51fbd127fc60a5c660040e823b7/models/object_tracking_vittrack/LICENSE",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "file": "resources/licenses/ViTTrack-OpenCV-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/opencv/opencv/d195a5ad7eb52aafc3585e494a9af2dc06a3b111/LICENSE",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "file": "resources/licenses/ViTTrack-upstream.cpp",
+      "url": "https://raw.githubusercontent.com/opencv/opencv/d195a5ad7eb52aafc3585e494a9af2dc06a3b111/modules/video/src/tracking/tracker_vit.cpp",
+      "bytes": 7878,
+      "sha256": "c0a3942fb97d1a62155153d91aae13dd10e9cb83f44d8b32b45693ac5c14c68b"
+    },
+    {
+      "file": "resources/licenses/ONNXRuntime-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.31.1/LICENSE",
+      "bytes": 1073,
+      "sha256": "2f07c72751aed99790b8a4869cf2311df85a860b22ded05fa22803587a48922c"
+    },
+    {
+      "file": "resources/licenses/ONNXRuntime-ThirdPartyNotices.txt",
+      "url": "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.31.1/ThirdPartyNotices.txt",
+      "bytes": 338088,
+      "sha256": "143764b952fdb1a7c69ce653bfba74a7744d6a8a573bfb73e235fba356c83de3"
+    },
+    {
+      "file": "resources/licenses/DXC-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/microsoft/DirectXShaderCompiler/b4711839e/LICENSE.TXT",
+      "bytes": 29241,
+      "sha256": "27a49e35d1da96eba18fba54bc882667ff0ff8c0254f16f2b6e165d605ba7df8"
+    },
+    {
+      "file": "resources/licenses/DirectML-LICENSE.txt",
+      "url": "https://api.nuget.org/v3-flatcontainer/microsoft.ai.directml/1.15.4/microsoft.ai.directml.1.15.4.nupkg",
+      "archiveSha256": "4e7cb7ddce8cf837a7a75dc029209b520ca0101470fcdf275c1f49736a3615b9",
+      "entry": "LICENSE.txt",
+      "bytes": 10439,
+      "sha256": "a05138e3a085ff60a44881eedfa58dccb03ecc1d7b1f6ae888418e8c2fec4b8d"
+    },
+    {
+      "file": "resources/licenses/DirectML-LICENSE-CODE.txt",
+      "url": "https://api.nuget.org/v3-flatcontainer/microsoft.ai.directml/1.15.4/microsoft.ai.directml.1.15.4.nupkg",
+      "archiveSha256": "4e7cb7ddce8cf837a7a75dc029209b520ca0101470fcdf275c1f49736a3615b9",
+      "entry": "LICENSE-CODE.txt",
+      "bytes": 1093,
+      "sha256": "903df5512f7d02609fed0c780a9b704f5a3eeb6e4d84ebe42a29845c81899a3c"
+    },
+    {
+      "file": "resources/licenses/DirectML-ThirdPartyNotices.txt",
+      "url": "https://api.nuget.org/v3-flatcontainer/microsoft.ai.directml/1.15.4/microsoft.ai.directml.1.15.4.nupkg",
+      "archiveSha256": "4e7cb7ddce8cf837a7a75dc029209b520ca0101470fcdf275c1f49736a3615b9",
+      "entry": "ThirdPartyNotices.txt",
+      "bytes": 4577,
+      "sha256": "2c95795c13ff48a58b6ed916f37901c23d964b5d9d601af422f17ad2172e7950"
+    }
+  ]
+}

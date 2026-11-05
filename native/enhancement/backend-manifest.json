@@ -1,0 +1,1367 @@
+{
+  "schemaVersion": 1,
+  "backendId": "seedvr2-3b-fp16-win-x64-v1",
+  "platform": "win32",
+  "architecture": "x64",
+  "pythonVersion": "3.13.17",
+  "pythonExecutable": "python/python.exe",
+  "pythonPath": {
+    "file": "python/python313._pth",
+    "content": "python313.zip\n.\n../vendor\nimport site\n"
+  },
+  "sourceRevision": "4490bd1f482e026674543386bb2a4d176da245b9",
+  "modelRevision": "09ced71023636e9bc8cdf9cdecfb2625d1e691e8",
+  "minimumFreeBytes": 32212254720,
+  "artifacts": [
+    {
+      "id": "python",
+      "filename": "python-3.13.17-embed-amd64.zip",
+      "url": "https://www.python.org/ftp/python/3.13.17/python-3.13.17-embed-amd64.zip",
+      "bytes": 11441267,
+      "sha256": "9e35319bffedab8b36ad44d8f377cb4f1733bcec257a0b6d04d94f01486ddb38",
+      "destination": "python",
+      "archive": {
+        "type": "zip",
+        "ignoredPaths": [
+          "vcruntime140.dll",
+          "vcruntime140_1.dll"
+        ]
+      },
+      "license": {
+        "expression": "PSF-2.0",
+        "source": "https://docs.python.org/3.13/license.html",
+        "included": [
+          "LICENSE.txt"
+        ]
+      },
+      "unpackedBytes": 22640861,
+      "maximumEntries": 34
+    },
+    {
+      "id": "seedvr-source",
+      "filename": "seedvr-upstream.zip",
+      "url": "https://codeload.github.com/numz/ComfyUI-SeedVR2_VideoUpscaler/zip/4490bd1f482e026674543386bb2a4d176da245b9",
+      "bytes": 4864981,
+      "sha256": "04c61842bc00fd8673e6bc9a3b1b1935955461f363791070ed14d67d2a2e77fb",
+      "destination": "upstream",
+      "archive": {
+        "type": "zip",
+        "stripPrefix": "ComfyUI-SeedVR2_VideoUpscaler-4490bd1f482e026674543386bb2a4d176da245b9/"
+      },
+      "license": {
+        "expression": "Apache-2.0",
+        "source": "https://github.com/numz/ComfyUI-SeedVR2_VideoUpscaler/blob/4490bd1f482e026674543386bb2a4d176da245b9/LICENSE",
+        "included": [
+          "LICENSE"
+        ]
+      },
+      "unpackedBytes": 5990958,
+      "maximumEntries": 159
+    },
+    {
+      "id": "torch",
+      "version": "2.9.1+cu128",
+      "filename": "torch-2.9.1+cu128-cp313-cp313-win_amd64.whl",
+      "url": "https://download-r2.pytorch.org/whl/cu128/torch-2.9.1%2Bcu128-cp313-cp313-win_amd64.whl",
+      "bytes": 2862036321,
+      "sha256": "ad9183864acdd99fc5143d7ca9d3d2e7ddfc9a9600ff43217825d4e5e9855ccc",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "BSD-3-Clause",
+        "classifiers": [],
+        "source": "https://pypi.org/project/torch/2.9.1+cu128/",
+        "included": [
+          "torch-2.9.1+cu128.dist-info/LICENSE",
+          "torch-2.9.1+cu128.dist-info/NOTICE"
+        ],
+        "bundled": [
+          "NVIDIA-CUDA-12.8.1-EULA.html",
+          "NVIDIA-cuDNN-9.10.2-EULA.html"
+        ]
+      },
+      "unpackedBytes": 4512708437,
+      "maximumEntries": 11588
+    },
+    {
+      "id": "torchvision",
+      "version": "0.24.1+cu128",
+      "filename": "torchvision-0.24.1+cu128-cp313-cp313-win_amd64.whl",
+      "url": "https://download-r2.pytorch.org/whl/cu128/torchvision-0.24.1%2Bcu128-cp313-cp313-win_amd64.whl",
+      "bytes": 9647923,
+      "sha256": "c38b0ece839de439de81ed0e81e915c200975972c0b9419608fa9568aa74ecec",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "BSD",
+        "classifiers": [],
+        "source": "https://pypi.org/project/torchvision/0.24.1+cu128/",
+        "included": [
+          "torchvision-0.24.1+cu128.dist-info/LICENSE"
+        ]
+      },
+      "unpackedBytes": 25526707,
+      "maximumEntries": 219
+    },
+    {
+      "id": "safetensors",
+      "version": "0.6.2",
+      "filename": "safetensors-0.6.2-cp38-abi3-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/2c/c3/c0be1135726618dc1e28d181b8c442403d8dbb9e273fd791de2d4384bcdd/safetensors-0.6.2-cp38-abi3-win_amd64.whl",
+      "bytes": 320192,
+      "sha256": "c7b214870df923cbc1593c3faee16bec59ea462758699bd3fee399d00aac072c",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": null,
+        "classifiers": [
+          "License :: OSI Approved :: Apache Software License"
+        ],
+        "source": "https://pypi.org/project/safetensors/0.6.2/",
+        "included": [
+          "safetensors-0.6.2.dist-info/licenses/LICENSE"
+        ]
+      },
+      "unpackedBytes": 767692,
+      "maximumEntries": 14
+    },
+    {
+      "id": "numpy",
+      "version": "2.2.6",
+      "filename": "numpy-2.2.6-cp313-cp313-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/cb/3b/d58c12eafcb298d4e6d0d40216866ab15f59e55d148a5658bb3132311fcf/numpy-2.2.6-cp313-cp313-win_amd64.whl",
+      "bytes": 12610885,
+      "sha256": "b0544343a702fa80c95ad5d3d608ea3599dd54d4632df855e4c8d24eb6ecfa1c",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": null,
+        "classifiers": [
+          "License :: OSI Approved :: BSD License"
+        ],
+        "source": "https://pypi.org/project/numpy/2.2.6/",
+        "included": [
+          "numpy/ma/LICENSE",
+          "numpy/random/LICENSE.md",
+          "numpy/_core/include/numpy/random/LICENSE.txt",
+          "numpy-2.2.6.dist-info/LICENSE.txt"
+        ]
+      },
+      "unpackedBytes": 42465826,
+      "maximumEntries": 986
+    },
+    {
+      "id": "tqdm",
+      "version": "4.67.1",
+      "filename": "tqdm-4.67.1-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/d0/30/dc54f88dd4a2b5dc8a0279bdd7270e735851848b762aeb1c1184ed1f6b14/tqdm-4.67.1-py3-none-any.whl",
+      "bytes": 78540,
+      "sha256": "26445eca388f82e72884e0d580d5464cd801a3ea01e63e5601bdff9ba6a48de2",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "MPL-2.0 AND MIT",
+        "classifiers": [
+          "License :: OSI Approved :: MIT License",
+          "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)"
+        ],
+        "source": "https://pypi.org/project/tqdm/4.67.1/",
+        "included": [],
+        "bundled": [
+          "tqdm-4.67.1-LICENCE.txt"
+        ]
+      },
+      "unpackedBytes": 225842,
+      "maximumEntries": 40
+    },
+    {
+      "id": "psutil",
+      "version": "7.1.3",
+      "filename": "psutil-7.1.3-cp37-abi3-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/55/4c/c3ed1a622b6ae2fd3c945a366e64eb35247a31e4db16cf5095e269e8eb3c/psutil-7.1.3-cp37-abi3-win_amd64.whl",
+      "bytes": 247633,
+      "sha256": "f39c2c19fe824b47484b96f9692932248a54c43799a84282cfe58d05a6449efd",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "BSD-3-Clause",
+        "classifiers": [],
+        "source": "https://pypi.org/project/psutil/7.1.3/",
+        "included": [
+          "psutil-7.1.3.dist-info/LICENSE"
+        ]
+      },
+      "unpackedBytes": 926351,
+      "maximumEntries": 35
+    },
+    {
+      "id": "einops",
+      "version": "0.8.1",
+      "filename": "einops-0.8.1-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/87/62/9773de14fe6c45c23649e98b83231fffd7b9892b6cf863251dc2afa73643/einops-0.8.1-py3-none-any.whl",
+      "bytes": 64359,
+      "sha256": "919387eb55330f5757c6bea9165c5ff5cfe63a642682ea788a6d472576d81737",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "MIT",
+        "classifiers": [
+          "License :: OSI Approved :: MIT License"
+        ],
+        "source": "https://pypi.org/project/einops/0.8.1/",
+        "included": [
+          "einops-0.8.1.dist-info/licenses/LICENSE"
+        ]
+      },
+      "unpackedBytes": 227968,
+      "maximumEntries": 31
+    },
+    {
+      "id": "omegaconf",
+      "version": "2.3.0",
+      "filename": "omegaconf-2.3.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/e3/94/1843518e420fa3ed6919835845df698c7e27e183cb997394e4a670973a65/omegaconf-2.3.0-py3-none-any.whl",
+      "bytes": 79500,
+      "sha256": "7b4df175cdb08ba400f45cae3bdcae7ba8365db4d165fc65fd04b050ab63b46b",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": null,
+        "classifiers": [
+          "License :: OSI Approved :: BSD License"
+        ],
+        "source": "https://pypi.org/project/omegaconf/2.3.0/",
+        "included": [
+          "omegaconf-2.3.0.dist-info/LICENSE"
+        ]
+      },
+      "unpackedBytes": 350315,
+      "maximumEntries": 31
+    },
+    {
+      "id": "diffusers",
+      "version": "0.35.2",
+      "filename": "diffusers-0.35.2-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/2a/2e/38d9824f8c6bb048c5ba21c6d4da54c29c162a46b58b3ef907a360a76d3e/diffusers-0.35.2-py3-none-any.whl",
+      "bytes": 4121649,
+      "sha256": "d50d5e74fdd6dcf55e5c1d304bc52cc7c2659abd1752740d736d7b54078b4db5",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "Apache 2.0 License",
+        "classifiers": [
+          "License :: OSI Approved :: Apache Software License"
+        ],
+        "source": "https://pypi.org/project/diffusers/0.35.2/",
+        "included": [
+          "diffusers-0.35.2.dist-info/LICENSE"
+        ]
+      },
+      "unpackedBytes": 17928642,
+      "maximumEntries": 703
+    },
+    {
+      "id": "peft",
+      "version": "0.17.1",
+      "filename": "peft-0.17.1-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/49/fe/a2da1627aa9cb6310b6034598363bd26ac301c4a99d21f415b1b2855891e/peft-0.17.1-py3-none-any.whl",
+      "bytes": 504896,
+      "sha256": "3d129d64def3d74779c32a080d2567e5f7b674e77d546e3585138216d903f99e",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "Apache",
+        "classifiers": [
+          "License :: OSI Approved :: Apache Software License"
+        ],
+        "source": "https://pypi.org/project/peft/0.17.1/",
+        "included": [
+          "peft-0.17.1.dist-info/licenses/LICENSE"
+        ]
+      },
+      "unpackedBytes": 1829424,
+      "maximumEntries": 166
+    },
+    {
+      "id": "rotary-embedding-torch",
+      "version": "0.8.9",
+      "filename": "rotary_embedding_torch-0.8.9-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/94/21/05e319ebef4a8194f9c4cc09f9c3213ab846da200fa6e88699cdb7e9679a/rotary_embedding_torch-0.8.9-py3-none-any.whl",
+      "bytes": 5872,
+      "sha256": "700e8de9dfbefba5f9117a66652a2520648dcc60136895f0068b6a85347cab02",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "MIT",
+        "classifiers": [
+          "License :: OSI Approved :: MIT License"
+        ],
+        "source": "https://pypi.org/project/rotary-embedding-torch/0.8.9/",
+        "included": [
+          "rotary_embedding_torch-0.8.9.dist-info/licenses/LICENSE"
+        ]
+      },
+      "unpackedBytes": 13828,
+      "maximumEntries": 7
+    },
+    {
+      "id": "opencv-python-headless",
+      "version": "4.12.0.88",
+      "filename": "opencv_python_headless-4.12.0.88-cp37-abi3-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/f2/35/0858e9e71b36948eafbc5e835874b63e515179dc3b742cbe3d76bc683439/opencv_python_headless-4.12.0.88-cp37-abi3-win_amd64.whl",
+      "bytes": 38923559,
+      "sha256": "86b413bdd6c6bf497832e346cd5371995de148e579b9774f8eba686dee3f5528",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "Apache 2.0",
+        "classifiers": [
+          "License :: OSI Approved :: Apache Software License"
+        ],
+        "source": "https://pypi.org/project/opencv-python-headless/4.12.0.88/",
+        "included": [
+          "cv2/LICENSE-3RD-PARTY.txt",
+          "cv2/LICENSE.txt",
+          "cv2/data/haarcascade_license_plate_rus_16stages.xml",
+          "opencv_python_headless-4.12.0.88.dist-info/LICENSE-3RD-PARTY.txt",
+          "opencv_python_headless-4.12.0.88.dist-info/LICENSE.txt"
+        ]
+      },
+      "unpackedBytes": 109783571,
+      "maximumEntries": 86
+    },
+    {
+      "id": "gguf",
+      "version": "0.17.1",
+      "filename": "gguf-0.17.1-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/fc/31/6a93a887617ee7deeaa602ca3d02d1c12a6cb8a742a695de5d128f5fa46a/gguf-0.17.1-py3-none-any.whl",
+      "bytes": 96224,
+      "sha256": "7bc5aa7eeb1931f7d39b48fdc5b38fda6b294b9dca75cf607ac69557840a3943",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": null,
+        "classifiers": [
+          "License :: OSI Approved :: MIT License"
+        ],
+        "source": "https://pypi.org/project/gguf/0.17.1/",
+        "included": [
+          "gguf-0.17.1.dist-info/LICENSE"
+        ]
+      },
+      "unpackedBytes": 458596,
+      "maximumEntries": 23
+    },
+    {
+      "id": "matplotlib",
+      "version": "3.10.7",
+      "filename": "matplotlib-3.10.7-cp313-cp313-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/e1/b6/23064a96308b9aeceeffa65e96bcde459a2ea4934d311dee20afde7407a0/matplotlib-3.10.7-cp313-cp313-win_amd64.whl",
+      "bytes": 8122727,
+      "sha256": "744991e0cc863dd669c8dc9136ca4e6e0082be2070b9d793cbd64bec872a6815",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": null,
+        "classifiers": [
+          "License :: OSI Approved :: Python Software Foundation License"
+        ],
+        "source": "https://pypi.org/project/matplotlib/3.10.7/",
+        "included": [
+          "matplotlib-3.10.7.dist-info/LICENSE",
+          "matplotlib/mpl-data/fonts/ttf/LICENSE_DEJAVU",
+          "matplotlib/mpl-data/fonts/ttf/LICENSE_STIX"
+        ]
+      },
+      "unpackedBytes": 20233246,
+      "maximumEntries": 594
+    },
+    {
+      "id": "transformers",
+      "version": "4.57.1",
+      "filename": "transformers-4.57.1-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/71/d3/c16c3b3cf7655a67db1144da94b021c200ac1303f82428f2beef6c2e72bb/transformers-4.57.1-py3-none-any.whl",
+      "bytes": 11990925,
+      "sha256": "b10d05da8fa67dc41644dbbf9bc45a44cb86ae33da6f9295f5fbf5b7890bd267",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "Apache 2.0 License",
+        "classifiers": [
+          "License :: OSI Approved :: Apache Software License"
+        ],
+        "source": "https://pypi.org/project/transformers/4.57.1/",
+        "included": [
+          "transformers-4.57.1.dist-info/licenses/LICENSE"
+        ]
+      },
+      "unpackedBytes": 52406713,
+      "maximumEntries": 2246
+    },
+    {
+      "id": "huggingface-hub",
+      "version": "0.36.0",
+      "filename": "huggingface_hub-0.36.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/cb/bd/1a875e0d592d447cbc02805fd3fe0f497714d6a2583f59d14fa9ebad96eb/huggingface_hub-0.36.0-py3-none-any.whl",
+      "bytes": 566094,
+      "sha256": "7bcc9ad17d5b3f07b57c78e79d527102d08313caa278a641993acddcb894548d",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "Apache",
+        "classifiers": [
+          "License :: OSI Approved :: Apache Software License"
+        ],
+        "source": "https://pypi.org/project/huggingface-hub/0.36.0/",
+        "included": [
+          "huggingface_hub-0.36.0.dist-info/LICENSE"
+        ]
+      },
+      "unpackedBytes": 2254952,
+      "maximumEntries": 170
+    },
+    {
+      "id": "accelerate",
+      "version": "1.11.0",
+      "filename": "accelerate-1.11.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/77/85/85951bc0f9843e2c10baaa1b6657227056095de08f4d1eea7d8b423a6832/accelerate-1.11.0-py3-none-any.whl",
+      "bytes": 375777,
+      "sha256": "a628fa6beb069b8e549460fc449135d5bd8d73e7a11fd09f0bc9fc4ace7f06f1",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "Apache",
+        "classifiers": [
+          "License :: OSI Approved :: Apache Software License"
+        ],
+        "source": "https://pypi.org/project/accelerate/1.11.0/",
+        "included": [
+          "accelerate-1.11.0.dist-info/licenses/LICENSE"
+        ]
+      },
+      "unpackedBytes": 1470490,
+      "maximumEntries": 89
+    },
+    {
+      "id": "antlr4-python3-runtime",
+      "version": "4.9.3",
+      "filename": "antlr4-python3-runtime-4.9.3.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/3e/38/7859ff46355f76f8d19459005ca000b6e7012f2f1ca597746cbcd1fbfe5e/antlr4-python3-runtime-4.9.3.tar.gz",
+      "bytes": 117034,
+      "sha256": "f224469b4168294902bb1efa80a8bf7855f24c99aef99cbefc1bcd3cce77881b",
+      "destination": "vendor",
+      "archive": {
+        "type": "tar.gz",
+        "mappings": [
+          {
+            "source": "antlr4-python3-runtime-4.9.3/src/antlr4/",
+            "destination": "antlr4/"
+          },
+          {
+            "source": "antlr4-python3-runtime-4.9.3/src/antlr4_python3_runtime.egg-info/",
+            "destination": "antlr4_python3_runtime.egg-info/"
+          }
+        ]
+      },
+      "license": {
+        "expression": "BSD",
+        "classifiers": [],
+        "source": "https://pypi.org/project/antlr4-python3-runtime/4.9.3/",
+        "included": [
+          "Distribution license and notice files are retained during archive extraction."
+        ],
+        "bundled": [
+          "ANTLR4-4.9.3-LICENSE.txt"
+        ]
+      },
+      "unpackedBytes": 479094,
+      "maximumEntries": 156
+    },
+    {
+      "id": "tokenizers",
+      "version": "0.22.2",
+      "filename": "tokenizers-0.22.2-cp39-abi3-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/65/71/0670843133a43d43070abeb1949abfdef12a86d490bea9cd9e18e37c5ff7/tokenizers-0.22.2-cp39-abi3-win_amd64.whl",
+      "bytes": 2747786,
+      "sha256": "c9ea31edff2968b44a88f97d784c2f16dc0729b8b143ed004699ebca91f05c48",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": null,
+        "classifiers": [
+          "License :: OSI Approved :: Apache Software License"
+        ],
+        "source": "https://pypi.org/project/tokenizers/0.22.2/",
+        "included": [],
+        "bundled": [
+          "tokenizers-0.22.2-LICENSE.txt"
+        ]
+      },
+      "unpackedBytes": 7651339,
+      "maximumEntries": 29
+    },
+    {
+      "id": "contourpy",
+      "version": "1.4.0",
+      "filename": "contourpy-1.4.0-cp313-cp313-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/68/c1/a59df0754bf83a6f3e153cc19d550a5b01f607e389b1c4d57f436f9139e0/contourpy-1.4.0-cp313-cp313-win_amd64.whl",
+      "bytes": 234084,
+      "sha256": "6507a016976a75a15aee47809a34605de6244ccc056e6164bf9fb14b27eecad4",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "BSD-3-Clause",
+        "classifiers": [],
+        "source": "https://pypi.org/project/contourpy/1.4.0/",
+        "included": [
+          "contourpy-1.4.0.dist-info/licenses/LICENSE"
+        ]
+      },
+      "unpackedBytes": 628250,
+      "maximumEntries": 25
+    },
+    {
+      "id": "cycler",
+      "version": "0.12.1",
+      "filename": "cycler-0.12.1-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/e7/05/c19819d5e3d95294a6f5947fb9b9629efb316b96de511b418c53d245aae6/cycler-0.12.1-py3-none-any.whl",
+      "bytes": 8321,
+      "sha256": "85cef7cff222d8644161529808465972e51340599459b8ac3ccbac5a854e0d30",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": null,
+        "classifiers": [
+          "License :: OSI Approved :: BSD License"
+        ],
+        "source": "https://pypi.org/project/cycler/0.12.1/",
+        "included": [
+          "cycler-0.12.1.dist-info/LICENSE"
+        ]
+      },
+      "unpackedBytes": 22614,
+      "maximumEntries": 7
+    },
+    {
+      "id": "fonttools",
+      "version": "4.68.0",
+      "filename": "fonttools-4.68.0-cp313-cp313-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/61/2b/6c6f578176edeec83c5e02b7e745c1c8029f8cec4e32b4898d2c573bb881/fonttools-4.68.0-cp313-cp313-win_amd64.whl",
+      "bytes": 2531658,
+      "sha256": "6ed796b220654b4d37ad20af73419ec7969b669dd678cab88afb602c5683a331",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel",
+        "ignoredPaths": [
+          "fonttools-4.68.0.data/data/share/man/man1/ttx.1"
+        ]
+      },
+      "license": {
+        "expression": "MIT",
+        "classifiers": [],
+        "source": "https://pypi.org/project/fonttools/4.68.0/",
+        "included": [
+          "fonttools-4.68.0.dist-info/licenses/LICENSE",
+          "fonttools-4.68.0.dist-info/licenses/LICENSE.external"
+        ]
+      },
+      "unpackedBytes": 12103545,
+      "maximumEntries": 374
+    },
+    {
+      "id": "fsspec",
+      "version": "2026.9.0",
+      "filename": "fsspec-2026.9.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/6c/c0/a98505f18594f1bce828bb159cec0fcf9860562f1a2c85913409fc8f3d9e/fsspec-2026.9.0-py3-none-any.whl",
+      "bytes": 221738,
+      "sha256": "8dd6e646e99ea382bd85f97a45e6b526a442d79423a7dc673f1e2756d05fcb5f",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "BSD-3-Clause",
+        "classifiers": [],
+        "source": "https://pypi.org/project/fsspec/2026.9.0/",
+        "included": [
+          "fsspec-2026.9.0.dist-info/licenses/LICENSE"
+        ]
+      },
+      "unpackedBytes": 810582,
+      "maximumEntries": 62
+    },
+    {
+      "id": "kiwisolver",
+      "version": "1.5.1",
+      "filename": "kiwisolver-1.5.1-cp313-cp313-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/f5/22/deabbb3ad6d918d74b7831b2d8ae7151b09d21c87974e5ee8a456f58c94c/kiwisolver-1.5.1-cp313-cp313-win_amd64.whl",
+      "bytes": 70758,
+      "sha256": "dc23390afe9f4ef9ac3bcc72a03a56eebbde03f4c571a32cb38f859cff9a6524",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": null,
+        "classifiers": [
+          "License :: OSI Approved :: BSD License"
+        ],
+        "source": "https://pypi.org/project/kiwisolver/1.5.1/",
+        "included": [
+          "kiwisolver-1.5.1.dist-info/licenses/LICENSE"
+        ]
+      },
+      "unpackedBytes": 172323,
+      "maximumEntries": 10
+    },
+    {
+      "id": "networkx",
+      "version": "3.7",
+      "filename": "networkx-3.7-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/7e/cd/fe58041e9011f307c490e3e17dd48cc516448f7c698a3f2d9d9d65d7e6a8/networkx-3.7-py3-none-any.whl",
+      "bytes": 2142205,
+      "sha256": "e3fd2c13a7814cee3746340d8d7f8598a67f16a58bf47fb7f8793fab6efca1b0",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "BSD-3-Clause",
+        "classifiers": [],
+        "source": "https://pypi.org/project/networkx/3.7/",
+        "included": [
+          "networkx-3.7.dist-info/licenses/LICENSE.txt"
+        ]
+      },
+      "unpackedBytes": 7298220,
+      "maximumEntries": 604
+    },
+    {
+      "id": "packaging",
+      "version": "26.3",
+      "filename": "packaging-26.3-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl",
+      "bytes": 129956,
+      "sha256": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "Apache-2.0 OR BSD-2-Clause",
+        "classifiers": [],
+        "source": "https://pypi.org/project/packaging/26.3/",
+        "included": [
+          "packaging/licenses/__init__.py",
+          "packaging/licenses/_spdx.py",
+          "packaging-26.3.dist-info/licenses/LICENSE",
+          "packaging-26.3.dist-info/licenses/LICENSE.APACHE",
+          "packaging-26.3.dist-info/licenses/LICENSE.BSD"
+        ]
+      },
+      "unpackedBytes": 499179,
+      "maximumEntries": 29
+    },
+    {
+      "id": "pillow",
+      "version": "13.0.0",
+      "filename": "pillow-13.0.0-cp313-cp313-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/d7/ed/1b16fb66a37e1b9e41370b93b2c614c7da761a5b2a41dc333f7af4639962/pillow-13.0.0-cp313-cp313-win_amd64.whl",
+      "bytes": 7284777,
+      "sha256": "9dda0788a9932776a75d8bcc020076edc308ce2508b51f6739a45e3158b3fc42",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "MIT-CMU",
+        "classifiers": [],
+        "source": "https://pypi.org/project/pillow/13.0.0/",
+        "included": [
+          "pillow-13.0.0.dist-info/licenses/LICENSE"
+        ]
+      },
+      "unpackedBytes": 14882217,
+      "maximumEntries": 120
+    },
+    {
+      "id": "pyparsing",
+      "version": "3.3.3",
+      "filename": "pyparsing-3.3.3-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl",
+      "bytes": 126420,
+      "sha256": "ece8c00a69cf01b45d0b1dedabb469c90d8caf996d4fda40f147627a122849a4",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "MIT",
+        "classifiers": [],
+        "source": "https://pypi.org/project/pyparsing/3.3.3/",
+        "included": [
+          "pyparsing-3.3.3.dist-info/licenses/LICENSE"
+        ]
+      },
+      "unpackedBytes": 489016,
+      "maximumEntries": 23
+    },
+    {
+      "id": "python-dateutil",
+      "version": "4.0.0",
+      "filename": "python_dateutil-4.0.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/2f/a9/52b89563d154433d79b51ed1eb4842bf7334cb2696891a7fe135618853d7/python_dateutil-4.0.0-py3-none-any.whl",
+      "bytes": 92853,
+      "sha256": "a5e246f79eb80475e691bf93862cead98decd8a498cf53ba0516fcdc0f50dc1c",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "BSD-3-Clause",
+        "classifiers": [],
+        "source": "https://pypi.org/project/python-dateutil/4.0.0/",
+        "included": [
+          "python_dateutil-4.0.0.dist-info/licenses/AUTHORS.md",
+          "python_dateutil-4.0.0.dist-info/licenses/LICENSE"
+        ]
+      },
+      "unpackedBytes": 324297,
+      "maximumEntries": 26
+    },
+    {
+      "id": "pyyaml",
+      "version": "6.0.3",
+      "filename": "pyyaml-6.0.3-cp313-cp313-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/97/c9/39d5b874e8b28845e4ec2202b5da735d0199dbe5b8fb85f91398814a9a46/pyyaml-6.0.3-cp313-cp313-win_amd64.whl",
+      "bytes": 154090,
+      "sha256": "79005a0d97d5ddabfeeea4cf676af11e647e41d81c9a7722a193022accdb6b7c",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "MIT",
+        "classifiers": [
+          "License :: OSI Approved :: MIT License"
+        ],
+        "source": "https://pypi.org/project/PyYAML/6.0.3/",
+        "included": [
+          "pyyaml-6.0.3.dist-info/licenses/LICENSE"
+        ]
+      },
+      "unpackedBytes": 478269,
+      "maximumEntries": 24
+    },
+    {
+      "id": "regex",
+      "version": "2026.9.29",
+      "filename": "regex-2026.9.29-cp313-cp313-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/80/a7/bf93a3a6afa5f7bc16b7afb94ae581b01cae620b8ad56bd8f9572a985959/regex-2026.9.29-cp313-cp313-win_amd64.whl",
+      "bytes": 280307,
+      "sha256": "61956f074ecd123f55adca68ee3eab46e6a07ad3f8e64e6db95dfacb444f55c4",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "Apache-2.0 AND CNRI-Python",
+        "classifiers": [],
+        "source": "https://pypi.org/project/regex/2026.9.29/",
+        "included": [
+          "regex-2026.9.29.dist-info/licenses/LICENSE.txt"
+        ]
+      },
+      "unpackedBytes": 1207707,
+      "maximumEntries": 10
+    },
+    {
+      "id": "sympy",
+      "version": "1.14.0",
+      "filename": "sympy-1.14.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/a2/09/77d55d46fd61b4a135c444fc97158ef34a095e5681d0a6c10b75bf356191/sympy-1.14.0-py3-none-any.whl",
+      "bytes": 6299353,
+      "sha256": "e091cc3e99d2141a0ba2847328f5479b05d94a6635cb96148ccb3f34671bd8f5",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel",
+        "ignoredPaths": [
+          "sympy-1.14.0.data/data/share/man/man1/isympy.1"
+        ]
+      },
+      "license": {
+        "expression": "BSD",
+        "classifiers": [
+          "License :: OSI Approved :: BSD License"
+        ],
+        "source": "https://pypi.org/project/sympy/1.14.0/",
+        "included": [
+          "sympy/parsing/latex/LICENSE.txt",
+          "sympy-1.14.0.dist-info/licenses/AUTHORS",
+          "sympy-1.14.0.dist-info/licenses/LICENSE"
+        ]
+      },
+      "unpackedBytes": 26841861,
+      "maximumEntries": 1570
+    },
+    {
+      "id": "mpmath",
+      "version": "1.3.0",
+      "filename": "mpmath-1.3.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/43/e3/7d92a15f894aa0c9c4b49b8ee9ac9850d6e63b03c9c32c0367a13ae62209/mpmath-1.3.0-py3-none-any.whl",
+      "bytes": 536198,
+      "sha256": "a0b2b9fe80bbcd81a6647ff13108738cfb482d481d826cc0e02f5b35e5c88d2c",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "BSD",
+        "classifiers": [
+          "License :: OSI Approved :: BSD License"
+        ],
+        "source": "https://pypi.org/project/mpmath/1.3.0/",
+        "included": [
+          "mpmath-1.3.0.dist-info/LICENSE"
+        ]
+      },
+      "unpackedBytes": 1950197,
+      "maximumEntries": 92
+    },
+    {
+      "id": "typing-extensions",
+      "version": "4.16.0",
+      "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
+      "bytes": 45571,
+      "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "PSF-2.0",
+        "classifiers": [],
+        "source": "https://pypi.org/project/typing_extensions/4.16.0/",
+        "included": [
+          "typing_extensions-4.16.0.dist-info/licenses/LICENSE"
+        ]
+      },
+      "unpackedBytes": 182767,
+      "maximumEntries": 5
+    },
+    {
+      "id": "colorama",
+      "version": "0.4.6",
+      "filename": "colorama-0.4.6-py2.py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl",
+      "bytes": 25335,
+      "sha256": "4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": null,
+        "classifiers": [
+          "License :: OSI Approved :: BSD License"
+        ],
+        "source": "https://pypi.org/project/colorama/0.4.6/",
+        "included": [
+          "colorama-0.4.6.dist-info/licenses/LICENSE.txt"
+        ]
+      },
+      "unpackedBytes": 77669,
+      "maximumEntries": 17
+    },
+    {
+      "id": "filelock",
+      "version": "4.2.9",
+      "filename": "filelock-4.2.9-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/00/05/76184fe08339723d643ab47887a8e4de8f2921ca4e008617ab7490af7857/filelock-4.2.9-py3-none-any.whl",
+      "bytes": 164734,
+      "sha256": "a379c50a729e5b68c8519a4d26489f755d9769960a236ecd838190e2a78db2e9",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "MIT",
+        "classifiers": [],
+        "source": "https://pypi.org/project/filelock/4.2.9/",
+        "included": [
+          "filelock-4.2.9.dist-info/licenses/LICENSE"
+        ]
+      },
+      "unpackedBytes": 586994,
+      "maximumEntries": 28
+    },
+    {
+      "id": "importlib-metadata",
+      "version": "10.1.0",
+      "filename": "importlib_metadata-10.1.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/65/b6/495438ad95e0102aff8f6786b5474202f38cd5d4700d03a72b77977dec10/importlib_metadata-10.1.0-py3-none-any.whl",
+      "bytes": 32221,
+      "sha256": "cf45ce66a929c64e994185a809c04840d0501db17e663810d993d0f4829265c7",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "Apache-2.0",
+        "classifiers": [],
+        "source": "https://pypi.org/project/importlib_metadata/10.1.0/",
+        "included": [
+          "importlib_metadata-10.1.0.dist-info/licenses/LICENSE"
+        ]
+      },
+      "unpackedBytes": 90005,
+      "maximumEntries": 20
+    },
+    {
+      "id": "zipp",
+      "version": "4.1.2",
+      "filename": "zipp-4.1.2-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/b8/44/7bd2007260da11cccca29ba2d4c345f1287aa663db38ee7cefeabf6386a5/zipp-4.1.2-py3-none-any.whl",
+      "bytes": 10581,
+      "sha256": "b30cb6cd253122169c47de245ca24a86bac2a5d3802ba15bf7ba6414eb9e144d",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "MIT",
+        "classifiers": [],
+        "source": "https://pypi.org/project/zipp/4.1.2/",
+        "included": [
+          "zipp-4.1.2.dist-info/licenses/LICENSE"
+        ]
+      },
+      "unpackedBytes": 24397,
+      "maximumEntries": 12
+    },
+    {
+      "id": "jinja2",
+      "version": "3.1.6",
+      "filename": "jinja2-3.1.6-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl",
+      "bytes": 134899,
+      "sha256": "85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": null,
+        "classifiers": [
+          "License :: OSI Approved :: BSD License"
+        ],
+        "source": "https://pypi.org/project/Jinja2/3.1.6/",
+        "included": [
+          "jinja2-3.1.6.dist-info/licenses/LICENSE.txt"
+        ]
+      },
+      "unpackedBytes": 496892,
+      "maximumEntries": 31
+    },
+    {
+      "id": "markupsafe",
+      "version": "3.0.4",
+      "filename": "markupsafe-3.0.4-cp313-cp313-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/6f/36/163da64de88a13db79214ef75fa041be7fa13bdb42261cf5b7484de14bfb/markupsafe-3.0.4-cp313-cp313-win_amd64.whl",
+      "bytes": 14313,
+      "sha256": "1f1f9477e174582b0a1b583d60b66e1f2cf5d3fe12cee985e4aedf44766600e5",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "BSD-3-Clause",
+        "classifiers": [],
+        "source": "https://pypi.org/project/MarkupSafe/3.0.4/",
+        "included": [
+          "markupsafe-3.0.4.dist-info/licenses/LICENSE.txt"
+        ]
+      },
+      "unpackedBytes": 35603,
+      "maximumEntries": 11
+    },
+    {
+      "id": "requests",
+      "version": "2.34.2",
+      "filename": "requests-2.34.2-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl",
+      "bytes": 73075,
+      "sha256": "2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "Apache-2.0",
+        "classifiers": [
+          "License :: OSI Approved :: Apache Software License"
+        ],
+        "source": "https://pypi.org/project/requests/2.34.2/",
+        "included": [
+          "requests-2.34.2.dist-info/licenses/LICENSE",
+          "requests-2.34.2.dist-info/licenses/NOTICE"
+        ]
+      },
+      "unpackedBytes": 234397,
+      "maximumEntries": 26
+    },
+    {
+      "id": "charset-normalizer",
+      "version": "3.5.2",
+      "filename": "charset_normalizer-3.5.2-cp313-cp313-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/9c/76/b8ec57f4e9ee3253541abf95e4a462c0175fe8032dcd070f1f2421240942/charset_normalizer-3.5.2-cp313-cp313-win_amd64.whl",
+      "bytes": 206489,
+      "sha256": "78456a747de8dc58360ffa581f30a002baf5aa28cb262536545e91f113ed7639",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "MIT",
+        "classifiers": [],
+        "source": "https://pypi.org/project/charset-normalizer/3.5.2/",
+        "included": [
+          "charset_normalizer-3.5.2.dist-info/licenses/LICENSE"
+        ]
+      },
+      "unpackedBytes": 570318,
+      "maximumEntries": 21
+    },
+    {
+      "id": "idna",
+      "version": "3.20",
+      "filename": "idna-3.20-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl",
+      "bytes": 69583,
+      "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "BSD-3-Clause",
+        "classifiers": [],
+        "source": "https://pypi.org/project/idna/3.20/",
+        "included": [
+          "idna-3.20.dist-info/licenses/LICENSE.md"
+        ]
+      },
+      "unpackedBytes": 342091,
+      "maximumEntries": 16
+    },
+    {
+      "id": "urllib3",
+      "version": "2.8.0",
+      "filename": "urllib3-2.8.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl",
+      "bytes": 135717,
+      "sha256": "0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "MIT",
+        "classifiers": [],
+        "source": "https://pypi.org/project/urllib3/2.8.0/",
+        "included": [
+          "urllib3-2.8.0.dist-info/licenses/LICENSE.txt"
+        ]
+      },
+      "unpackedBytes": 450461,
+      "maximumEntries": 42
+    },
+    {
+      "id": "certifi",
+      "version": "2026.10.23",
+      "filename": "certifi-2026.10.23-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/32/d1/a3652fe2c19134d0d15922177821d863cbd7e842d53a21bbe7e8e3a1b5ac/certifi-2026.10.23-py3-none-any.whl",
+      "bytes": 135082,
+      "sha256": "e9b54de76e530bb6cf0ccd036787103acb58fd42ba930ea8bf948ddbaa2f61d1",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "MPL-2.0",
+        "classifiers": [
+          "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)"
+        ],
+        "source": "https://pypi.org/project/certifi/2026.10.23/",
+        "included": [
+          "certifi-2026.10.23.dist-info/licenses/LICENSE"
+        ]
+      },
+      "unpackedBytes": 244625,
+      "maximumEntries": 12
+    },
+    {
+      "id": "setuptools",
+      "version": "84.2.1",
+      "filename": "setuptools-84.2.1-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/ef/55/6dc6d6bb953bdfc52519a0059592c52b6e3b8ad51cf8256dffceb55b0610/setuptools-84.2.1-py3-none-any.whl",
+      "bytes": 876263,
+      "sha256": "ca140b45d5325a9478f880e351484f62fef15f336462e449ca0c03c873d589c2",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "MIT",
+        "classifiers": [],
+        "source": "https://pypi.org/project/setuptools/84.2.1/",
+        "included": [
+          "setuptools/_vendor/importlib_metadata-8.7.1.dist-info/licenses/LICENSE",
+          "setuptools/_vendor/jaraco_context-6.1.0.dist-info/licenses/LICENSE",
+          "setuptools/_vendor/jaraco_functools-4.4.0.dist-info/licenses/LICENSE",
+          "setuptools/_vendor/more_itertools-10.8.0.dist-info/licenses/LICENSE",
+          "setuptools/_vendor/packaging/licenses/__init__.py",
+          "setuptools/_vendor/packaging/licenses/_spdx.py",
+          "setuptools/_vendor/packaging-26.3.dist-info/licenses/LICENSE",
+          "setuptools/_vendor/packaging-26.3.dist-info/licenses/LICENSE.APACHE",
+          "setuptools/_vendor/packaging-26.3.dist-info/licenses/LICENSE.BSD",
+          "setuptools/_vendor/platformdirs-4.4.0.dist-info/licenses/LICENSE",
+          "setuptools/_vendor/tomli-2.4.0.dist-info/licenses/LICENSE",
+          "setuptools/_vendor/wheel-0.46.3.dist-info/licenses/LICENSE.txt",
+          "setuptools/_vendor/zipp-3.23.0.dist-info/licenses/LICENSE",
+          "setuptools/config/NOTICE",
+          "setuptools/config/_validate_pyproject/NOTICE",
+          "setuptools-84.2.1.dist-info/licenses/LICENSE",
+          "setuptools/_vendor/autocommand-2.2.2.dist-info/LICENSE",
+          "setuptools/_vendor/backports.tarfile-1.2.0.dist-info/LICENSE",
+          "setuptools/_vendor/jaraco.text-4.0.0.dist-info/LICENSE"
+        ]
+      },
+      "unpackedBytes": 3002768,
+      "maximumEntries": 348
+    },
+    {
+      "id": "tzdata",
+      "version": "2026.6",
+      "filename": "tzdata-2026.6-py2.py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/0a/66/9a06c2227fedfd4919f0eaaa8b94377d9730882a7e4f95823c9a331ab5e1/tzdata-2026.6-py2.py3-none-any.whl",
+      "bytes": 348210,
+      "sha256": "0a10eec6e13ef16b627fabed9a5f2ba61a62b1c67f327305f4e7e412a70b4aec",
+      "destination": "vendor",
+      "archive": {
+        "type": "wheel"
+      },
+      "license": {
+        "expression": "Apache-2.0",
+        "classifiers": [],
+        "source": "https://pypi.org/project/tzdata/2026.6/",
+        "included": [
+          "tzdata-2026.6.dist-info/licenses/LICENSE",
+          "tzdata-2026.6.dist-info/licenses/licenses/LICENSE_APACHE"
+        ]
+      },
+      "unpackedBytes": 582438,
+      "maximumEntries": 633
+    },
+    {
+      "id": "seedvr-vae",
+      "filename": "ema_vae_fp16.safetensors",
+      "url": "https://huggingface.co/numz/SeedVR2_comfyUI/resolve/09ced71023636e9bc8cdf9cdecfb2625d1e691e8/ema_vae_fp16.safetensors",
+      "bytes": 501324814,
+      "sha256": "20678548f420d98d26f11442d3528f8b8c94e57ee046ef93dbb7633da8612ca1",
+      "destination": "models/ema_vae_fp16.safetensors",
+      "archive": {
+        "type": "file"
+      },
+      "license": {
+        "expression": "Apache-2.0",
+        "source": "https://huggingface.co/numz/SeedVR2_comfyUI/blob/09ced71023636e9bc8cdf9cdecfb2625d1e691e8/README.md",
+        "bundled": [
+          "SeedVR2-Apache-2.0.txt"
+        ]
+      },
+      "unpackedBytes": 501324814,
+      "maximumEntries": 1
+    },
+    {
+      "id": "seedvr-3b",
+      "filename": "seedvr2_ema_3b_fp16.safetensors",
+      "url": "https://huggingface.co/numz/SeedVR2_comfyUI/resolve/09ced71023636e9bc8cdf9cdecfb2625d1e691e8/seedvr2_ema_3b_fp16.safetensors",
+      "bytes": 6783018808,
+      "sha256": "2fd0e03a3dad24e07086750360727ca437de4ecd456f769856e960ae93e2b304",
+      "destination": "models/seedvr2_ema_3b_fp16.safetensors",
+      "archive": {
+        "type": "file"
+      },
+      "license": {
+        "expression": "Apache-2.0",
+        "source": "https://huggingface.co/numz/SeedVR2_comfyUI/blob/09ced71023636e9bc8cdf9cdecfb2625d1e691e8/README.md",
+        "bundled": [
+          "SeedVR2-Apache-2.0.txt"
+        ]
+      },
+      "unpackedBytes": 6783018808,
+      "maximumEntries": 1
+    },
+    {
+      "id": "microsoft-vc-runtime",
+      "version": "14.44.35211",
+      "filename": "Microsoft.VC.14.44.17.14.CRT.Redist.X64.base.vsix",
+      "url": "https://download.visualstudio.microsoft.com/download/pr/45d3b8dd-bced-4b37-9974-142f748d710c/4aaf54db0bfc9435f7c3660e1a00237a4b556042bfeea64bde44c2e0194e6ee5/Microsoft.VC.14.44.17.14.CRT.Redist.X64.base.vsix",
+      "bytes": 3224191,
+      "sha256": "4aaf54db0bfc9435f7c3660e1a00237a4b556042bfeea64bde44c2e0194e6ee5",
+      "destination": "python",
+      "archive": {
+        "type": "zip",
+        "mappings": [
+          {
+            "source": "Contents/VC/Redist/MSVC/14.44.35112/x64/Microsoft.VC143.CRT/",
+            "destination": ""
+          }
+        ],
+        "ignoredPaths": [
+          "_rels/.rels",
+          "Contents/VC/Redist/MSVC/14.44.35112/debug_nonredist/x64/Microsoft.VC143.DebugCRT/vcruntime140_threadsd.dll",
+          "Contents/VC/Redist/MSVC/14.44.35112/x64/Microsoft.VC143.CXXAMP/vcamp140.dll",
+          "Contents/VC/Redist/MSVC/14.44.35112/debug_nonredist/x64/Microsoft.VC143.DebugCRT/vccorlib140d.dll",
+          "Contents/VC/Redist/MSVC/14.44.35112/debug_nonredist/x64/Microsoft.VC143.DebugCRT/vcruntime140d.dll",
+          "Contents/VC/Redist/MSVC/14.44.35112/debug_nonredist/x64/Microsoft.VC143.DebugCXXAMP/vcamp140d.dll",
+          "package/services/digital-signature/_rels/origin.psdor.rels",
+          "package/services/digital-signature/origin.psdor",
+          "Contents/VC/Redist/MSVC/14.44.35112/debug_nonredist/x64/Microsoft.VC143.DebugOpenMP/vcomp140d.dll",
+          "_rels/manifest.json.rels",
+          "manifest.json",
+          "Contents/VC/Redist/MSVC/14.44.35112/debug_nonredist/x64/Microsoft.VC143.DebugCRT/concrt140d.dll",
+          "Contents/VC/Redist/MSVC/14.44.35112/debug_nonredist/x64/Microsoft.VC143.DebugCRT/msvcp140d.dll",
+          "Contents/VC/Redist/MSVC/14.44.35112/debug_nonredist/x64/Microsoft.VC143.DebugCRT/msvcp140_2d.dll",
+          "Contents/VC/Redist/MSVC/14.44.35112/debug_nonredist/x64/Microsoft.VC143.DebugCRT/vcruntime140_1d.dll",
+          "Contents/VC/Redist/MSVC/14.44.35112/debug_nonredist/x64/Microsoft.VC143.DebugCRT/msvcp140d_codecvt_ids.dll",
+          "Contents/VC/Redist/MSVC/14.44.35112/debug_nonredist/x64/Microsoft.VC143.OpenMP.LLVM/libomp140d.x86_64.dll",
+          "Contents/VC/Redist/MSVC/14.44.35112/x64/Microsoft.VC143.OpenMP/vcomp140.dll",
+          "Contents/VC/Redist/MSVC/14.44.35112/debug_nonredist/x64/Microsoft.VC143.OpenMP.LLVM/libomp140.x86_64.dll",
+          "package/services/digital-signature/xml-signature/mr3j1xwuzsxnnl7ja57r4lh_c.psdsxs",
+          "Contents/VC/Redist/MSVC/14.44.35112/debug_nonredist/x64/Microsoft.VC143.DebugCRT/msvcp140d_atomic_wait.dll",
+          "Contents/VC/Redist/MSVC/14.44.35112/debug_nonredist/x64/Microsoft.VC143.DebugCRT/msvcp140_1d.dll",
+          "[Content_Types].xml"
+        ]
+      },
+      "license": {
+        "expression": "LicenseRef-Microsoft-Visual-Studio-2022",
+        "source": "https://learn.microsoft.com/en-us/visualstudio/releases/2022/redistribution",
+        "bundled": [
+          "Microsoft-VS2022-Redistribution.html",
+          "Microsoft-VS2022-BuildTools-License.html",
+          "Microsoft-VS2022-BuildTools-License.docx"
+        ]
+      },
+      "unpackedBytes": 9944814,
+      "maximumEntries": 33
+    }
+  ],
+  "totalDownloadBytes": 10278916748,
+  "totalUnpackedBytes": 12195258990,
+  "licenseFiles": [
+    {
+      "filename": "Microsoft-VS2022-Redistribution.html",
+      "source": "https://learn.microsoft.com/en-us/visualstudio/releases/2022/redistribution",
+      "bytes": 62995,
+      "sha256": "610ca629c07987930bae4ccebd2e8e3ce4ab83479e4988fdb601a39d7d609b9f"
+    },
+    {
+      "filename": "Microsoft-VS2022-BuildTools-License.html",
+      "source": "https://visualstudio.microsoft.com/license-terms/vs2022-ga-diagnosticbuildtools/",
+      "bytes": 237932,
+      "sha256": "96a7b335ea0fd711f90fa907634b55f0cf56166553826a36005328779108eeb0"
+    },
+    {
+      "filename": "NVIDIA-CUDA-12.8.1-EULA.html",
+      "source": "https://docs.nvidia.com/cuda/archive/12.8.1/eula/index.html",
+      "bytes": 103832,
+      "sha256": "149f5fd7998c0f8fa52edfbfe5f9cc130e3c610645d2695383d003029a65b797"
+    },
+    {
+      "filename": "NVIDIA-cuDNN-9.10.2-EULA.html",
+      "source": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.10.2/reference/eula.html",
+      "bytes": 44277,
+      "sha256": "77ac990b15c603777e85fd509721f42bcd2ffd5da2dddd82603e227dc17aa6cb"
+    },
+    {
+      "filename": "ANTLR4-4.9.3-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/antlr/antlr4/4.9.3/LICENSE.txt",
+      "bytes": 2699,
+      "sha256": "b1b379fcaf3219593a4c433feb1b35c780bed23fafaae440b1ae2771a9521e3a"
+    },
+    {
+      "filename": "SeedVR2-model-card.md",
+      "source": "https://huggingface.co/numz/SeedVR2_comfyUI/raw/09ced71023636e9bc8cdf9cdecfb2625d1e691e8/README.md",
+      "bytes": 41823,
+      "sha256": "a456db9bf239f363a56a8c8c1319d46125349b5c50b58638ab6042b93e81168b"
+    },
+    {
+      "filename": "tqdm-4.67.1-LICENCE.txt",
+      "source": "https://raw.githubusercontent.com/tqdm/tqdm/v4.67.1/LICENCE",
+      "bytes": 1985,
+      "sha256": "dc33252e829015e3b150086fb9b3a40f6ad6fb32c2f4610ce812fa677d35986a"
+    },
+    {
+      "filename": "tokenizers-0.22.2-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/huggingface/tokenizers/v0.22.2/LICENSE",
+      "bytes": 11357,
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "filename": "SeedVR2-Apache-2.0.txt",
+      "source": "https://github.com/numz/ComfyUI-SeedVR2_VideoUpscaler/blob/4490bd1f482e026674543386bb2a4d176da245b9/LICENSE",
+      "bytes": 11334,
+      "sha256": "5967a0c153e731109b76c5d83b5e0fae2382b6aaf7b898d08ff03702eea59430"
+    },
+    {
+      "filename": "Microsoft-VS2022-BuildTools-License.docx",
+      "source": "https://visualstudio.microsoft.com/wp-content/uploads/2024/03/Visual-Studio-2022-Diagnostic-Build-Tools-Agent-License_Update-March-2024_EN.docx",
+      "bytes": 34395,
+      "sha256": "2f66b86a00e8d9833789897ce23d05a4a2dbea370cf39c8c1098dbc17d0e7bdc"
+    }
+  ],
+  "expectedInstalledFilesSha256": "6c14a8d159e99fe01d51bf790d0213c799569050d6f7aab27adae53f5ebda5ef"
+}

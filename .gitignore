@@ -1,0 +1,36 @@
+# Dependencies and generated application bundles
+node_modules/
+dist/
+dist-electron/
+release/
+
+# Local verification, build caches and agent working files
+.test-artifacts/
+.build-cache/
+.work-notes/
+.codex/
+.agents/
+*.log
+__pycache__/
+*.pyc
+
+# Runtime binaries and models are prepared by scripts or shipped in Releases.
+resources/bin/
+resources/models/*.onnx
+
+# Local credentials and editor settings
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# Archived files from the removed video-download feature
+resources/licenses/yt-dlp-*
+resources/licenses/deno-*
+resources/licenses/online-*
+resources/licenses/sources/yt-dlp-*
+resources/licenses/sources/deno-*
+resources/licenses/sources/online-*

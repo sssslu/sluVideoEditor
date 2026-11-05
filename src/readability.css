@@ -1,0 +1,29 @@
+/* Comfortable desktop typography; canvas text retains project pixel dimensions. */
+.app-shell{grid-template-columns:minmax(0,1fr)}
+.app-header,.workspace,.timeline-panel,.timeline-scroll,.timeline-toolbar,.status-bar{min-width:0}
+.tool-rail>button>span{white-space:nowrap}
+.modal{display:flex;flex-direction:column;overflow:hidden}
+.modal-heading,.modal-actions{flex-shrink:0}
+.modal-content{min-height:0;overflow:auto;padding-right:2px}
+.panel-heading,.timeline-title,.section-heading>button{font-size:12px}
+.tool-rail>button,.text-button,.button{font-size:11px}
+.library-filters button,.search-field input,.library-empty p,.library-empty .text-button,.library-hint,.library-footnote,.media-card-info,.asset-proxy-button,.asset-duration,.library-intro p,.text-template b,.text-template span,.feature-card p,.feature-card>small,.caption-list p,.section-label,.settings-card>span,.settings-card p,.settings-about{font-size:10px}
+.supported-formats,.eyebrow,.template-sample+div span,.caption-list small,.caption-index,.effect-card small,.encoder-tags span,.settings-card>small,.toggle-row small,.library-footnote{font-size:9px}
+.dual-buttons .button{font-size:10px;padding:8px 6px;gap:4px}
+.dual-buttons{flex-wrap:wrap}.dual-buttons>.button{min-width:100px}
+.effect-card b,.selected-clip-name input,.number-field input[type=number],.inline-field,.inline-field select,.slider-field>div,.slider-value,.field-label,.number-field,.text-style-row>button,.inspector-tabs button,.field-note,.source-info>span,.project-card p,.tip-card p,.system-mini b,.system-mini small{font-size:10px}
+.selected-clip-name>span,.number-field small,.source-info small,.keyframe-info,.keyframe-info>button,.local-badge,.aspect-grid b,.segmented>button{font-size:9px}
+.text-style-row>button{padding:5px 6px}.section-body{gap:16px}.section-body .button{font-size:10px}
+.project-title>span,.preview-meta,.pill,.preview-quality,.timecode{font-size:10px}
+.timecode{letter-spacing:0}.preview-meta{gap:6px}.preview-panel .panel-heading .subtle{font-size:10px}
+.track-name input{font-size:11px}.track-controls>span,.ruler-label,.ruler-ticks>span,.track-drop-hint,.timeline-footer,.keycap,.status-bar,.status-bar button,.status-version{font-size:9px}
+.clip-label,.clip-text .clip-label{font-size:10px}.clip-label>b{font-size:9px}.timeline-clip .clip-label{height:22px}.clip-text .clip-label{height:100%}
+.status-bar{color:#7391a2}.status-bar button{color:#7b9caf}.timeline-footer{color:#718b9e}.track-drop-hint{color:#61798f}.track-controls>span{color:#6a8398}.keycap{color:#90a6b4;line-height:12px}
+.modal-heading p,.form-field>span,.form-field select,.form-field input,.quality-options b,.modal .button,.job-title b,.toast>span{font-size:11px}
+.quality-options small,.export-device b,.export-device small,.export-summary span:not(.local-badge),.download-notes p,.transcribe-source span,.model-setup p,.job-card p,.job-card .text-button,.job-title>span,.shortcut-grid>div,.shortcut-grid kbd,.recovery-card p{font-size:10px}
+.modal .field-note{font-size:10px}.export-summary strong,.transcribe-source b{font-size:12px}
+.preview-media-error{position:absolute;inset:0;background:#15232a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:32px;color:#9bb7c1;text-align:center;padding:80px}
+.preview-media-error strong{font-size:42px;font-weight:500}.preview-media-error>span{font-size:30px;color:#6d969e}.preview-media-error>button{font-size:32px;background:#69e7cc;color:#173d32;padding:22px 40px;border-radius:14px}
+.settings-paths{margin-top:18px;display:flex;flex-direction:column;gap:14px}.settings-paths label{display:flex;flex-direction:column;gap:6px;font-size:10px;color:#829aaa}.settings-paths code{font:9px/1.8 Consolas,monospace;overflow-wrap:anywhere;color:#668898;background:#17242d;padding:7px;border-radius:4px;user-select:text}
+@media(max-width:1200px){.panel-heading{padding:0 12px}.preview-meta>span:last-of-type{display:none}.timecode{font-size:9px}.transport-right{flex:0}.transport{gap:7px}.transport-buttons{margin-left:auto;gap:5px}.inline-field select{max-width:130px}.text-style-row>button{font-size:9px}.dual-buttons .button{font-size:10px;min-width:90px}.library-intro p{font-size:10px}.preview-empty .eyebrow{font-size:9px}.preview-empty p{font-size:11px}.preview-empty small{font-size:9px}.track-name input{font-size:10px}.form-field select{padding-left:7px}.effect-card small{font-size:9px;line-height:1.5}.effect-card b{font-size:10px}.settings-card>small{font-size:9px}.status-bar{font-size:9px}.status-bar .status-version{display:none}}
+@media(max-height:750px){.preview-empty h1{font-size:25px}.preview-empty p{font-size:10px}.preview-empty .eyebrow{font-size:9px}.track-row{height:55px}.timeline-clip{height:44px}.track-label{padding-top:7px}.track-controls{margin-top:6px}.library-empty p{font-size:10px}.modal{max-height:calc(100vh - 24px)}}

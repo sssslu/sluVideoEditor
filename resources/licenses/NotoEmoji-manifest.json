@@ -1,0 +1,13 @@
+{
+  "file": "src/assets/fonts/NotoColorEmoji.ttf",
+  "sha256": "15671215ab769fdc7162a045d56fd7d7e477c51b04e6b3c761d914d8fdd6cc44",
+  "bytes": 10730124,
+  "licenseFile": "NotoEmoji-OFL.txt",
+  "licenseSha256": "6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2",
+  "sourceUrl": "https://raw.githubusercontent.com/googlefonts/noto-emoji/99701e07d3d1fe1bdbcdb14964547f0fd592966f/2D/fonts/NotoColorEmoji.ttf",
+  "commit": "99701e07d3d1fe1bdbcdb14964547f0fd592966f",
+  "copyright": "Copyright 2022 Google Inc.",
+  "version": "2.057;GOOG;noto-emoji:20260911:fc4ca365e7c20e78278ae702aa20434bfe704c8f",
+  "license": "SIL Open Font License 1.1",
+  "modified": false
+}

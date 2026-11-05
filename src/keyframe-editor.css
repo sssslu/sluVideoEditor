@@ -1,0 +1,17 @@
+.keyframe-editor{min-width:0}
+.keyframe-property{display:flex;align-items:center;gap:7px;color:#9aabba;font-size:11px;margin-bottom:6px}
+.keyframe-property select{min-width:0;flex:1;background:#1c252e;border:1px solid #40505e;border-radius:3px;color:#d2dde5;padding:4px 6px;font:inherit}
+.keyframe-property>span:last-child{min-width:18px;text-align:right;color:#8fa5b4}
+.keyframe-graph{display:block;width:100%;height:auto;overflow:visible;touch-action:none;user-select:none}
+.keyframe-graph-background{fill:#141d25;stroke:#354553;stroke-width:1}
+.keyframe-grid line{stroke:#2d3d49;stroke-width:.7}
+.keyframe-grid text,.keyframe-axis{fill:#94a9b8;font:9px Consolas,monospace}
+.keyframe-curve{fill:none;stroke:#85c6b2;stroke-width:1.8;stroke-linejoin:round}
+.keyframe-playhead{stroke:#c8d5df;stroke-width:1;stroke-dasharray:3 3;pointer-events:none}
+.keyframe-point{fill:#202d36;stroke:#9ddbc6;stroke-width:1.5;cursor:grab}
+.keyframe-point.selected{fill:#a2ddc8;stroke:#d5f3e7}
+.keyframe-point:focus{outline:none;stroke:#f5d38b;stroke-width:2.5}
+.keyframe-point[aria-disabled="true"]{cursor:default;opacity:.5}
+.keyframe-editor-list{max-height:82px;overflow-y:auto;overscroll-behavior:contain;margin-top:5px;padding-right:2px}
+.keyframe-editor-list select{min-width:0}
+.keyframe-editor>.button{margin-top:5px}

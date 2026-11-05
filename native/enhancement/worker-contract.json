@@ -1,0 +1,111 @@
+{
+  "protocolVersion": 1,
+  "arguments": [
+    "--runtime-root",
+    "ABSOLUTE_RUNTIME_DIRECTORY",
+    "--job-dir",
+    "ABSOLUTE_OWNED_LOCAL_JOB_DIRECTORY",
+    "--parent-pid",
+    "PARENT_PID"
+  ],
+  "transport": "UTF-8 NDJSON on stdin/stdout. Logs use stderr. One outstanding request. Input EOF cancels and terminates the worker.",
+  "initRequest": {
+    "id": 1,
+    "method": "init",
+    "config": {
+      "protocolVersion": 1,
+      "width": 640,
+      "height": 360,
+      "scale": 2,
+      "seed": 42,
+      "chunkFrames": 9,
+      "overlapFrames": 4,
+      "maximumFrames": 1800,
+      "maximumBytes": 1244160000
+    }
+  },
+  "initResult": {
+    "id": 1,
+    "result": {
+      "protocolVersion": 1,
+      "backend": "cuda",
+      "model": "seedvr2-3b-fp16",
+      "inputCapacity": 5,
+      "chunkFrames": 9,
+      "overlapFrames": 4,
+      "outputWidth": 1280,
+      "outputHeight": 720,
+      "hardware": {
+        "inferenceStrategy": "independent-frames-v1",
+        "modelTemporalFrames": 1,
+        "transportWindowFrames": 9,
+        "overlapReuseFrames": 4
+      }
+    }
+  },
+  "processRequest": {
+    "id": 2,
+    "method": "process",
+    "firstFrame": 0,
+    "frameCount": 5,
+    "pts": [
+      0,
+      33333,
+      66667,
+      100000,
+      133333
+    ],
+    "inputFile": "input-000000000.bgr",
+    "last": false
+  },
+  "processResult": {
+    "id": 2,
+    "result": {
+      "outputFirstFrame": 0,
+      "frameCount": 1,
+      "pts": [
+        0
+      ],
+      "outputFile": "output-000000000.bgra",
+      "bytes": 3686400,
+      "sha256": "SHA256_OF_OUTPUT_FILE",
+      "width": 1280,
+      "height": 720,
+      "complete": false
+    }
+  },
+  "closeRequest": {
+    "id": 3,
+    "method": "close"
+  },
+  "closeResult": {
+    "id": 3,
+    "result": {
+      "closed": true
+    }
+  },
+  "error": {
+    "id": 2,
+    "error": "Human-readable failure"
+  },
+  "progress": {
+    "type": "progress",
+    "progress": 0.5,
+    "message": "Restoring frames"
+  },
+  "rules": [
+    "Requests contain newly consumed contiguous frames only. Each new source frame is inferred independently exactly once with seed 42. The worker retains up to four previously computed output frames for transport overlap; it does not run model inference again on those frames.",
+    "hardware.inferenceStrategy must be independent-frames-v1, modelTemporalFrames must be 1, transportWindowFrames must equal chunkFrames, and overlapReuseFrames must be 4. These fields distinguish model processing from transport batching. The editor requires a 9-frame transport window and 5 new input frames per non-final request.",
+    "Every non-final process request contains exactly inputCapacity frames. The final request may contain 1 through inputCapacity frames. An empty final flush is accepted after a non-final request, with frameCount=0, pts=[] and inputFile=null.",
+    "firstFrame starts at zero and advances by the previous input frameCount. pts contains one strictly increasing safe-integer microsecond timestamp per input frame and is returned unchanged for committed outputs.",
+    "Input bytes are tightly packed native BGR24. Output bytes are tightly packed BGRA with alpha 255. Dimensions are exactly width*scale and height*scale.",
+    "inputFile must equal input- plus the zero-padded nine-digit firstFrame plus .bgr. All files are regular local files directly inside jobDir. Links, reparse points, nested paths, network paths and path traversal are rejected.",
+    "maximumFrames and maximumBytes bound cumulative newly consumed input. Per-request bounds also follow inputCapacity. Output dimensions must fit the parent encoder limits, including area at most 33177600 pixels and dimensions at most 7680.",
+    "A response can contain zero committed frames. In that case outputFile and sha256 are null, bytes is zero and pts is empty. outputFirstFrame always identifies the next output frame.",
+    "last=true commits every remaining frame and makes complete=true. Further process requests are rejected. The parent verifies total frame count and timestamps before publishing the edited asset.",
+    "Output files are atomically renamed from worker-owned partial files only after a complete successful chunk. An error invalidates the job. The parent retains ownership of job directory cleanup.",
+    "chunkFrames is either 9 or 13 and describes transport capacity only, never model temporal context. overlapFrames is 4 and inputCapacity is their difference. The normal editor uses 9/4/5. seed is an integer from zero through 2147483647. Scale is 2 or 4.",
+    "The runtime contains python, vendor, upstream and models directories. The worker never downloads dependencies or models. Missing or invalid backend files fail initialization.",
+    "Cancellation uses stdin EOF or termination of the owned worker. A Windows parent process handle watchdog exits on parent death, including while native inference is blocked. close is graceful only after the outstanding response."
+  ]
+}

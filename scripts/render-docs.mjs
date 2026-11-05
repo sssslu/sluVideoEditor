@@ -1,0 +1,18 @@
+import {chromium} from 'playwright';
+import path from 'node:path';
+import {pathToFileURL} from 'node:url';
+import {mkdir} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+await mkdir('.test-artifacts/docs',{recursive:true});
+const browser=await chromium.launch({channel:'chrome',headless:true});
+const page=await browser.newPage({viewport:{width:1300,height:1000},deviceScaleFactor:1});
+await page.goto(pathToFileURL(path.resolve('docs/사용설명서.html')).href);
+await page.screenshot({path:'.test-artifacts/docs/manual-desktop.png'});
+await page.locator('#captions').scrollIntoViewIfNeeded();await page.screenshot({path:'.test-artifacts/docs/manual-captions.png'});
+await page.locator('#color').scrollIntoViewIfNeeded();await page.screenshot({path:'.test-artifacts/docs/manual-color.png'});
+await page.setViewportSize({width:720,height:900});await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:'.test-artifacts/docs/manual-mobile.png'});
+assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+await page.locator('#captions').scrollIntoViewIfNeeded();await page.screenshot({path:'.test-artifacts/docs/manual-captions-narrow.png'});
+await page.locator('#color').scrollIntoViewIfNeeded();await page.screenshot({path:'.test-artifacts/docs/manual-color-narrow.png'});
+assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+console.log('Manual visual QA images created');await browser.close();

@@ -1,0 +1,25 @@
+import {promises as fs} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {execFileSync} from 'node:child_process';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {patchRubberBand} from '../native/patch-rubberband.mjs';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const version='4.0.0',url=`https://breakfastquay.com/files/releases/rubberband-${version}.tar.bz2`,expected='af050313ee63bc18b35b2e064e5dce05b276aaf6d1aa2b8a82ced1fe2f8028e9';
+const cache=path.join(root,'.build-cache','audio-stretch'),licenses=path.join(root,'resources','licenses'),bin=path.join(root,'resources','bin');
+await Promise.all([fs.mkdir(cache,{recursive:true}),fs.mkdir(licenses,{recursive:true}),fs.mkdir(bin,{recursive:true})]);
+const archive=path.join(cache,`rubberband-${version}.tar.bz2`);let bytes=await fs.readFile(archive).catch(()=>undefined);
+if(!bytes||createHash('sha256').update(bytes).digest('hex')!==expected){const response=await fetch(url);if(!response.ok)throw Error(`Rubber Band source HTTP${response.status}`);bytes=Buffer.from(await response.arrayBuffer());if(createHash('sha256').update(bytes).digest('hex')!==expected)throw Error('Rubber Band source SHA256 mismatch');await fs.writeFile(archive,bytes);}
+execFileSync('tar.exe',['-xf',archive,'-C',cache],{windowsHide:true});const source=path.join(cache,`rubberband-${version}`),executable=path.join(bin,'slu-audio-stretch.exe'),compiler=process.env.CXX||'g++.exe';
+await patchRubberBand(source);
+const args=['-O3','-std=c++17','-static','-static-libgcc','-static-libstdc++','-s','-I',source,path.join(root,'native','audio-stretch.cpp'),'-o',executable];
+execFileSync(compiler,args,{windowsHide:true,stdio:'inherit'});
+const dependencies=execFileSync('objdump.exe',['-p',executable],{windowsHide:true,encoding:'utf8',maxBuffer:16*1024*1024}).split(/\r?\n/).flatMap(line=>{const match=/DLL Name:\s*(\S+)/i.exec(line);return match?[match[1]]:[];});
+if(dependencies.some(name=>!/^(kernel32|user32|advapi32|shell32|ole32|msvcrt|ucrtbase)\.dll$/i.test(name)&&!/^api-ms-win-/i.test(name)))throw Error(`Unexpected non-system DLL dependency: ${dependencies.join(', ')}`);
+const helper=await fs.readFile(executable),banner=execFileSync(executable,['--version'],{windowsHide:true,encoding:'utf8'}).trim(),compilerVersion=execFileSync(compiler,['--version'],{windowsHide:true,encoding:'utf8'}).split(/\r?\n/)[0];
+await fs.copyFile(path.join(source,'COPYING'),path.join(licenses,'RubberBand-LICENSE.txt'));
+await fs.copyFile(path.join(root,'native','patch-rubberband.mjs'),path.join(licenses,'RubberBand-SLU-patch.mjs'));
+await fs.writeFile(path.join(licenses,`rubberband-${version}-source.tar.bz2`),bytes);
+const sourceFiles=['native/audio-stretch.cpp','native/patch-rubberband.mjs','scripts/build-audio-stretch.mjs'],recipe=Object.fromEntries(await Promise.all(sourceFiles.map(async file=>[file,createHash('sha256').update(await fs.readFile(path.join(root,file))).digest('hex')])));
+const manifest={version,url,sourceSha256:expected,license:'GPL-2.0-or-later',helperLicense:'GPL-3.0-or-later',modification:'Continuous exact inverse time map evaluated per R3 analysis hop; source inter-channel phase relationship retained per FFT bin; source patch included',recipe,helper:path.relative(root,executable).replaceAll('\\','/'),helperSha256:createHash('sha256').update(helper).digest('hex'),helperBytes:helper.length,banner,compiler:compilerVersion,dependencies,buildCommand:[compiler,...args],builtAt:new Date().toISOString()};
+await fs.writeFile(path.join(licenses,'audio-stretch-manifest.json'),JSON.stringify(manifest,null,2)+'\n');console.log(JSON.stringify(manifest,null,2));

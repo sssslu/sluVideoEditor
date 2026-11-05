@@ -1,0 +1,13 @@
+{
+  "family": "Inter",
+  "face": "Bold",
+  "usage": "UI product wordmark only; not a caption font",
+  "source": "Local slucompanyBranding/web/fonts/Inter-Bold.woff2",
+  "modified": false,
+  "file": "src/assets/fonts/Inter-Bold.woff2",
+  "bytes": 111040,
+  "sha256": "220976705fbec109f43c5cfdceca639e99ace7e51f3eb67292b105d3575eb39b",
+  "license": "SIL Open Font License 1.1",
+  "licenseFile": "Inter-LICENSE.txt",
+  "licenseSha256": "262481e844521b326f5ecd053e59b98c8b2da78c8ee1bdbb6e8174305e54935a"
+}

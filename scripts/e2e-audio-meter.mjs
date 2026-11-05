@@ -1,0 +1,59 @@
+
+import {promises as fs} from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {launchTestElectron,electronTestArgs,captureElectron} from './e2e-launch.mjs';
+import {dismissToasts} from './e2e-toast-helper.mjs';
+const root=path.resolve('.test-artifacts/audio-meter-ui'),work=await fs.mkdtemp(path.join(root,'run-'));
+const env={...process.env,SLU_USER_DATA:path.join(work,'profile'),SLU_TEST_BACKGROUND:'1'};delete env.ELECTRON_RUN_AS_NODE;
+const executable=process.env.SLU_TEST_EXE?path.resolve(process.env.SLU_TEST_EXE):null;
+const app=await launchTestElectron({...(executable?{executablePath:executable,args:electronTestArgs(true)}:{args:electronTestArgs()}),env,timeout:90000});
+const page=await app.firstWindow(),checks=[],errors=[];page.on('pageerror',e=>errors.push(String(e)));page.on('dialog',d=>d.accept());
+const meter=page.locator('.audio-meter'),toggle=page.getByTitle('오디오 레벨',{exact:true});
+const levels=()=>page.locator('.audio-meter-track').evaluateAll(nodes=>nodes.map(n=>({peak:Number(n.dataset.peak),rms:Number(n.dataset.rms)})));
+const ready=async(left,right)=>page.waitForFunction(([left,right])=>{const n=[...document.querySelectorAll('.audio-meter-track')];return n.length===2&&Math.abs(Number(n[0].dataset.peak)-left)<.25&&Math.abs(Number(n[1].dataset.peak)-right)<.25;},[left,right]);
+const open=async file=>{await dismissToasts(page);await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},file);await page.keyboard.press('Control+o');await page.getByText('프로젝트를 열었습니다.',{exact:true}).waitFor();};
+const program=()=>page.getByRole('button',{name:'프로그램',exact:true}).click();
+const play=async()=>{await program();await page.keyboard.press('Home');await page.keyboard.press('Space');};
+const volume=async value=>{const input=page.getByLabel('클립 볼륨',{exact:true});await input.fill(String(value));await input.press('Enter');};
+try{
+  await page.getByRole('button',{name:'가져오기',exact:true}).first().waitFor();await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1520,980));
+  const system=await page.evaluate(()=>window.studio.getSystemInfo());assert.equal(system.version,JSON.parse(await fs.readFile('package.json','utf8')).version);
+  await open(path.join(root,'fixture.sluproj'));await page.getByTitle('미리보기 소리 끄기',{exact:true}).click();
+  assert.equal(await page.evaluate(()=>!!document.querySelector('.preview-gpu-stage').previewRuntime.audioMeter),false);checks.push('Closed meter creates no AudioWorklet tap');
+  await toggle.click();await page.getByLabel('오디오 레벨 위치',{exact:true}).selectOption('0');await play();await ready(-6.0206,-18.0618);
+  // The first window can include the initial playback silence. Wait for a full
+  // steady-state window before comparing the analytic RMS of the two tones.
+  await page.waitForFunction(()=>{const n=[...document.querySelectorAll('.audio-meter-track')];return n.length===2&&Math.abs(Number(n[0].dataset.rms)+9.0309)<.2&&Math.abs(Number(n[1].dataset.rms)+21.0721)<.2;});
+  const baseline=await levels();assert.ok(Math.abs(baseline[0].rms+9.0309)<.2,JSON.stringify(baseline));assert.ok(Math.abs(baseline[1].rms+21.0721)<.2,JSON.stringify(baseline));checks.push('Actual bundled worklet measures independent stereo peaks and analytic sine RMS');
+  const parity=await page.evaluate(async()=>{
+    const Tap=document.querySelector('.preview-gpu-stage').previewRuntime.audioMeter.constructor;
+    const render=async enabled=>{const ctx=new OfflineAudioContext(2,9600,48000),before=ctx.createGain(),after=ctx.createGain(),source=ctx.createBufferSource(),buffer=ctx.createBuffer(2,9600,48000);for(let c=0;c<2;c++){const samples=buffer.getChannelData(c);for(let i=0;i<samples.length;i++)samples[i]=(.5/(c+1))*Math.sin(2*Math.PI*(c?750:1000)*i/48000);}source.buffer=buffer;source.connect(before);before.connect(after);after.connect(ctx.destination);let tap,error;
+      if(enabled){tap=new Tap(ctx,before,after,()=>{},()=>{error=true;});const deadline=performance.now()+10000;while(!tap.node&&!error&&performance.now()<deadline)await new Promise(resolve=>setTimeout(resolve,10));if(error||!tap.node)throw Error('Offline meter did not initialize');}
+      source.start();const result=await ctx.startRendering();tap?.dispose();return result;};
+    const a=await render(false),b=await render(true);let different=0;for(let c=0;c<2;c++)for(let i=0;i<a.length;i++)if(a.getChannelData(c)[i]!==b.getChannelData(c)[i])different++;return {frames:a.length,channels:a.numberOfChannels,different};
+  });assert.equal(parity.different,0);checks.push('Actual browser offline audio renders identical samples with the analysis tap enabled or disabled');
+  const muted=await page.evaluate(()=>{const r=document.querySelector('.preview-gpu-stage').previewRuntime;return r.monitorGain.gain.value;});assert.ok(muted<1e-5);await ready(-6.0206,-18.0618);checks.push('Preview monitor mute silences output without hiding mix levels');
+  await page.locator('[data-clip-id="meter-clip"]').click();await page.locator('.inspector-tabs').getByRole('button',{name:'오디오',exact:true}).click();await volume(400);await ready(6.0206,-6.0206);
+  assert.equal(await page.getByLabel('L 최대 레벨 초기화',{exact:true}).getAttribute('data-overload'),'true');assert.equal(await page.getByLabel('R 최대 레벨 초기화',{exact:true}).getAttribute('data-overload'),'false');
+  await page.getByLabel('오디오 레벨 위치',{exact:true}).selectOption('1');await page.waitForFunction(()=>{const p=Number(document.querySelector('.audio-meter-track')?.dataset.peak);return p>-10&&p<3;});const limited=await levels();checks.push('Live clip gain drives per-channel overload; pre/post limiter taps measure different signals');
+  await page.getByLabel('오디오 레벨 위치',{exact:true}).selectOption('0');await volume(0);await ready(-120,-120);assert.equal(await page.getByLabel('L 최대 레벨 초기화',{exact:true}).getAttribute('data-overload'),'true');await page.getByTitle('오디오 최대 레벨 초기화',{exact:true}).click();await page.waitForFunction(()=>document.querySelector('.meter-maximum')?.dataset.overload==='false');checks.push('Overload latch survives silence and clears only when explicitly reset');
+  await volume(100);await ready(-6.0206,-18.0618);
+  const backlog=await page.evaluate(async()=>{const r=document.querySelector('.preview-gpu-stage').previewRuntime,port=r.audioMeter.node.port,frames=[];const listener=event=>{if(event.data.frames)frames.push(event.data.frames);};port.addEventListener('message',listener);const until=performance.now()+220;while(performance.now()<until){}await new Promise(resolve=>setTimeout(resolve,120));port.removeEventListener('message',listener);return {frames,rate:r.audio.sampleRate};});
+  assert.ok(Math.max(...backlog.frames)>backlog.rate*.1);assert.ok(backlog.frames.length<=6);checks.push('Blocked UI receives accumulated audio-thread peaks with a bounded message backlog');
+  await program();await page.keyboard.press('Space');await ready(-120,-120);await toggle.click();assert.equal(await meter.count(),0);assert.equal(await page.evaluate(()=>!!document.querySelector('.preview-gpu-stage').previewRuntime.audioMeter),false);
+  await toggle.click();await play();await ready(-6.0206,-18.0618);checks.push('Pause reaches silence; closing disposes the tap and reopening samples playback again');
+  await program();await page.keyboard.press('Space');await page.locator('.media-card').first().click();await page.locator('.monitor-tabs').getByRole('button',{name:/^소스/}).click();assert.equal(await page.evaluate(()=>!!document.querySelector('.preview-gpu-stage').previewRuntime.audioMeter),false);await program();await play();await ready(-6.0206,-18.0618);checks.push('Source monitor suspends the hidden program meter and returning recreates it');
+  await toggle.click();await page.evaluate(()=>{globalThis.savedWorkletNode=globalThis.AudioWorkletNode;globalThis.AudioWorkletNode=class{constructor(){throw Error('injected analysis failure');}};});await toggle.click();await meter.getByRole('alert').waitFor();
+  const audiblePath=await page.evaluate(async()=>{const r=document.querySelector('.preview-gpu-stage').previewRuntime,a=r.audio.createAnalyser();a.fftSize=2048;r.master.connect(a);await new Promise(resolve=>setTimeout(resolve,70));const samples=new Float32Array(2048);a.getFloatTimeDomainData(samples);r.master.disconnect(a);a.disconnect();return Math.max(...samples.map(Math.abs));});assert.ok(audiblePath>.1);await page.evaluate(()=>{globalThis.AudioWorkletNode=globalThis.savedWorkletNode;delete globalThis.savedWorkletNode;});await toggle.click();await toggle.click();await ready(-6.0206,-18.0618);checks.push('Injected analysis failure leaves the audio mixer intact and toggling recovers');
+  await page.getByTitle('색상 스코프',{exact:true}).click();await page.getByLabel('스코프 종류',{exact:true}).waitFor();await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1100,720));
+  for(const control of [toggle,page.getByLabel('오디오 레벨 위치',{exact:true}),page.getByTitle('오디오 최대 레벨 초기화',{exact:true}),page.getByLabel('스코프 종류',{exact:true})]){await control.scrollIntoViewIfNeeded();assert.equal(await control.evaluate(el=>{const r=el.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return hit===el||el.contains(hit);}),true);}
+  const settle=async()=>{const contentSize=await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].getContentSize());await page.waitForFunction(([width,height])=>{const plot=document.querySelector('.scope-plot canvas'),stage=document.querySelector('.preview-gpu-stage'),wrap=document.querySelector('.gpu-preview-wrap');return innerWidth===width&&innerHeight===height&&plot&&Math.abs(plot.width-plot.clientWidth*Math.min(2,devicePixelRatio))<=1&&stage&&wrap&&stage.clientHeight>50&&stage.clientHeight>=wrap.clientHeight-27;},contentSize);};
+  await settle();await captureElectron(app,{path:path.join(root,'audio-meter-small.png')});checks.push('Meter and scopes remain accessible together at1100x720 without collapsing the program image');
+  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1520,980));await settle();await captureElectron(app,{path:path.join(root,'audio-meter.png')});
+  const next=JSON.parse(await fs.readFile(path.join(root,'fixture.sluproj'),'utf8'));next.id='meter-next';next.name='Silent next';next.clips[0].volume=0;const nextFile=path.join(work,'next.sluproj');await fs.writeFile(nextFile,JSON.stringify(next));await open(nextFile);await play();await ready(-120,-120);assert.equal(await page.getByLabel('L 최대 레벨 초기화',{exact:true}).getAttribute('data-overload'),'false');checks.push('New project clears old peaks and never publishes queued previous-project readings');
+  const sourceFiles=['shared/audio-levels.ts','src/AudioMeter.tsx','src/audio-meter.css','src/Preview.tsx','src/preview/runtime.ts','src/preview/audio-meter.ts','src/preview/audio-meter.worklet.js'];const hash=async file=>createHash('sha256').update(await fs.readFile(file)).digest('hex');
+  const sourceHashes=Object.fromEntries(await Promise.all(sourceFiles.map(async file=>[file,await hash(file)]))),asarSha256=executable?await hash(path.join(path.dirname(executable),'resources/app.asar')):null;
+  assert.deepEqual(errors,[]);await fs.writeFile(path.join(root,'results.json'),JSON.stringify({version:system.version,executable,checks,errors,baseline,limited,backlog,parity,sourceHashes,asarSha256},null,2));console.log(JSON.stringify({checks,errors,baseline,limited,backlog,parity}));
+}catch(error){await captureElectron(app,{path:path.join(root,'failure.png')}).catch(()=>{});console.error(await page.locator('body').innerText());throw error;}finally{await app.close();}

@@ -1,0 +1,7 @@
+{
+  "version": "45.1.0",
+  "platform": "win32",
+  "arch": "x64",
+  "source": "https://github.com/electron/electron/tree/v45.1.0",
+  "release": "https://github.com/electron/electron/releases/tag/v45.1.0"
+}

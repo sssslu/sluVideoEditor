@@ -1,0 +1,35 @@
+import {launchTestElectron,electronTestArgs} from './e2e-launch.mjs';
+
+import {promises as fs} from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+const expectedVersion=JSON.parse(await fs.readFile(new URL('../package.json',import.meta.url),'utf8')).version;
+const executable=process.env.SLU_TEST_EXE?path.resolve(process.env.SLU_TEST_EXE):null;
+const root=path.resolve('.test-artifacts/e2e-additional');await fs.mkdir(root,{recursive:true});
+const profile=path.join(root,`profile-${Date.now()}`);await fs.mkdir(path.join(profile,'models'),{recursive:true});await fs.link(path.resolve('.test-artifacts/services/models/ggml-base.bin'),path.join(profile,'models','ggml-base.bin'));
+const env={...process.env,SLU_USER_DATA:profile};delete env.ELECTRON_RUN_AS_NODE;
+let app=await launchTestElectron({...(process.env.SLU_TEST_EXE?{executablePath:path.resolve(process.env.SLU_TEST_EXE),args:electronTestArgs(true)}:{args:electronTestArgs()}),env,timeout:90000}),page=await app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(String(e)));
+async function openDialog(files){await app.evaluate(({dialog},files)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:files});},files);}
+async function snapshot(){await page.waitForTimeout(800);return JSON.parse(await fs.readFile(path.join(profile,'recovery.sluproj'),'utf8'));}
+async function numeric(label,value){const input=page.getByLabel(label,{exact:true});await input.fill(value);await input.press('Enter');}
+try{
+  await page.getByRole('button',{name:'가져오기',exact:true}).first().waitFor();await openDialog([path.resolve('examples/AURORA.sluproj')]);await page.keyboard.press('Control+o');await page.waitForFunction(()=>document.querySelector('input[aria-label="프로젝트 이름"]')?.value==='편집 예제');
+  await page.getByRole('button',{name:'미디어',exact:true}).first().click();await page.getByRole('button',{name:'프록시 만들기',exact:true}).click();await page.getByText('미리보기 프록시를 만들었습니다.',{exact:true}).waitFor({timeout:60000});let p=await snapshot();assert.ok(p.media[0].proxyPath);assert.ok((await fs.stat(p.media[0].proxyPath)).size>10000);
+  const speech=path.resolve('.test-artifacts/services/jfk.wav');await openDialog([speech]);await page.getByRole('button',{name:'가져오기',exact:true}).first().click();await page.getByTitle('jfk.wav 타임라인에 추가').waitFor();await page.locator('.media-card').last().hover();await page.getByTitle('jfk.wav 타임라인에 추가').click();
+  await numeric('원본 시작점','2');await numeric('재생 속도','1.5');await numeric('길이','4');await numeric('시작','3');
+  await page.getByRole('button',{name:'자막',exact:true}).first().click();await page.getByRole('button',{name:'선택 클립 자동 자막',exact:true}).click();await page.getByLabel('음성 언어',{exact:true}).selectOption('en');await page.getByRole('button',{name:'자막 생성',exact:true}).click();await page.getByText('자동 자막 생성이 완료되었습니다.',{exact:true}).waitFor({timeout:60000});p=await snapshot();const tr=p.tracks.find(t=>t.name==='자동 자막');assert.ok(tr);const caps=p.clips.filter(c=>c.trackId===tr.id);assert.ok(caps.length);assert.ok(caps.every(c=>c.start>=3&&c.start+c.duration<=7.01));assert.ok(caps.some(c=>c.text.toLowerCase().includes('country')));
+  const srt=path.join(root,'한글 subtitles.srt');await fs.writeFile(srt,'1\n00:00:00,200 --> 00:00:01,500\n한글 자막 가져오기\n둘째 줄\n');await openDialog([srt]);await page.getByRole('button',{name:'SRT 열기',exact:true}).click();p=await snapshot();assert.ok(p.clips.some(c=>c.text==='한글 자막 가져오기\n둘째 줄'));
+  const srtOut=path.join(root,'exported.srt');await app.evaluate(({dialog},file)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:file});},srtOut);await page.getByRole('button',{name:'SRT 저장',exact:true}).click();await page.waitForTimeout(400);assert.ok((await fs.readFile(srtOut,'utf8')).includes('한글 자막 가져오기'));
+  // Locking protects clips against destructive editor operations.
+  const before=p.clips.length;const selected=page.locator('.timeline-clip.selected');await selected.first().click();const label=selected.first().locator('xpath=../..').locator('.track-label');await label.getByTitle('트랙 잠금',{exact:true}).click();await page.keyboard.press('Delete');p=await snapshot();assert.equal(p.clips.length,before);await label.getByTitle('트랙 잠금 해제',{exact:true}).click();
+  // Resize through native BrowserWindow; capture actual minimum-size layout.
+  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1100,720));await page.waitForTimeout(250);await page.screenshot({path:path.join(root,'minimum-window.png')});
+  const sizes=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,width:innerWidth,height:innerHeight,headerTop:document.querySelector('.app-header').getBoundingClientRect().top,inspectorRight:document.querySelector('.inspector').getBoundingClientRect().right,jobsPosition:getComputedStyle(document.querySelector('.jobs-panel')).position}));assert.ok(sizes.scroll<=sizes.width+1,`horizontal overflow ${JSON.stringify(sizes)}`);assert.ok(sizes.headerTop>=0&&sizes.headerTop<10,'header must remain visible');assert.ok(sizes.inspectorRight<=sizes.width+1,'inspector must fit');assert.equal(sizes.jobsPosition,'fixed','jobs must float over workspace');
+  // The renderer sends recovery state immediately. Quit before the disk debounce expires.
+  const finalName=`종료 직전 저장 ${Date.now()}`;await page.getByLabel('프로젝트 이름',{exact:true}).fill(finalName);await app.close();app=undefined;
+  const recovery=JSON.parse(await fs.readFile(path.join(profile,'recovery.sluproj'),'utf8'));assert.equal(recovery.name,finalName);
+  app=await launchTestElectron({...(process.env.SLU_TEST_EXE?{executablePath:path.resolve(process.env.SLU_TEST_EXE),args:electronTestArgs(true)}:{args:electronTestArgs()}),env,timeout:90000});page=await app.firstWindow();await page.getByRole('button',{name:'작업 이어서 열기',exact:true}).waitFor();await page.getByRole('button',{name:'작업 이어서 열기',exact:true}).click();assert.equal(await page.getByLabel('프로젝트 이름',{exact:true}).inputValue(),finalName);
+  await page.screenshot({path:path.join(root,'recovered.png')});assert.deepEqual(errors,[]);
+  const system=await page.evaluate(()=>window.studio.getSystemInfo());assert.equal(system.version,expectedVersion,'Unexpected application version');
+  await fs.writeFile(path.join(root,'results.json'),JSON.stringify({version:system.version,executable,date:new Date().toISOString(),checks:['Proxy creation and playback selection','Real local Whisper model integrated in UI','Trim/speed/offset mapping for automatic captions','SRT multiline Korean import/export','Track lock prevents deletion','1100x720 layout no horizontal overflow','Immediate edit and quit preserves recovery','Relaunch and restore exact latest project'],profile,errors},null,2));console.log('Additional E2E passed');
+}catch(e){await page?.screenshot({path:path.join(root,'failure.png')}).catch(()=>{});console.error(await page?.locator('body').innerText().catch(()=>''));throw e;}finally{await app?.close();}

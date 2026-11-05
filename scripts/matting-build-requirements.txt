@@ -1,0 +1,5 @@
+# Build tools only, not application/runtime dependencies. Python 3.9–3.12.
+onnx==1.17.0
+numpy==2.0.2
+protobuf==5.29.5
+typing_extensions==4.15.0

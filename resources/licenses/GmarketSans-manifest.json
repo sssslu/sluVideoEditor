@@ -1,0 +1,24 @@
+{
+  "family": "Gmarket Sans",
+  "sourceUrl": "https://corp.gmarket.com/fonts/GmarketSansTTF.zip",
+  "sourcePage": "https://corp.gmarket.com/fonts/",
+  "archiveSha256": "a2cc0ab9eb3bc868a6f2affd89fa1d4718cb6e1226dcb695b05d0d2ff417ae02",
+  "files": [
+    {
+      "file": "src/assets/fonts/GmarketSansTTFMedium.ttf",
+      "bytes": 2417020,
+      "sha256": "c6b9a2c10bfdb55975948ce191f9cf638955b5cfdc99149969add5b579262fc1",
+      "copyright": "Copyright © 2019 eBay Korea Co., Ltd. All rights reserved."
+    },
+    {
+      "file": "src/assets/fonts/GmarketSansTTFBold.ttf",
+      "bytes": 2511976,
+      "sha256": "ff7c354dd1a324e4cecc1223c4f71e74fa81be7027e0c7f6324c475909cacefc",
+      "copyright": "Copyright © 2019 eBay Korea Co., Ltd. All rights reserved."
+    }
+  ],
+  "licenseFile": "GmarketSans-LICENSE.txt",
+  "licenseSha256": "0b408bbb92acdf3a7796ffd1649bc9e43000526e3a8cff29eb4d290a665271c7",
+  "licenseSource": "Original font name table, nameID 13, Windows Unicode record",
+  "modified": false
+}

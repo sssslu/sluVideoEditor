@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "files": [
+    {
+      "filename": "Microsoft-VS2022-Redistribution.html",
+      "source": "https://learn.microsoft.com/en-us/visualstudio/releases/2022/redistribution",
+      "bytes": 62995,
+      "sha256": "610ca629c07987930bae4ccebd2e8e3ce4ab83479e4988fdb601a39d7d609b9f"
+    },
+    {
+      "filename": "Microsoft-VS2022-BuildTools-License.html",
+      "source": "https://visualstudio.microsoft.com/license-terms/vs2022-ga-diagnosticbuildtools/",
+      "bytes": 237932,
+      "sha256": "96a7b335ea0fd711f90fa907634b55f0cf56166553826a36005328779108eeb0"
+    },
+    {
+      "filename": "NVIDIA-CUDA-12.8.1-EULA.html",
+      "source": "https://docs.nvidia.com/cuda/archive/12.8.1/eula/index.html",
+      "bytes": 103832,
+      "sha256": "149f5fd7998c0f8fa52edfbfe5f9cc130e3c610645d2695383d003029a65b797"
+    },
+    {
+      "filename": "NVIDIA-cuDNN-9.10.2-EULA.html",
+      "source": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.10.2/reference/eula.html",
+      "bytes": 44277,
+      "sha256": "77ac990b15c603777e85fd509721f42bcd2ffd5da2dddd82603e227dc17aa6cb"
+    },
+    {
+      "filename": "ANTLR4-4.9.3-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/antlr/antlr4/4.9.3/LICENSE.txt",
+      "bytes": 2699,
+      "sha256": "b1b379fcaf3219593a4c433feb1b35c780bed23fafaae440b1ae2771a9521e3a"
+    },
+    {
+      "filename": "SeedVR2-model-card.md",
+      "source": "https://huggingface.co/numz/SeedVR2_comfyUI/raw/09ced71023636e9bc8cdf9cdecfb2625d1e691e8/README.md",
+      "bytes": 41823,
+      "sha256": "a456db9bf239f363a56a8c8c1319d46125349b5c50b58638ab6042b93e81168b"
+    },
+    {
+      "filename": "tqdm-4.67.1-LICENCE.txt",
+      "source": "https://raw.githubusercontent.com/tqdm/tqdm/v4.67.1/LICENCE",
+      "bytes": 1985,
+      "sha256": "dc33252e829015e3b150086fb9b3a40f6ad6fb32c2f4610ce812fa677d35986a"
+    },
+    {
+      "filename": "tokenizers-0.22.2-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/huggingface/tokenizers/v0.22.2/LICENSE",
+      "bytes": 11357,
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "filename": "SeedVR2-Apache-2.0.txt",
+      "source": "https://github.com/numz/ComfyUI-SeedVR2_VideoUpscaler/blob/4490bd1f482e026674543386bb2a4d176da245b9/LICENSE",
+      "bytes": 11334,
+      "sha256": "5967a0c153e731109b76c5d83b5e0fae2382b6aaf7b898d08ff03702eea59430"
+    },
+    {
+      "filename": "Microsoft-VS2022-BuildTools-License.docx",
+      "source": "https://visualstudio.microsoft.com/wp-content/uploads/2024/03/Visual-Studio-2022-Diagnostic-Build-Tools-Agent-License_Update-March-2024_EN.docx",
+      "bytes": 34395,
+      "sha256": "2f66b86a00e8d9833789897ce23d05a4a2dbea370cf39c8c1098dbc17d0e7bdc"
+    }
+  ]
+}

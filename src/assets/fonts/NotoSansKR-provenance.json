@@ -1,0 +1,18 @@
+{
+  "family": "Noto Sans KR",
+  "filename": "NotoSansKR-VF.ttf",
+  "originalFilename": "NotoSansKR[wght].ttf",
+  "repository": "https://github.com/google/fonts",
+  "commit": "4efc2774c63917927efe769ca845def6bd6debae",
+  "sourceUrl": "https://raw.githubusercontent.com/google/fonts/4efc2774c63917927efe769ca845def6bd6debae/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf",
+  "licenseUrl": "https://github.com/google/fonts/blob/4efc2774c63917927efe769ca845def6bd6debae/ofl/notosanskr/OFL.txt",
+  "license": "SIL Open Font License 1.1",
+  "licenseFile": "resources/licenses/NotoSansKR-OFL.txt",
+  "copyright": "Copyright 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'",
+  "bytes": 10414588,
+  "sha256": "194018e6b2b293a7964f037b25c0249ce1418bc9ab3c971060a03aa57861e252",
+  "licenseSha256": "1c05c68c34f9708415aada51f17e1b0092d2cea709bf4a94cd38114f9e73d7d9",
+  "modified": false,
+  "acquired": "2026-10-30",
+  "weightAxis": { "min": 100, "max": 900 }
+}

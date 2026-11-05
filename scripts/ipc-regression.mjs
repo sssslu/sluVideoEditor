@@ -1,0 +1,38 @@
+import {launchTestElectron,electronTestArgs} from './e2e-launch.mjs';
+
+import path from 'node:path';
+import {mkdir,link,readFile,writeFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const expectedVersion=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8')).version;
+const executable=process.env.SLU_TEST_EXE?path.resolve(process.env.SLU_TEST_EXE):null;
+const root=path.resolve('.test-artifacts/ipc-v2');await mkdir(root,{recursive:true});const data=path.join(root,`profile-${Date.now()}`);await mkdir(path.join(data,'models'),{recursive:true});
+await link(path.resolve('.test-artifacts/services/models/ggml-base.bin'),path.join(data,'models','ggml-base.bin'));
+const env={...process.env,SLU_USER_DATA:data};delete env.ELECTRON_RUN_AS_NODE;
+const app=await launchTestElectron({...(process.env.SLU_TEST_EXE?{executablePath:path.resolve(process.env.SLU_TEST_EXE),args:electronTestArgs(true)}:{args:electronTestArgs()}),env,timeout:90000});const page=await app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(String(e)));
+const checks=[];let closed=false;try{
+  await page.getByRole('button',{name:'가져오기',exact:true}).first().waitFor();
+  const imported=await page.evaluate(async file=>{const events=[];const off=window.studio.onMediaUpdated(m=>events.push(m));const start=performance.now();const assets=await window.studio.importMedia([file]);const returnedAfter=performance.now()-start;for(let i=0;i<300&&!events.length;i++)await new Promise(r=>setTimeout(r,50));off();return {assets,events,returnedAfter};},path.resolve('examples/01 - Aurora motion.mp4'));
+  assert.equal(imported.assets.length,1);assert.equal(imported.assets[0].waveform,undefined);assert.equal(imported.events.length,1);assert.ok(imported.events[0].waveform.length>0);assert.ok(imported.events[0].thumbnail);checks.push('Metadata import returns before background waveform/thumbnail event');
+  const sample=JSON.parse(await readFile('examples/AURORA.sluproj','utf8'));const asset=imported.events[0];const originalId=sample.media[0].id;sample.media=[asset];for(const c of sample.clips)if(c.mediaId===originalId)c.mediaId=asset.id;
+  const first={...sample,id:'ipc-recovery-A',name:'복구 A'},second={...sample,id:'ipc-recovery-B',name:'복구 B'};
+  const recovery=await page.evaluate(async({first,second})=>{await Promise.all([window.studio.autosave(first),window.studio.autosave(second)]);return {list:await window.studio.listRecoveries(),a:await window.studio.loadRecovery(first.id),b:await window.studio.loadRecovery(second.id)};},{first,second});assert.equal(recovery.a.name,'복구 A');assert.equal(recovery.b.name,'복구 B');assert.ok(recovery.list.some(p=>p.id===first.id));checks.push('Two rapid project switches preserve both recovery snapshots');
+  const output=path.join(root,'saved.sluproj');await app.evaluate(({dialog},file)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:file});},output);
+  await page.evaluate(p=>window.studio.saveProject(p),first);
+  // Delay the earlier request before atomicWrite, where a destination-only
+  // write queue cannot preserve IPC invocation order by itself.
+  await app.evaluate((_,output)=>{const {createRequire,syncBuiltinESMExports}=process.getBuiltinModule('module'),require=createRequire(process.execPath),fs=require('node:fs/promises'),path=require('node:path');globalThis.saveOriginalRealpath=fs.realpath;globalThis.savePathDelay=0;fs.realpath=async function(file,...rest){if(!globalThis.savePathDelay&&path.resolve(String(file)).toLowerCase()===path.resolve(output).toLowerCase()){globalThis.savePathDelay++;await new Promise(r=>setTimeout(r,500));}return globalThis.saveOriginalRealpath.call(this,file,...rest);};syncBuiltinESMExports();},output);
+  try{await page.evaluate(async({p,output})=>Promise.all([window.studio.saveProject({...p,name:'이전 저장'},output),window.studio.saveProject({...p,name:'최신 저장'},output)]),{p:first,output});assert.equal(await app.evaluate(()=>globalThis.savePathDelay),1);assert.equal(JSON.parse(await readFile(output,'utf8')).name,'최신 저장');}
+  finally{await app.evaluate(()=>{const {createRequire,syncBuiltinESMExports}=process.getBuiltinModule('module');createRequire(process.execPath)('node:fs/promises').realpath=globalThis.saveOriginalRealpath;syncBuiltinESMExports();});}
+  checks.push('Concurrent manual saves preserve latest invocation despite500ms delayed source/output path validation');
+  const bom=path.join(root,'BOM 한글.sluproj');await writeFile(bom,'\ufeff'+JSON.stringify(first));await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},bom);const opened=await page.evaluate(()=>window.studio.openProject());assert.equal(opened.project.name,first.name);checks.push('Native project open accepts UTF-8 BOM');
+  const audio=(await page.evaluate(file=>window.studio.importMedia([file]),path.resolve('.test-artifacts/services/korean-heami.wav')))[0];
+  const captions=await page.evaluate(media=>new Promise(async(resolve,reject)=>{let id;const off=window.studio.onJob(e=>{if(e.id!==id)return;if(e.status==='complete'){off();resolve(e);}else if(e.status==='error'||e.status==='cancelled'){off();reject(new Error(e.message));}});try{id=(await window.studio.transcribe(media,'ko',{model:'base',device:'cpu',start:1.7,duration:3.9,maxChars:18,maxDuration:3})).jobId;}catch(e){off();reject(e);}}),audio);
+  assert.ok(captions.cues.length>0);assert.ok(captions.cues.every(c=>c.start>=1.7&&c.end<=5.601));checks.push('Bundled CPU whisper-cli transcribes selected source range through IPC');
+  const proxy=await page.evaluate(media=>new Promise(async(resolve,reject)=>{let id;const off=window.studio.onJob(e=>{if(e.id!==id)return;if(e.status==='complete'){off();resolve(e);}else if(e.status==='error'){off();reject(new Error(e.message));}});id=(await window.studio.generateProxy(media)).jobId;}),asset);assert.ok(proxy.media.proxyPath);checks.push('Proxy generation and returned source identity');assert.equal(proxy.media.id,asset.id);
+  const system=await page.evaluate(()=>window.studio.getSystemInfo());assert.equal(system.version,expectedVersion,'Unexpected application version');
+  await app.evaluate((_,output)=>{const {createRequire,syncBuiltinESMExports}=process.getBuiltinModule('module'),require=createRequire(process.execPath),fs=require('node:fs/promises'),path=require('node:path');const original=fs.realpath;globalThis.shutdownSaveDelayed=false;fs.realpath=async function(file,...rest){if(!globalThis.shutdownSaveDelayed&&path.resolve(String(file)).toLowerCase()===path.resolve(output).toLowerCase()){globalThis.shutdownSaveDelayed=true;await new Promise(r=>setTimeout(r,500));}return original.call(this,file,...rest);};syncBuiltinESMExports();},output);
+  await page.evaluate(({p,output})=>{window.shutdownSave=Promise.all([window.studio.saveProject({...p,name:'종료 전 이전'},output),window.studio.saveProject({...p,name:'종료 전 최신'},output)]).catch(()=>{});},{p:first,output});
+  for(let i=0;i<100&&!await app.evaluate(()=>globalThis.shutdownSaveDelayed);i++)await new Promise(r=>setTimeout(r,10));assert.equal(await app.evaluate(()=>globalThis.shutdownSaveDelayed),true);
+  await app.close();closed=true;assert.equal(JSON.parse(await readFile(output,'utf8')).name,'종료 전 최신');checks.push('Quitting during delayed manual saves drains the full queue and preserves the newest complete project');
+  assert.deepEqual(errors,[]);await writeFile(path.join(root,'results.json'),JSON.stringify({date:new Date().toISOString(),version:system.version,executable,checks,errors,metadataReturnMilliseconds:imported.returnedAfter,captions:captions.cues,profile:data},null,2));console.log('IPC regression passed',checks.length);
+}finally{if(!closed)await app.close();}
