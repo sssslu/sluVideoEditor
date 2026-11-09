@@ -10,6 +10,7 @@ import type {CaptionWord,MediaAsset,SpeechOptions,SubtitleCue} from '../shared/t
 import {publishRuntimeDirectory} from './project-store';
 import {requireSourceRevision} from './source-revision';
 import {assertCaptionWords,captionGraphemes} from '../shared/captions';
+import {ffmpegSeconds} from './ffmpeg-time';
 
 const CUDA={version:'1.8.7',url:'https://github.com/ggml-org/whisper.cpp/releases/download/v1.8.7/whisper-cublas-12.4.0-bin-x64.zip',sha256:'ce5e66c7e45985f497e3a81c9d33723f19b3118993b47f53b8351df5cbb20402'};
 const cudaDirectory=(ctx:ServiceContext)=>path.join(ctx.modelDir,`whisper-cuda-${CUDA.version}`);
@@ -148,6 +149,21 @@ export function groupCaptionWords(words:TimedText[],maxChars=28,maxDuration=4):S
   return cues.filter(c=>c.end>c.start).map(cropCueWords);
 }
 
+/** FFmpeg exits 0 with a header-only WAV when the requested range starts after
+ * the audio stream ends. Walk the RIFF chunks and report the data payload. */
+export async function wavHasSamples(file:string):Promise<boolean>{
+  const handle=await open(file,'r');
+  try{
+    const {size}=await handle.stat(),header=Buffer.alloc(12);await handle.read(header,0,12,0);
+    if(header.toString('latin1',0,4)!=='RIFF'||header.toString('latin1',8,12)!=='WAVE')return size>0;
+    for(let at=12;at+8<=size;){
+      await handle.read(header,0,8,at);const length=header.readUInt32LE(4);
+      if(header.toString('latin1',0,4)==='data')return Math.min(length,size-at-8)>0;
+      at+=8+length+(length&1);
+    }
+    return false;
+  }finally{await handle.close();}
+}
 export async function transcribeWithCLI(media:MediaAsset,language:string,ctx:ServiceContext,progress:ServiceProgress,signal:AbortSignal|undefined,options:SpeechOptions):Promise<SubtitleCue[]>{
   const modelId=options.model??'base',device=options.device??'auto',start=options.start??0,duration=options.duration??(media.duration-start),maxChars=options.maxChars??28,maxDuration=options.maxDuration??4;
   if(!Object.hasOwn(SPEECH_MODELS,modelId)||!['auto','cpu','cuda'].includes(device)||![start,duration].every(Number.isFinite)||start<0||duration<=0||start+duration>media.duration+.15)throw new Error('음성 인식 구간 또는 모델 설정 오류');
@@ -160,14 +176,20 @@ export async function transcribeWithCLI(media:MediaAsset,language:string,ctx:Ser
       abort(signal);const ownershipEnd=Math.min(duration,offset+600),chunkStart=Math.max(0,offset-1),chunkEnd=Math.min(duration,ownershipEnd+1),chunkDuration=chunkEnd-chunkStart,wav=path.join(work,'audio.wav'),out=path.join(work,'result');
       progress(offset/duration,`음성 추출 · ${Math.round(offset)} / ${Math.round(duration)}초`);
       await requireSourceRevision(media.path,sourceRevision);abort(signal);
-      await run(ctx.ffmpeg,['-hide_banner','-nostdin','-v','error','-y','-ss',String(start+chunkStart),'-t',String(chunkDuration),'-protocol_whitelist','file,pipe','-i',media.path,'-map','0:a:0','-vn','-ar','16000','-ac','1','-c:a','pcm_s16le',wav],{signal});
+      // Every chunk reuses result.json. A stale file must never be read again.
+      await rm(out+'.json',{force:true});
+      await run(ctx.ffmpeg,['-hide_banner','-nostdin','-v','error','-y','-ss',ffmpegSeconds(start+chunkStart),'-t',ffmpegSeconds(chunkDuration),'-protocol_whitelist','file,pipe','-i',media.path,'-map','0:a:0','-vn','-ar','16000','-ac','1','-c:a','pcm_s16le',wav],{signal});
       await requireSourceRevision(media.path,sourceRevision);abort(signal);
+      // The audio track can end before the video; whisper-cli then exits 0
+      // without writing JSON. Such a chunk has nothing to transcribe.
+      if(!await wavHasSamples(wav))continue;
       const args=['-m',path.join(ctx.modelDir,SPEECH_MODELS[modelId].filename),'-f',wav,'-l',language,'-ojf','-of',out,'-pp','-t',String(Math.min(8,Math.max(2,availableParallelism()-2)))];
       const execute=async()=>{let confirmedCuda=false;await run(useCuda?cudaExecutable(ctx):ctx.whisper!,[...args,...(!useCuda?['-ng']:[])],{cwd:work,signal,onLine(line){if(/using CUDA\d+ backend/.test(line))confirmedCuda=true;const m=/progress\s*=\s*(\d+)%/.exec(line);if(m)progress(Math.min(.99,(offset+(ownershipEnd-offset)*Number(m[1])/100)/duration),`음성 인식 · ${modelId} / ${useCuda&&confirmedCuda?'CUDA':'CPU'} · ${m[1]}%`);}});if(useCuda&&!confirmedCuda)throw new Error('CUDA 백엔드를 활성화하지 못했습니다.');};
       progress(offset/duration,`음성 인식 · ${modelId} / ${useCuda?'CUDA':'CPU'}`);
       try{await execute();}catch(error){abort(signal);if(device==='auto'&&useCuda){useCuda=false;progress(offset/duration,'CUDA 실행 실패 · CPU로 재시도');await execute();}else throw error;}
       await requireSourceRevision(media.path,sourceRevision);abort(signal);
-      const words=selectOwnedWhisperWords(parseWhisperWords(JSON.parse(await readFile(out+'.json','utf8'))),chunkStart,offset,ownershipEnd,start);
+      const json=await readFile(out+'.json','utf8').catch(error=>{if(error?.code==='ENOENT')throw new Error(`음성 인식 엔진이 ${Math.round(start+chunkStart)}초 구간의 결과를 만들지 못했습니다. 오디오를 읽지 못했을 수 있습니다.`);throw error;});
+      const words=selectOwnedWhisperWords(parseWhisperWords(JSON.parse(json)),chunkStart,offset,ownershipEnd,start);
       result.push(...groupCaptionWords(words,maxChars,maxDuration));
     }
     await requireSourceRevision(media.path,sourceRevision);abort(signal);progress(1,`자막 ${result.length}개`);return result;

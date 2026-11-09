@@ -8,7 +8,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { probeMedia, enrichMedia, THUMBNAIL_SUFFIX, createProxy, detectEncoders, renderProject, CancelledError, type EngineContext, type ProgressCallback } from './media';
-import { installSpeechModel, transcribeMedia, parseSrt, formatSrt, modelReady, SPEECH_MODELS, type ServiceContext } from './services';
+import { installSpeechModel, transcribeMedia, parseSrt, decodeSubtitleText, formatSrt, modelReady, SPEECH_MODELS, type ServiceContext } from './services';
 import {parseCube,MAX_LUT_BYTES} from '../shared/color';
 import { installSpeechEngine,speechCudaReady } from './speech';
 import {stabilizeMedia} from './stabilization';
@@ -197,7 +197,9 @@ async function prepareEnhancedMedia(media:MediaAsset,options:EnhancementOptions,
 }
 function flushAutosave():Promise<void>{
   if(autoSaveTimer){clearTimeout(autoSaveTimer);autoSaveTimer=undefined;}
-  const snapshots=[...latestAutoSaves.values()].sort((a,b)=>a.revision-b.revision);if(!snapshots.length)return autoSaveQueue;
+  // With nothing pending, wait for an in-flight write but never replay an old
+  // failure: its waiters were already rejected, and recovery listing must work.
+  const snapshots=[...latestAutoSaves.values()].sort((a,b)=>a.revision-b.revision);if(!snapshots.length)return autoSaveQueue.catch(()=>{});
   latestAutoSaves.clear();const revision=snapshots[snapshots.length-1].revision;
   autoSaveQueue=autoSaveQueue.catch(()=>{}).then(async()=>{
     let failure:unknown;
@@ -422,7 +424,7 @@ function setupIPC(){
   handler('model:install',async(model:SpeechModelId='base')=>({jobId:startJob('model',async(signal,progress)=>{await installSpeechModel(services,progress,signal,model);return {message:'음성 모델 설치 완료'};})}));
   handler('speech:install',async()=>({jobId:startJob('model',async(signal,progress)=>{await installSpeechEngine(services,progress,signal);return {message:'CUDA 음성 엔진 설치 완료'};})}));
   handler('media:transcribe',async(media:MediaAsset,language:string,options:SpeechOptions={})=>{checkMedia(media);if(!media.hasAudio&&media.kind!=='audio')throw new Error('오디오가 없는 미디어입니다.');return {jobId:startJob('transcribe',async(signal,progress)=>{const revision=await requireSourceRevision(media.path,media.sourceRevision),cues=await transcribeMedia(media,language,services,progress,signal,options);await requireSourceRevision(media.path,revision);return {cues,message:'자막 생성 완료'};})};});
-  handler('subtitles:import',async()=>{const r=await dialog.showOpenDialog(win!,{title:'자막 가져오기',filters:[{name:'자막',extensions:['srt','vtt']}],properties:['openFile']});if(r.canceled)return null;const stat=await fs.stat(r.filePaths[0]);if(stat.size>10*1024*1024)throw new Error('자막 파일이 너무 큽니다.');return parseSrt(await fs.readFile(r.filePaths[0],'utf8'));});
+  handler('subtitles:import',async()=>{const r=await dialog.showOpenDialog(win!,{title:'자막 가져오기',filters:[{name:'자막',extensions:['srt','vtt']}],properties:['openFile']});if(r.canceled)return null;const stat=await fs.stat(r.filePaths[0]);if(stat.size>10*1024*1024)throw new Error('자막 파일이 너무 큽니다.');return parseSrt(decodeSubtitleText(await fs.readFile(r.filePaths[0])));});
   handler('subtitles:export',async(cues:SubtitleCue[])=>{if(!Array.isArray(cues)||cues.length>50000||cues.some(c=>!c||typeof c.text!=='string'||c.text.length>20000||!Number.isFinite(c.start)||!Number.isFinite(c.end)))throw new Error('잘못된 자막 정보입니다.');let file=await chooseSave('자막.srt',['srt']);if(!file)return null;if(path.extname(file).toLowerCase()!=='.srt')file+='.srt';await atomicWrite(file,formatSrt(cues));allow(file);return file;});
 }
 const mime:Record<string,string>={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.json':'application/json','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.gif':'image/gif','.mp4':'video/mp4','.m4v':'video/mp4','.mov':'video/quicktime','.mkv':'video/x-matroska','.webm':'video/webm','.mp3':'audio/mpeg','.wav':'audio/wav','.flac':'audio/flac','.m4a':'audio/mp4','.ogg':'audio/ogg','.opus':'audio/ogg'};

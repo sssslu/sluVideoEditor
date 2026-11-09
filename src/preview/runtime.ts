@@ -21,7 +21,7 @@ export interface PreviewStats {mode:'WebGL2'|'CPU';fps:number;renderMs:number;p9
 export interface RuntimeCallbacks {onTime:(time:number)=>void;onEnded:()=>void;onStats:(stats:PreviewStats)=>void;onIssue:(media:MediaAsset|undefined,message:string)=>void;onMediaReady?:(media:MediaAsset)=>void;onScopes?:(result:ScopeResult|undefined)=>void;onScopeError?:(message:string)=>void;onAudioLevels?:(frame:AudioLevelFrame|undefined)=>void;onAudioMeterError?:(message:string)=>void}
 /** Overlay size in CSS pixels, the frame's offset inside it, and CSS pixels per project pixel. */
 export interface PreviewViewport {width:number;height:number;left:number;top:number;scale:number}
-export interface PreviewTarget {clip:Clip;state:Keyframe;geometry:Geometry;dragScale:number;locked:boolean;handle?:Handle}
+export interface PreviewTarget {clip:Clip;state:Keyframe;time:number;geometry:Geometry;dragScale:number;transition:boolean;locked:boolean;handle?:Handle}
 interface Decoder {waitingForProxy:boolean;audioOnly?:boolean;suppressAudio?:boolean;clip:PreviewClip;exposure:ClipExposure;media:MediaAsset;track:Track;url:string;element:HTMLMediaElement|HTMLImageElement;key:string;loaded:boolean;failed:boolean;destroyed:boolean;version:number;frameCallback?:number;lastCallback:number;lastImageTime:number;presentedTime?:number;lagSince?:number;desired:number;pendingSeek?:number;active:boolean;playing:boolean;lastCorrection:number;gain?:GainNode;eq?:PreviewAudioEQ;audioSource?:MediaElementAudioSourceNode;lastGain:number;playPending:boolean}
 
 export class PreviewRuntime {
@@ -62,7 +62,7 @@ export class PreviewRuntime {
     else if(!this.running&&playing){this.anchorClock=performance.now();this.running=true;this.waitingToStart=true;void this.resumeAudio();this.updatePlan(this.evaluationTime(),true);this.force=true;}
     this.wake();
   }
-  time(){
+  time(clock=performance.now()){
     if(!this.running||this.waitingToStart)return this.anchorTime;
     // MediaElement timestamps follow the audio device clock. A wall-clock
     // start can lead that clock by hundreds of milliseconds on first playback,
@@ -72,9 +72,9 @@ export class PreviewRuntime {
       const local=clipTimelineTime(node.clip,fromPreviewTime(node.media,element.currentTime,this.proxy));
       if(local>=node.exposure.audioFrom-.002&&local<node.exposure.audioTo)return Math.max(this.anchorTime,node.clip.start+local);
     }
-    return this.anchorTime+(performance.now()-this.anchorClock)/1000;
+    return this.anchorTime+(clock-this.anchorClock)/1000;
   }
-  private evaluationTime(){return clamp(this.time(),0,Math.max(0,this.duration-.000001));}
+  private evaluationTime(clock?:number){return clamp(this.time(clock),0,Math.max(0,this.duration-.000001));}
   private seek(time:number){this.scopes?.invalidate();if(this.running){this.waitingToStart=true;for(const node of this.nodes.values())this.pauseNode(node);}this.anchorTime=clamp(time,0,this.project?this.duration:86400);this.anchorClock=performance.now();this.lastRenderFrame=-1;this.updatePlan(this.evaluationTime(),true);for(const node of this.nodes.values())this.position(node,sourceTime(node.clip,this.evaluationTime(),node.media,node.exposure),true);this.force=true;this.dirty=true;this.wake();}
   private makeAudio(){if(this.audio)return;try{this.audio=new AudioContext({latencyHint:'interactive'});this.master=this.audio.createGain();this.monitorGain=this.audio.createGain();this.monitorGain.gain.value=this.muted?0:1;this.limiter=this.audio.createDynamicsCompressor();this.limiter.threshold.value=-.3;this.limiter.knee.value=0;this.limiter.ratio.value=20;this.limiter.attack.value=.003;this.limiter.release.value=.07;this.master.connect(this.limiter);this.limiter.connect(this.monitorGain);this.monitorGain.connect(this.audio.destination);this.connectAudioMeter();}catch{this.callbacks.onIssue(undefined,'오디오 믹서를 시작하지 못했습니다. 미리보기 소리를 확인하세요.');}}
   async resumeAudio(){this.makeAudio();if(this.audio?.state==='suspended'){this.audioStarting=true;try{await this.audio.resume();}catch{}finally{this.audioStarting=false;this.wake();}}}
@@ -146,8 +146,8 @@ export class PreviewRuntime {
   private ready(){if(!this.buffersReady())return false;if(this.waitingToStart)for(const node of this.nodes.values())if(node.active&&!node.failed&&node.element instanceof HTMLMediaElement&&(!node.playing||node.element.paused))return false;return true;}
   private wake(){if(!this.frame&&!this.destroyed)this.frame=requestAnimationFrame(now=>this.tick(now));}
   private tick(now:number){this.frame=0;if(this.destroyed||!this.project)return;const duration=this.duration;if(this.running&&this.time()>=duration){this.anchorTime=duration;this.running=false;this.waitingToStart=false;this.seek(duration);this.callbacks.onTime(duration);this.callbacks.onEnded();this.force=true;}
-    const time=this.evaluationTime();if(this.running&&!this.waitingToStart){this.anchorTime=time;this.anchorClock=now;}if(time>=this.nextBoundary||Math.abs(time-this.lastPlan)>.3)this.updatePlan(time);this.syncNodes(time,now);
-    const frameIndex=Math.floor(time*this.project.fps);const ready=this.ready();if(this.waitingToStart&&ready){this.waitingToStart=false;this.anchorClock=now;this.syncNodes(time,now);}
+    const clock=performance.now(),time=this.evaluationTime(clock);if(this.running&&!this.waitingToStart){this.anchorTime=time;this.anchorClock=clock;}if(time>=this.nextBoundary||Math.abs(time-this.lastPlan)>.3)this.updatePlan(time);this.syncNodes(time,now);
+    const frameIndex=Math.floor(time*this.project.fps);const ready=this.ready();if(this.waitingToStart&&ready){this.waitingToStart=false;this.anchorClock=performance.now();this.syncNodes(time,now);}
     if((this.force||this.dirty||this.running)&&(this.force||!this.running||frameIndex!==this.lastRenderFrame)&&(this.running||ready)&&this.motion.ready(this.project,time)){
       const frames=new Map<string,VisualFrame>();for(const node of this.nodes.values()){if(!node.active||node.media.kind==='audio'||!visualEnabled(this.project,node.track))continue;const frame=this.frameFor(node);const clip=this.motion.resolve(this.project,node.clip,time);if(frame&&clip)frames.set(clip.id,{clip,frame});}
       const visuals:VisualRenderNode[]=visualNodesAt(this.transitions!,time).flatMap<VisualRenderNode>(node=>{if(node.type==='clip'){const frame=frames.get(node.clip.id);return frame?[frame]:[];}return [{type:'transition' as const,transition:node.transition,from:frames.get(node.from.id),to:frames.get(node.to.id),progress:node.progress}];});
@@ -186,7 +186,7 @@ export class PreviewRuntime {
   /** Handles of the selected clip win over clips stacked above it; otherwise the top-most clip under the point. */
   pick(x:number,y:number):PreviewTarget|undefined{if(!this.project)return;const region=this.handleRegion();if(region){const {unit,box}=this.view(),handle=pickHandle(region.geometry,[x,y],unit,box),target=handle&&this.target(region);if(target)return {...target,handle};}const hit=hitTest(this.renderer.hitRegions,x,y);return hit&&this.target(hit);}
   /** Keyframe values without fades, caption animation or motion tracking, so drags write back what the user set. */
-  private target(region:HitRegion):PreviewTarget|undefined{const clip=this.project!.clips.find(c=>c.id===region.clip.id);if(!clip)return;return {clip,state:interpolate(clip,this.evaluationTime()-clip.start),geometry:region.geometry,dragScale:region.dragScale||1,locked:this.locked(clip.id)};}
+  private target(region:HitRegion):PreviewTarget|undefined{const clip=this.project!.clips.find(c=>c.id===region.clip.id);if(!clip)return;const time=this.evaluationTime();return {clip,state:interpolate(clip,time-clip.start),time,geometry:region.geometry,dragScale:region.dragScale||1,transition:!!region.transition,locked:this.locked(clip.id)};}
   hit(x:number,y:number){const region=hitTest(this.renderer.hitRegions,x,y),target=region&&this.target(region);return target&&!target.locked?target:undefined;}
   dispose(){this.destroyed=true;this.motion.dispose();this.scopes?.dispose();this.audioMeter?.dispose();cancelAnimationFrame(this.frame);for(const node of this.nodes.values())this.destroyNode(node);this.nodes.clear();this.renderer.dispose();this.audio?.close().catch(()=>{});this.overlay.getContext('2d')?.clearRect(0,0,this.overlay.width,this.overlay.height);this.host.replaceChildren();}
 }

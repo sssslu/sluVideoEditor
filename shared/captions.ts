@@ -34,7 +34,7 @@ export function estimateCaptionWords(clip:Clip):CaptionWord[] {
   const text=clip.text??'',parts=[...new Intl.Segmenter('und',{granularity:'word'}).segment(text)].filter(s=>s.isWordLike);
   if(!parts.length)return [];
   if(parts.length>MAX_CAPTION_WORDS)throw new Error('한 자막에는 최대 2,048개 단어를 지정할 수 있습니다.');
-  return parts.map((part,index)=>({from:part.index,to:part.index+part.segment.length,start:clip.duration*index/parts.length,end:clip.duration*(index+1)/parts.length,timing:'estimated'}));
+  return parts.map((part,index)=>({from:part.index,to:part.index+part.segment.length,start:Math.min(clip.duration,clip.duration*index/parts.length),end:index===parts.length-1?clip.duration:Math.min(clip.duration,clip.duration*(index+1)/parts.length),timing:'estimated'}));
 }
 /** Half-open intervals: pauses show base color and one boundary activates only one word. */
 export function activeCaptionWord(clip:Clip,localTime:number):number {

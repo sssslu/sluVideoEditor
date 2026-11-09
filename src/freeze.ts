@@ -28,7 +28,7 @@ export function insertFreeze(project:Project,clipId:string,at:number,duration:nu
   if(image.kind!=='image')throw new Error('정지 프레임 이미지가 필요합니다.');
   const plan=planFreeze(project,clipId,at,duration),state=clipState(plan.clip,plan.at);
   if(state.scale<.01||state.scale>8||Math.abs(state.y)>16384)throw new Error('현재 애니메이션의 확대·위치가 정지 클립의 지원 범위를 벗어납니다.');
-  const frozen:Clip={...structuredClone(plan.clip),x:state.x,y:state.y,scale:state.scale,opacity:state.opacity,rotation:state.rotation,id:uid(),name:`${plan.clip.name} · 정지`,mediaId:image.id,start:plan.at,duration:plan.duration,in:0,speed:1,speedCurve:undefined,volume:0,audioEQ:undefined,fadeIn:0,fadeOut:0,keyframes:[],animation:'none',captionAnimation:undefined,captionWords:undefined,stabilization:undefined,reversal:undefined,cutout:undefined,sourceClipOffset:undefined,sourceClipDuration:undefined};
+  const frozen:Clip={...structuredClone(plan.clip),x:state.x,y:state.y,scale:state.scale,opacity:state.opacity,rotation:state.rotation,id:uid(),name:`${plan.clip.name} · 정지`,mediaId:image.id,start:plan.at,duration:plan.duration,in:0,speed:1,speedCurve:undefined,volume:0,audioEQ:undefined,fadeIn:0,fadeOut:0,keyframes:[],animation:'none',captionAnimation:undefined,captionWords:undefined,stabilization:undefined,reversal:undefined,cutout:undefined,enhancement:undefined,sourceClipOffset:undefined,sourceClipDuration:undefined};
   const clips=insertClip(project,frozen,'insert');if(clips.length>10000)throw new Error('프로젝트당 최대 10,000개 클립을 지원합니다.');
   const media=project.media.some(m=>m.id===image.id)?project.media:[...project.media,image];if(media.length>2000)throw new Error('프로젝트당 최대 2,000개 미디어를 지원합니다.');
   return {project:{...project,media,clips},clip:frozen};

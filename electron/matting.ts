@@ -11,6 +11,7 @@ import {MattingVideoEncoder} from './matting-encode';
 import type {MattingModelOptions,MattingBackend,MattingFrame,MattingOutput} from './matting-model';
 import {requireSourceRevision,readSourceRevision} from './source-revision';
 import {assertOutputNotSource,insideDirectory,localFilePath} from './file-policy';
+import {fileSizeTimeout} from './ffmpeg-time';
 
 import type {PersonCutoutOptions} from '../shared/types';
 export type {PersonCutoutOptions} from '../shared/types';
@@ -64,7 +65,7 @@ export async function removePersonBackground(media:MediaAsset,options:PersonCuto
   const audioSamples=await muxProcessedVideo({video,source:media.path,output:temporary,startPts:at,endPts:until,lastPts:last,frameCount},ctx,signal);
   await unchanged();const result=await probeMedia(temporary,ctx,signal,{derivatives:false});
   if(result.kind!=='video'||!result.hasAlpha||Math.abs(result.duration-settings.duration)>.002||result.hasAudio!==audioSamples)throw new Error('배경 제거 영상의 투명도, 길이 또는 오디오가 원본과 일치하지 않습니다.');
-  const count=JSON.parse((await runProcess(ctx.ffprobe,['-v','error','-count_packets','-select_streams','v:0','-show_entries','stream=nb_read_packets','-of','json',temporary],{signal,timeoutMs:120000})).stdout.toString()).streams?.[0]?.nb_read_packets;
+  const count=JSON.parse((await runProcess(ctx.ffprobe,['-v','error','-count_packets','-select_streams','v:0','-show_entries','stream=nb_read_packets','-of','json',temporary],{signal,timeoutMs:await fileSizeTimeout(120000,temporary)})).stdout.toString()).streams?.[0]?.nb_read_packets;
   if(Number(count)!==frameCount)throw new Error('배경 제거 영상의 프레임 수가 일치하지 않습니다.');
   await unchanged();await fs.link(temporary,target);published=true;await unchanged();await fs.unlink(temporary);
   const output={...result,path:target,name:`${media.name} · 배경 제거`,sourceRevision:await readSourceRevision(target)};await unchanged();complete=true;notify(1,'배경 제거 완료');return output;

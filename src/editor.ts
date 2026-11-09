@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Clip, Project, SubtitleCue,MediaAsset,SpeedPoint } from '../shared/types';
 import { newClip, newProject, uid } from '../shared/project';
 import {assertSpeedCurve,clipSourceSpan,speedCurveMean} from '../shared/speed';
@@ -17,6 +17,9 @@ export function useHistory() {
   const sources=useRef(new Map<string,{asset:MediaAsset;seen:Set<string|undefined>}>());
   const rebasedAssets=useRef(new WeakMap<MediaAsset,{source:MediaAsset;asset:MediaAsset}>());
   const [revision, setRevision] = useState(0);
+  // A text or color field records one undo step per focus, however many input events it sends.
+  const coalesced=useRef<EventTarget|undefined>(undefined);
+  useEffect(()=>{const end=(event:FocusEvent)=>{if(event.target===coalesced.current)coalesced.current=undefined;};document.addEventListener('focusout',end);return()=>document.removeEventListener('focusout',end);},[]);
   const [transitionNotice,setTransitionNotice]=useState<{count:number}|null>(null);
   const clearTransitionNotice=useCallback(()=>setTransitionNotice(null),[]);
   const rebase=useCallback((snapshot:Project)=>{
@@ -36,6 +39,7 @@ export function useHistory() {
   const checkpoint = useCallback(() => {
     past.current = [...past.current.slice(-79), current.current];
     future.current = [];
+    coalesced.current = undefined;
     setRevision(r => r + 1);
   }, []);
   const change = useCallback((update: Project | ((p:Project) => Project), record=true,options?:ChangeOptions) => {
@@ -68,29 +72,29 @@ export function useHistory() {
       if(onlySourceRefresh&&JSON.stringify({...previous,updatedAt:''})===contents)return;
     }
     current.current=before.project;
-    if(record&&!onlySourceRefresh)checkpoint();
+    if(record&&!onlySourceRefresh){if(!options?.coalesce||options.coalesce!==coalesced.current)checkpoint();coalesced.current=options?.coalesce;}
     current.current = {...reconciled.project, updatedAt:new Date().toISOString()};
     const detached=new Set([...before.detached,...after.detached,...reconciled.detached]);
     if(detached.size)setTransitionNotice({count:detached.size});
     setState(current.current);
   }, [checkpoint,rebase]);
   const reset = useCallback((next:Project) => {
-    const migrated={...next,version:10 as const};past.current=[]; future.current=[];sources.current.clear();rebasedAssets.current=new WeakMap();current.current=migrated;setState(migrated);setRevision(r=>r+1);setTransitionNotice(null);
+    const migrated={...next,version:10 as const};past.current=[]; future.current=[];coalesced.current=undefined;sources.current.clear();for(const asset of migrated.media)sources.current.set(asset.path,{asset,seen:new Set([asset.sourceRevision])});rebasedAssets.current=new WeakMap();current.current=migrated;setState(migrated);setRevision(r=>r+1);setTransitionNotice(null);
   }, []);
   const undo = useCallback(() => {
-    const next=past.current.pop();if(!next)return;const restored=rebase(next);
+    const next=past.current.pop();if(!next)return;const restored=rebase(next);coalesced.current=undefined;
     future.current.push(current.current);current.current=restored.project;setState(current.current);setRevision(r=>r+1);
     if(restored.detached.length)setTransitionNotice({count:restored.detached.length});
   }, [rebase]);
   const redo = useCallback(() => {
-    const next=future.current.pop();if(!next)return;const restored=rebase(next);
+    const next=future.current.pop();if(!next)return;const restored=rebase(next);coalesced.current=undefined;
     past.current.push(current.current);current.current=restored.project;setState(current.current);setRevision(r=>r+1);
     if(restored.detached.length)setTransitionNotice({count:restored.detached.length});
   }, [rebase]);
   return {project,current,change,reset,checkpoint,undo,redo,canUndo:!!past.current.length,canRedo:!!future.current.length,revision,transitionNotice,clearTransitionNotice};
 }
 
-export interface ChangeOptions {authoritativeSources?:readonly MediaAsset[]}
+export interface ChangeOptions {authoritativeSources?:readonly MediaAsset[];/** Consecutive recorded changes from this field while it keeps focus share one undo step. */coalesce?:EventTarget}
 export type Change = (update:Project|((p:Project)=>Project),record?:boolean,options?:ChangeOptions)=>void;
 export const formatTime = (seconds:number, fps=30) => {
   const safe=Math.max(0,Number.isFinite(seconds)?seconds:0), whole=Math.floor(safe);

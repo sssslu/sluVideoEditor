@@ -10,6 +10,7 @@ import {MattingVideoEncoder} from './matting-encode';
 import {muxProcessedVideo} from './processed-mux';
 import {requireSourceRevision,readSourceRevision} from './source-revision';
 import {assertOutputNotSource,insideDirectory,localFilePath} from './file-policy';
+import {fileSizeTimeout} from './ffmpeg-time';
 import type {EnhancementBatch,EnhancementProcessOptions} from './enhancement-process';
 
 export interface EnhancementEngine {
@@ -150,7 +151,7 @@ export async function enhanceMedia(
       Math.abs(result.duration-options.duration)>.002||result.hasAudio!==audioSamples)throw new Error('화질 향상 영상의 크기, 길이 또는 오디오가 원본과 일치하지 않습니다.');
     const count=JSON.parse((await runProcess(ctx.ffprobe,[
       '-v','error','-count_packets','-select_streams','v:0','-show_entries','stream=nb_read_packets','-of','json',temporary,
-    ],{signal,timeoutMs:120000})).stdout.toString()).streams?.[0]?.nb_read_packets;
+    ],{signal,timeoutMs:await fileSizeTimeout(120000,temporary)})).stdout.toString()).streams?.[0]?.nb_read_packets;
     if(Number(count)!==inputFrames)throw new Error('화질 향상 영상의 저장된 프레임 수가 일치하지 않습니다.');
     await unchanged();await fs.link(temporary,target);published=true;
     await unchanged();await fs.unlink(temporary);

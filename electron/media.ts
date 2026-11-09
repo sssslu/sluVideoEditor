@@ -498,13 +498,18 @@ export async function renderProjectDirect(project:Project,settings:ExportSetting
     const transitionPlan=window?.transitionPlan||compileTransitions(project),exposure=(c:Clip)=>transitionPlan.byClip.get(c.id)!;
     const pairs=transitionPlan.transitions.filter(item=>visualTrackEnabled(project,tracks.get(item.trackId))&&Math.min(Math.round(windowEnd*fps),Math.ceil(item.end*fps-1e-7))>Math.max(windowFrame,Math.ceil(item.start*fps-1e-7))),paired=new Set(pairs.flatMap(item=>[item.from.id,item.to.id]));
     const transitionDevice=settings.transitionProcessing!=='cpu'&&pairs.some(pair=>pair.transition.kind==='slide'||pair.transition.kind==='zoom')?await transitionGpuDevice(ctx,signal):undefined;
-    const visuals=project.clips.filter(c=>c.text===undefined&&assets.get(c.mediaId||'')?.kind!=='audio'&&visualTrackEnabled(project,tracks.get(c.trackId))&&(!window||(c.start+exposure(c).visualFrom<windowEnd&&c.start+exposure(c).visualTo>windowStart))).sort((a,b)=>project.tracks.findIndex(t=>t.id===a.trackId)-project.tracks.findIndex(t=>t.id===b.trackId)||a.start-b.start);
+    const visible=(c:Clip)=>c.text===undefined&&assets.get(c.mediaId||'')?.kind!=='audio'&&visualTrackEnabled(project,tracks.get(c.trackId)),order=(a:Clip,b:Clip)=>project.tracks.findIndex(t=>t.id===a.trackId)-project.tracks.findIndex(t=>t.id===b.trackId)||a.start-b.start;
+    const visuals=project.clips.filter(c=>visible(c)&&(!window||(c.start+exposure(c).visualFrom<windowEnd&&c.start+exposure(c).visualTo>windowStart))).sort(order);
     const sounds=window?[]:project.clips.filter(c=>c.text===undefined&&assets.get(c.mediaId||'')?.hasAudio&&audioTrackEnabled(project,tracks.get(c.trackId))&&c.volume>0);
     const inputs=window?visuals:format==='wav'?sounds:format==='gif'?visuals:[...new Map([...visuals,...sounds].map(c=>[c.id,c])).values()];
     const first=visuals[0],transitionClips=new Set(transitionPlan.transitions.flatMap(pair=>[pair.from.id,pair.to.id]));
     // The same clip must follow the same color path in every render window.
     // A transition outside this window still prevents native-base bypass.
-    const nativeBase=format!=='wav'&&!transitionClips.has(first?.id||'')&&await canUseNativeBase(first,assets.get(first?.mediaId||''),projectDuration(project),ctx,signal);
+    // Only the lowest clip of the WHOLE timeline may become the base: a lower
+    // clip visible in another window would otherwise move this clip between
+    // the native YUV and RGB overlay paths, shifting rows at the boundary.
+    const timelineFirst=window?project.clips.filter(visible).reduce<Clip|undefined>((best,c)=>best&&order(best,c)<=0?best:c,undefined):first;
+    const nativeBase=format!=='wav'&&first===timelineFirst&&!transitionClips.has(first?.id||'')&&await canUseNativeBase(first,assets.get(first?.mediaId||''),projectDuration(project),ctx,signal);
     const colors=new Map(await Promise.all([...new Map(visuals.map(clip=>[clip.mediaId!,assets.get(clip.mediaId!)!])).values()].map(async media=>[media.id,await sourceColor(media,ctx,signal)] as const)));
     const cudaBase=!!nativeBase&&colors.get(first.mediaId!)?.matrix==='bt709'&&await canUseCudaScale(assets.get(first.mediaId!)!,ctx,signal);
     if(cudaBase)ctx.diagnostics?.({event:'gpu-processing',backend:'cuda',operations:['decode','scale'],clipId:first.id});
@@ -685,7 +690,7 @@ export async function renderProjectDirect(project:Project,settings:ExportSetting
       if(window){args.push('-map','[videoout]','-an','-frames:v',String(window.frames),'-fps_mode','passthrough','-c:v','rawvideo','-pix_fmt',settings.format==='gif'?'rgb24':'yuv420p','-f','rawvideo',window.destination);try{await Promise.all([ffmpegProgress(ctx,args,duration,work,onProgress,captionControl.signal),captionStreams?.start(windowFrame,window.frames)]);}catch(error){throw captionFailure||error;}return;}
       if(settings.format!=='wav')args.push('-map','[videoout]','-r',dec(fps),'-fps_mode','cfr');
       if(settings.format!=='gif')args.push('-map','[audioout]');
-      if(settings.format==='wav')args.push('-c:a','pcm_s16le');
+      if(settings.format==='wav')args.push('-c:a','pcm_s16le','-rf64','auto');
       else if(settings.format==='gif')args.push('-loop','0');
       else {args.push(...encoderArguments(selected,settings.quality),'-pix_fmt','yuv420p','-color_primaries','bt709','-color_trc','bt709','-colorspace','bt709','-c:a',settings.format==='webm'?'libopus':'aac','-b:a',settings.quality==='high'?'256k':'192k');if(settings.format==='mp4'){args.push('-movflags','+faststart');if(settings.codec==='hevc')args.push('-tag:v','hvc1');}}
       args.push('-t',dec(duration),'-max_muxing_queue_size','2048',temporary);
@@ -756,7 +761,7 @@ export async function renderProject(project:Project,settings:ExportSettings,ctx:
       if(audio)args.push('-thread_queue_size','8','-f','f32le','-ar',String(AUDIO_RATE),'-ac','2','-probesize','32','-analyzeduration','0','-i',audio.consumerUrl);
       if((video||directCuda)&&settings.format!=='gif')args.push('-map','0:v:0');if(audio)args.push('-map',video||directCuda?'1:a:0':'0:a:0','-af',`alimiter=limit=0.97:level=0:latency=1,atrim=end_sample=${totalSamples}`);
       if(directCuda)args.push('-vf',`settb=AVTB,settb=1/1000000000,setpts=PTS-STARTPTS-500,fps=${dec(settings.fps)}:start_time=0:round=up,trim=end_frame=${Math.round(duration*settings.fps)},scale_cuda=${settings.width}:${settings.height}:reset_sar=1:interp_algo=bilinear:format=yuv420p,setparams=colorspace=bt709:color_primaries=bt709:color_trc=bt709`,'-frames:v',String(Math.round(duration*settings.fps)));
-      if(settings.format==='wav')args.push('-c:a','pcm_s16le');
+      if(settings.format==='wav')args.push('-c:a','pcm_s16le','-rf64','auto');
       else if(settings.format==='gif')args.push('-filter_complex','[0:v]split[s][p];[p]palettegen=stats_mode=single[pal];[s][pal]paletteuse=new=1:dither=sierra2_4a[g]','-map','[g]','-an','-loop','0');
       else {args.push(...encoderArguments(selected,settings.quality),...(!directCuda?['-pix_fmt','yuv420p']:[]),'-color_primaries','bt709','-color_trc','bt709','-colorspace','bt709','-c:a',settings.format==='webm'?'libopus':'aac','-b:a',settings.quality==='high'?'256k':'192k');if(settings.format==='mp4'){args.push('-movflags','+faststart');if(settings.codec==='hevc')args.push('-tag:v','hvc1');}}
       args.push('-fps_mode','passthrough',temporary);

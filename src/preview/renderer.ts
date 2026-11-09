@@ -11,7 +11,7 @@ export interface VisualFrame {clip:PreviewClip;frame:VideoFrameSource;type?:'cli
 export interface TransitionVisualFrame {type:'transition';transition:Transition;from?:VisualFrame;to?:VisualFrame;progress:number}
 export type VisualRenderNode=VisualFrame|TransitionVisualFrame;
 export interface Geometry {size:[number,number];offset:[number,number];center:[number,number];scale:[number,number];rotation:number;uv:[number,number,number,number]}
-export interface HitRegion {clip:Clip;geometry:Geometry;contains?:(x:number,y:number)=>boolean;dragScale?:number}
+export interface HitRegion {clip:Clip;geometry:Geometry;contains?:(x:number,y:number)=>boolean;dragScale?:number;transition?:boolean}
 export interface Compositor {readonly mode:'WebGL2'|'CPU';canvas:HTMLCanvasElement;resize(project:Project,quality:number):void;draw(project:Project,time:number,visuals:VisualRenderNode[],texts:Clip[]):void;release(keys:Set<string>):void;hitRegions:HitRegion[];dispose():void}
 const presets=['none','cinematic','warm','cool','mono','vivid'];
 function imageGeometry(clip:PreviewClip,frame:VideoFrameSource,project:Project,time:number):Geometry{const state=clipState(clip,time),fit=fittedSize(frame.width,frame.height,project,clip.fit,clip.crop||EMPTY_CROP);return {size:[fit.width,fit.height],offset:[0,0],center:[project.width/2+state.x,project.height/2+state.y],scale:[state.scale*(clip.flipH?-1:1),state.scale*(clip.flipV?-1:1)],rotation:state.rotation*Math.PI/180,uv:fit.uv};}
@@ -22,7 +22,7 @@ export function hitTest(regions:HitRegion[],x:number,y:number):HitRegion|undefin
 export function transitionHitRegions(project:Pick<Project,'width'|'height'>,transition:Transition,progress:number,from:HitRegion[],to:HitRegion[]):HitRegion[]{
  const p=Math.max(0,Math.min(1,progress));if(p===0)return from;if(p===1)return to;
  const [dx,dy]=transitionDirection(transition.direction),center:[number,number]=[project.width/2,project.height/2];
- return [from,to].flatMap((regions,side)=>regions.map(region=>{const g=region.geometry;
+ return [from,to].flatMap((regions,side)=>regions.map(source=>{const region={...source,transition:true},g=region.geometry;
   if(transition.kind==='slide'){const shift=side===0?p:-(1-p);return {...region,geometry:{...g,center:[g.center[0]+shift*dx*project.width,g.center[1]+shift*dy*project.height] as [number,number]}};}
   if(transition.kind==='zoom'){const scale=side===0?1+.25*p:.75+.25*p;return {...region,dragScale:scale,geometry:{...g,center:[center[0]+(g.center[0]-center[0])*scale,center[1]+(g.center[1]-center[1])*scale] as [number,number],scale:[g.scale[0]*scale,g.scale[1]*scale] as [number,number]}};}
   if(transition.kind==='wipe')return {...region,contains:(x:number,y:number)=>{const axis=dx?x/project.width:y/project.height,revealed=(dx||dy)<0?axis>=1-p:axis<p;return (!region.contains||region.contains(x,y))&&(side===1?revealed:!revealed);}};

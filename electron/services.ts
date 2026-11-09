@@ -177,6 +177,15 @@ function subtitleText(value: string): string {
   return value.replace(/<[^>]*>/g, '').replace(/\{\\[^}]*\}/g, '').replace(/&(?:amp|lt|gt|quot|apos|nbsp);/g, entity => ({ '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'", '&nbsp;': ' ' }[entity] || entity)).trim();
 }
 
+/** Subtitle files arrive in several encodings. Honor a byte-order mark, accept
+ * valid UTF-8, and otherwise read legacy Korean CP949/EUC-KR text. */
+export function decodeSubtitleText(data: Uint8Array): string {
+  if (data[0] === 0xef && data[1] === 0xbb && data[2] === 0xbf) return new TextDecoder('utf-8').decode(data.subarray(3));
+  if (data[0] === 0xff && data[1] === 0xfe) return new TextDecoder('utf-16le').decode(data.subarray(2));
+  if (data[0] === 0xfe && data[1] === 0xff) return new TextDecoder('utf-16be').decode(data.subarray(2));
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(data); } catch { return new TextDecoder('euc-kr').decode(data); }
+}
+
 /** Parse SRT and WebVTT as plain text, discarding subtitle control markup. */
 export function parseSrt(input: string): SubtitleCue[] {
   if (input.length > 20_000_000) throw new Error('자막 파일이 너무 큽니다 (최대 20 MB).');

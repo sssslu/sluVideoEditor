@@ -9,11 +9,12 @@ import {requireSourceRevision,readSourceRevision} from './source-revision';
 import {mediaTimingFromProbe} from './media-timing';
 import {previewVideoColor,previewColorPrefix,type VideoColorInfo} from './video-color';
 import {spoolReverseFrames,timestampExpression,reversePcmFile} from './reverse-frames';
+import {ffmpegSeconds,fileSizeTimeout,sizeScaledTimeout} from './ffmpeg-time';
 
 export type {ReverseOptions} from '../shared/types';
 export interface ReverseContext extends EngineContext {derivedDir?:string;reverseBufferBytes?:number;reverseEncoder?:'cpu'|'auto';reverseDecoder?:'cpu'|'auto'}
 interface Stream extends VideoColorInfo {index:number;codec_type:string;bits_per_raw_sample?:string;sample_aspect_ratio?:string;sample_rate?:string;channels?:number;channel_layout?:string;disposition?:{attached_pic?:number}}
-const dec=(n:number)=>String(Number(n.toFixed(9)));
+const dec=(n:number)=>ffmpegSeconds(n,9);
 export function normalizeReverseOptions(options:ReverseOptions,duration:number):{start:number;duration:number}{
   if(!options||typeof options!=='object'||Array.isArray(options)||!Number.isFinite(duration)||duration<=0)throw new Error('역재생 구간이 올바르지 않습니다.');
   const start=options.start??0,span=options.duration??duration-start;
@@ -58,9 +59,9 @@ export async function reverseMedia(media:MediaAsset,options:ReverseOptions,ctx:R
   let published=false,complete=false,lastProgress=0;const notify=(value:number,message:string)=>{lastProgress=Math.max(lastProgress,Math.min(1,Math.max(0,value)));try{progress?.(lastProgress,message);}catch{}},diagnostic=(event:Record<string,unknown>)=>{try{ctx.diagnostics?.(event);}catch{}};
   const threads=Math.max(1,Math.min(8,availableParallelism()-1));
   const process=async(args:string[],phase:string,update?:(values:Record<string,string>)=>void)=>{
-    const control=new AbortController(),combined=signal?AbortSignal.any([signal,control.signal]):control.signal;let idle:ReturnType<typeof setTimeout>|undefined,timedOut=false,pending='',values:Record<string,string>={};const reset=()=>{if(idle)clearTimeout(idle);idle=setTimeout(()=>{timedOut=true;control.abort();},180000);idle.unref();};reset();
+    const control=new AbortController(),combined=signal?AbortSignal.any([signal,control.signal]):control.signal;let idle:ReturnType<typeof setTimeout>|undefined,timedOut=false,pending='',values:Record<string,string>={};const reset=()=>{if(idle)clearTimeout(idle);idle=setTimeout(()=>{timedOut=true;control.abort();},sizeScaledTimeout(180000,Number(values.total_size)));idle.unref();};reset();
     try{await runProcess(ctx.ffmpeg,['-hide_banner','-loglevel','warning','-nostdin','-y','-stats_period','0.25','-progress','pipe:1',...args],{cwd:work,signal:combined,captureStdout:false,onSpawn:pid=>{try{setPriority(pid,constants.priority.PRIORITY_BELOW_NORMAL);}catch{}queueMicrotask(()=>diagnostic({event:'reverse-process',phase,pid}));},onStderr:reset,onStdout:chunk=>{reset();pending+=chunk.toString();const lines=pending.split(/\r?\n/);pending=lines.pop()||'';for(const line of lines){const at=line.indexOf('=');if(at<0)continue;values[line.slice(0,at)]=line.slice(at+1);if(line.startsWith('progress='))update?.(values);}}});return values;}
-    catch(error){if(timedOut&&!signal?.aborted)throw new Error('역재생 프로세스가 3분 동안 응답하지 않아 중단했습니다.');throw error;}finally{if(idle)clearTimeout(idle);}
+    catch(error){if(timedOut&&!signal?.aborted)throw new Error('역재생 프로세스가 오랫동안 응답하지 않아 중단했습니다.');throw error;}finally{if(idle)clearTimeout(idle);}
   };
   try{
     await assertOutputNotSource(target,[media.path]);await assertOutputNotSource(temporary,[media.path]);await unchanged();
@@ -96,7 +97,7 @@ export async function reverseMedia(media:MediaAsset,options:ReverseOptions,ctx:R
     const audioFiles:Array<{name:string;rate:number;channels:number;layout?:string;frames:number}>=[];
     for(let i=0;i<audio.length;i++){
       await unchanged();const stream=audio[i],rate=Number(stream.sample_rate),channels=stream.channels!;if(!Number.isInteger(rate)||rate<8000||rate>384000||!Number.isInteger(channels)||channels<1||channels>32)throw new Error('지원하지 않는 오디오 형식입니다.');
-      const first=await runProcess(ctx.ffmpeg,['-hide_banner','-loglevel','info','-nostdin','-copyts','-threads','1','-protocol_whitelist','file,pipe','-i',media.path,'-map',`0:${stream.index}`,'-vn','-af',`asettb=1/${rate},ashowinfo`,'-frames:a','1','-f','null','-'],{signal,timeoutMs:60000,onSpawn:pid=>queueMicrotask(()=>diagnostic({event:'reverse-process',phase:'audio-clock',pid}))});
+      const first=await runProcess(ctx.ffmpeg,['-hide_banner','-loglevel','info','-nostdin','-copyts','-threads','1','-protocol_whitelist','file,pipe','-i',media.path,'-map',`0:${stream.index}`,'-vn','-map_metadata','-1','-map_chapters','-1','-af',`asettb=1/${rate},ashowinfo`,'-frames:a','1','-f','null','-'],{signal,timeoutMs:60000,onSpawn:pid=>queueMicrotask(()=>diagnostic({event:'reverse-process',phase:'audio-clock',pid}))});
       // pts_time is printed with limited precision. Read integer sample-clock
       // ticks instead, including sources whose timestamp origin is hours away.
       const match=first.stderr.match(/\bn:0\s+pts:([-+\d]+)\s+pts_time:/);if(!match)throw new Error('오디오의 첫 샘플 시각을 확인하지 못했습니다.');const firstSample=Number(match[1]);
@@ -112,7 +113,7 @@ export async function reverseMedia(media:MediaAsset,options:ReverseOptions,ctx:R
     await process([...inputs,...maps,'-map_metadata','-1','-c:v','copy','-c:a','pcm_f32le',...(video?['-bsf:v',`setts=duration='if(eq(N,${frameCount-1}),${lastDuration},DURATION)'`,'-video_track_timescale','1000000']:[]),...(extension==='mov'?['-movie_timescale','1000000','-movflags','+faststart']:['-rf64','auto']),'-f',extension,temporary],'mux');
     await unchanged();const output=await probeMedia(temporary,ctx,signal,{derivatives:false});if(output.kind!==media.kind||!output.duration||Math.abs(output.duration-settings.duration)>.002||output.hasAudio!==Boolean(audio.length))throw new Error('역재생 결과의 길이 또는 형식이 원본과 일치하지 않습니다.');
     if(plan?.format==='bgra'&&!output.hasAlpha)throw new Error('역재생 영상의 투명도가 보존되지 않았습니다.');
-    if(video){const count=JSON.parse((await runProcess(ctx.ffprobe,['-v','error','-count_packets','-select_streams','v:0','-show_entries','stream=nb_read_packets','-of','json',temporary],{signal,timeoutMs:120000})).stdout.toString()).streams?.[0]?.nb_read_packets;if(Number(count)!==frameCount)throw new Error('최종 역재생 영상의 프레임 수가 일치하지 않습니다.');}
+    if(video){const count=JSON.parse((await runProcess(ctx.ffprobe,['-v','error','-count_packets','-select_streams','v:0','-show_entries','stream=nb_read_packets','-of','json',temporary],{signal,timeoutMs:await fileSizeTimeout(120000,temporary)})).stdout.toString()).streams?.[0]?.nb_read_packets;if(Number(count)!==frameCount)throw new Error('최종 역재생 영상의 프레임 수가 일치하지 않습니다.');}
     await unchanged();await fs.link(temporary,target);published=true;await unchanged();await fs.unlink(temporary);const result={...output,path:target,name:`${media.name} · 역재생`,sourceRevision:await readSourceRevision(target)};await unchanged();complete=true;notify(1,'역재생 완료');return result;
   }finally{
     if(published&&!complete)await fs.rm(target,{force:true}).catch(()=>{});const actualWork=await fs.realpath(work).catch(()=>undefined),actualDirectory=await fs.realpath(directory).catch(()=>undefined);if(actualWork&&actualDirectory&&insideDirectory(actualWork,actualDirectory))await fs.rm(work,{recursive:true,force:true,maxRetries:5,retryDelay:100}).catch(()=>{});

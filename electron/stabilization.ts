@@ -11,13 +11,14 @@ import {mediaTimingFromProbe} from './media-timing';
 import {presentedFrameTime} from './video-frame';
 import {videoDecoderArgs,videoHasAlpha} from './video-input';
 import {shareAlphaTransforms} from './stabilization-alpha';
+import {ffmpegSeconds,fileSizeTimeout,sizeScaledTimeout} from './ffmpeg-time';
 
 export interface StabilizationContext extends EngineContext {derivedDir?:string}
 export interface NormalizedStabilizationOptions {
   start:number;duration:number;smoothing:number;accuracy:number;shakiness:number;crop:'auto'|'black';zoom:number;
 }
 const capabilities=new Map<string,boolean>();
-const decimal=(value:number)=>String(Number(value.toFixed(9)));
+const decimal=(value:number)=>ffmpegSeconds(value,9);
 const clamp=(value:number,min:number,max:number)=>Math.max(min,Math.min(max,value));
 const abortIfRequested=(signal?:AbortSignal)=>{if(signal?.aborted)throw new CancelledError();};
 
@@ -140,8 +141,9 @@ export async function stabilizeMedia(media:MediaAsset,options:StabilizationOptio
     const audioInput=separateAudio?['-threads',String(threads),'-protocol_whitelist','file,pipe','-i',media.path]:[];
     const pass=async(args:string[],phase:'analyze'|'fit'|'transform',offset:number,span:number)=>{
       const control=new AbortController();const combined=signal?AbortSignal.any([signal,control.signal]):control.signal;
-      let idle:ReturnType<typeof setTimeout>|undefined,timedOut=false,pending='';
-      const reset=()=>{if(idle)clearTimeout(idle);idle=setTimeout(()=>{timedOut=true;control.abort();},180000);idle.unref();};
+      let idle:ReturnType<typeof setTimeout>|undefined,timedOut=false,pending='',written=0;
+      // No progress is printed while +faststart rewrites the finished file.
+      const reset=()=>{if(idle)clearTimeout(idle);idle=setTimeout(()=>{timedOut=true;control.abort();},sizeScaledTimeout(180000,written));idle.unref();};
       reset();
       try{
         await runProcess(ctx.ffmpeg,['-hide_banner','-loglevel','warning','-nostdin','-y','-filter_threads',String(Math.min(4,threads)),
@@ -152,12 +154,12 @@ export async function stabilizeMedia(media:MediaAsset,options:StabilizationOptio
           onSpawn:pid=>{try{setPriority(pid,constants.priority.PRIORITY_BELOW_NORMAL);}catch{}queueMicrotask(()=>diagnostic({event:'stabilization-process',phase,pid}));},
           onStderr:reset,onStdout:data=>{
             reset();pending+=data.toString();const lines=pending.split(/\r?\n/);pending=lines.pop()||'';
-            for(const line of lines)if(line.startsWith('out_time_us=')){
+            for(const line of lines)if(line.startsWith('total_size='))written=Number(line.slice(11))||written;else if(line.startsWith('out_time_us=')){
               const elapsed=Number(line.slice(12))/1e6;
               if(Number.isFinite(elapsed))notify(offset+span*clamp(elapsed/settings.duration,0,1),phase==='analyze'?'카메라 움직임 분석 중':phase==='fit'?'보정 경로 계산 중':'흔들림 보정 영상 생성 중');
             }
           }});
-      }catch(error){if(timedOut&&!signal?.aborted)throw new Error('흔들림 보정 프로세스가 3분 동안 응답하지 않아 중단했습니다.');throw error;}
+      }catch(error){if(timedOut&&!signal?.aborted)throw new Error('흔들림 보정 프로세스가 오랫동안 응답하지 않아 중단했습니다.');throw error;}
       finally{if(idle)clearTimeout(idle);}
     };
     diagnostic({event:'stabilization-plan',backend:'libvidstab-cpu',settings,source:media.path,output:target,format:info.alpha?'bgra':info.format,alpha:info.alpha});
@@ -211,7 +213,7 @@ export async function stabilizeMedia(media:MediaAsset,options:StabilizationOptio
     if(result.hasAudio!==Boolean(info.audio.length))throw new Error('보정 영상의 오디오가 원본과 일치하지 않습니다.');
     if(info.alpha){
       if(!result.hasAlpha||Math.abs(result.duration-settings.duration)>.002)throw new Error('보정 영상의 투명도 또는 길이가 일치하지 않습니다.');
-      const count=JSON.parse((await runProcess(ctx.ffprobe,['-v','error','-count_packets','-select_streams','v:0','-show_entries','stream=nb_read_packets','-of','json',temporary],{signal,timeoutMs:120000})).stdout.toString()).streams?.[0]?.nb_read_packets;
+      const count=JSON.parse((await runProcess(ctx.ffprobe,['-v','error','-count_packets','-select_streams','v:0','-show_entries','stream=nb_read_packets','-of','json',temporary],{signal,timeoutMs:await fileSizeTimeout(120000,temporary)})).stdout.toString()).streams?.[0]?.nb_read_packets;
       if(Number(count)!==alphaFrames)throw new Error('보정 영상의 프레임 수가 일치하지 않습니다.');
     }
     // Publish a complete file without replacing any existing path. The staging

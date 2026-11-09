@@ -83,3 +83,18 @@ test('export matches captured WebGL crop, chroma and mask fixtures', {skip:proce
   }
   await fs.writeFile(path.join(root,'preview-comparison.json'),JSON.stringify(report,null,2));t.diagnostic(JSON.stringify(report));
 });
+
+test('a full-length upper clip keeps one compositing path across render windows',{timeout:60000},async()=>{
+  // A lower clip visible only in the first window must not let the upper clip
+  // switch to the native YUV base later; odd heights would shift by a row.
+  await fs.mkdir(root,{recursive:true});const bars=path.join(root,'bars-160x67.mp4'),under=path.join(root,'under-1s.mp4');
+  await ff(['-f','lavfi','-i','smptebars=s=160x67:r=30:d=2','-c:v','libx264','-preset','ultrafast','-qp','0','-pix_fmt','yuv444p',bars]);
+  await ff(['-f','lavfi','-i','color=red:s=160x90:r=30:d=1','-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p',under]);
+  const a=await probeMedia(bars,ctx,undefined,{derivatives:false}),b=await probeMedia(under,ctx,undefined,{derivatives:false}),p=newProject();p.width=160;p.height=90;p.fps=30;p.media=[a,b];
+  p.tracks=[{...p.tracks[0],id:'video-under',name:'영상 0'},...p.tracks];p.clips=[{...newClip('video-under',b),duration:1,opacity:0},{...newClip('video-1',a),duration:2}];
+  const output={...settings('unused-path.mp4'),width:160,height:90},frame=160*90*1.5;
+  const render=async(from:number,frames:number)=>{const file=path.join(root,`path-window-${from}-${frames}.yuv`);await renderProjectDirect(p,output,{...ctx,gpuProcessing:false},undefined,undefined,{start:from/30,duration:frames/30,frames,destination:file});return fs.readFile(file);};
+  const first=await render(0,30),second=await render(30,30),whole=await render(0,60);
+  assert.ok(first.subarray(29*frame).equals(second.subarray(0,frame)),'static clip moved at the window boundary');
+  assert.ok(Buffer.concat([first,second]).equals(whole),'windowed output differs from one window');
+});

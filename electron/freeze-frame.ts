@@ -9,6 +9,7 @@ import {mediaTimingFromProbe} from './media-timing';
 import {previewVideoColor,previewColorPrefix,type VideoColorInfo} from './video-color';
 import {videoDecoderArgs,videoHasAlpha} from './video-input';
 import {alphaSpatialFilters} from './alpha-filters';
+import {ffmpegSeconds} from './ffmpeg-time';
 
 interface VideoInfo extends VideoColorInfo {index:number;sample_aspect_ratio?:string;tags?:{rotate?:string;alpha_mode?:string;ALPHA_MODE?:string}}
 /** Match the native preview's SDR matrix fallback and bilinear chroma sampling.
@@ -49,7 +50,7 @@ export async function freezeFrame(media:MediaAsset,time:number,ctx:EngineContext
     // FFmpeg's native VP8/VP9 decoders omit WebM's separate alpha plane. The
     // bundled libvpx decoder reads it; retain that plane in the derived PNG.
     const decoder=videoDecoderArgs(video);
-    await runProcess(ctx.ffmpeg,['-v','error','-nostdin','-y','-copyts','-ss',String(Math.max(0,time-1)),'-noaccurate_seek','-threads','2',...decoder,'-protocol_whitelist','file,pipe','-i',media.path,'-map',`0:${video.index}`,'-an','-sn','-dn','-filter_threads','2','-vf',`${select},${colors}`,'-frames:v','1','-fps_mode','passthrough','-map_metadata','-1','-c:v','png','-threads','1','-update','1',partial],{signal,timeoutMs:120000,onSpawn:pid=>ctx.diagnostics?.({event:'freeze-frame-start',pid})});
+    await runProcess(ctx.ffmpeg,['-v','error','-nostdin','-y','-copyts','-ss',ffmpegSeconds(Math.max(0,time-1)),'-noaccurate_seek','-threads','2',...decoder,'-protocol_whitelist','file,pipe','-i',media.path,'-map',`0:${video.index}`,'-an','-sn','-dn','-filter_threads','2','-vf',`${select},${colors}`,'-frames:v','1','-fps_mode','passthrough','-map_metadata','-1','-c:v','png','-threads','1','-update','1',partial],{signal,timeoutMs:120000,onSpawn:pid=>ctx.diagnostics?.({event:'freeze-frame-start',pid})});
     await unchanged();progress?.(.9,'정지 프레임 확인 중');
     const asset=await probeMedia(partial,ctx,signal,{derivatives:false});if(asset.kind!=='image'||!asset.width||!asset.height)throw new Error('정지 프레임을 확인하지 못했습니다.');
     await unchanged();await fs.link(partial,target);published=true;await unchanged();await fs.unlink(partial);

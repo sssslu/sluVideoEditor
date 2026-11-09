@@ -4,6 +4,7 @@ import {once} from 'node:events';
 import {availableParallelism} from 'node:os';
 import {CancelledError,type EngineContext} from './media';
 import {ffprobeIntervalFrom} from './probe-interval';
+import {ffmpegSeconds} from './ffmpeg-time';
 
 /** Presentation timestamps are spooled as little-endian float64 integers.
  * Memory depends on pipe/write buffers, never on the selected clip length. */
@@ -17,7 +18,7 @@ export async function spoolReverseFrames(file:string,index:number,origin:number,
     // wrapped_avframe sends only an AVFrame descriptor to framecrc: GPU pixels
     // stay on the device. The checksum is ignored; its integer PTS is exact.
     // Explicit format=cuda forbids an unnoticed software-decoder fallback.
-    const args=cuda?['-v','error','-nostdin','-copyts','-threads','1','-hwaccel','cuda','-hwaccel_output_format','cuda','-extra_hw_frames','2','-noautorotate',...(seek===undefined?[]:['-ss',String(seek),'-seek_timestamp','1','-noaccurate_seek']),'-protocol_whitelist','file,pipe','-i',file,'-map',`0:${index}`,'-an','-sn','-dn','-vf','format=cuda,settb=AVTB','-fps_mode','passthrough','-enc_time_base:v','filter','-c:v','wrapped_avframe','-avoid_negative_ts','disabled','-f','framecrc','pipe:1']:['-v','error','-threads',String(Math.max(1,Math.min(4,availableParallelism()-1))),'-protocol_whitelist','file,pipe','-select_streams',String(index),...(seek===undefined?[]:['-read_intervals',ffprobeIntervalFrom(seek)]),'-show_frames','-show_entries','frame=best_effort_timestamp_time:frame_side_data=','-of','csv=p=0',file];
+    const args=cuda?['-v','error','-nostdin','-copyts','-threads','1','-hwaccel','cuda','-hwaccel_output_format','cuda','-extra_hw_frames','2','-noautorotate',...(seek===undefined?[]:['-ss',ffmpegSeconds(seek),'-seek_timestamp','1','-noaccurate_seek']),'-protocol_whitelist','file,pipe','-i',file,'-map',`0:${index}`,'-an','-sn','-dn','-vf','format=cuda,settb=AVTB','-fps_mode','passthrough','-enc_time_base:v','filter','-c:v','wrapped_avframe','-avoid_negative_ts','disabled','-f','framecrc','pipe:1']:['-v','error','-threads',String(Math.max(1,Math.min(4,availableParallelism()-1))),'-protocol_whitelist','file,pipe','-select_streams',String(index),...(seek===undefined?[]:['-read_intervals',ffprobeIntervalFrom(seek)]),'-show_frames','-show_entries','frame=best_effort_timestamp_time:frame_side_data=','-of','csv=p=0',file];
     const child=spawn(cuda?ctx.ffmpeg:ctx.ffprobe,args,{windowsHide:true,shell:false,stdio:['ignore','pipe','pipe']});
     let count=0,first=NaN,last=NaN,previous:number|undefined,seen:number|undefined,pending='',stderr='',stop=false,started=false,timebase=false,failure:Error|undefined;
     // Observe spawn errors immediately; stdout may finish on a later turn.

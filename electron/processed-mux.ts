@@ -1,4 +1,5 @@
 import {runProcess,type EngineContext} from './media';
+import {fileSizeTimeout} from './ffmpeg-time';
 
 export interface ProcessedMuxOptions {
   video:string;source:string;output:string;
@@ -18,7 +19,9 @@ export async function muxProcessedVideo(options:ProcessedMuxOptions,ctx:EngineCo
     if(Number(match[1])>0)audioSamples=true;
   };
   const muxed=await runProcess(ctx.ffmpeg,['-v','error','-nostdin','-y','-copyts','-i',video,'-threads','2','-protocol_whitelist','file,pipe','-i',sourcePath,'-map','0:v:0','-map','1:a?','-sn','-dn','-map_metadata','-1','-map_chapters','-1','-c:v','copy','-bsf:v',`setts=duration='if(eq(N,${frameCount-1}),${until-at-last},DURATION)'`,'-af',`atrim=start=${at/1e6}:end=${until/1e6},asetpts=PTS-round(${at/1e6}/TB),apad=whole_len=1`,'-c:a','pcm_f32le','-stats_enc_pre:a','pipe:1','-stats_enc_pre_fmt:a','cutout_audio={samp}','-video_track_timescale','1000000','-movie_timescale','1000000','-movflags','+faststart','-f','mov',temporary],{
-    signal,timeoutMs:180000,captureStdout:false,
+    // The mux reads the whole intermediate and source, then +faststart
+    // rewrites the output. Large FFV1 files need time beyond the base limit.
+    signal,timeoutMs:await fileSizeTimeout(180000,video,sourcePath),captureStdout:false,
     onSpawn:pid=>{try{ctx.diagnostics?.({event:'matting-mux-start',pid});}catch{}},
     onStdout:data=>{
       audioPending+=data.toString();

@@ -2,6 +2,7 @@ import {spawn} from 'node:child_process';
 import type {EngineContext} from './media';
 import {CancelledError} from './media';
 import type {TrackingFrame} from './tracking-math';
+import {ffmpegSeconds} from './ffmpeg-time';
 
 export interface TrackingDecodePlan {file:string;stream:number;origin:number;filter:string;decoder:string[];maxDimension:number}
 export interface DecodedTrackingFrame extends TrackingFrame {pts:number;sourceWidth:number;sourceHeight:number}
@@ -19,7 +20,7 @@ export async function* decodeTrackingFrames(plan:TrackingDecodePlan,firstPts:num
   async function* decode(seek?:number):AsyncGenerator<DecodedTrackingFrame>{
     if(signal?.aborted)throw new CancelledError();
     const filter=`settb=AVTB,trim=start_pts=${firstPts}:end_pts=${endPts},${plan.filter},showinfo@slu_native=checksum=0,scale=w='min(iw,${plan.maxDimension})':h='min(ih,${plan.maxDimension})':force_original_aspect_ratio=decrease:flags=bilinear+accurate_rnd,format=bgr24,setsar=1,showinfo@slu_tracking=checksum=0`;
-    const args=['-hide_banner','-loglevel','info','-nostats','-nostdin','-copyts','-threads','2',...(seek===undefined?[]:['-ss',String(seek),'-noaccurate_seek']),...plan.decoder,'-protocol_whitelist','file,pipe','-i',plan.file,'-map',`0:${plan.stream}`,'-an','-sn','-dn','-filter_threads','1','-vf',filter,'-fps_mode','passthrough','-enc_time_base:v','filter','-c:v','rawvideo','-pix_fmt','bgr24','-threads','1','-f','rawvideo','pipe:1'];
+    const args=['-hide_banner','-loglevel','info','-nostats','-nostdin','-copyts','-threads','2',...(seek===undefined?[]:['-ss',ffmpegSeconds(seek),'-noaccurate_seek']),...plan.decoder,'-protocol_whitelist','file,pipe','-i',plan.file,'-map',`0:${plan.stream}`,'-an','-sn','-dn','-filter_threads','1','-vf',filter,'-fps_mode','passthrough','-enc_time_base:v','filter','-c:v','rawvideo','-pix_fmt','bgr24','-threads','1','-f','rawvideo','pipe:1'];
     const child=spawn(ctx.ffmpeg,args,{windowsHide:true,shell:false,stdio:['ignore','pipe','pipe']});
     type Stamp=Omit<DecodedTrackingFrame,'data'>;
     const queue:Stamp[]=[];let waiter:(()=>void)|undefined,pending='',stderr='',failure:Error|undefined,closed=false,code:number|null=null,seen=0,received=0,last=-Infinity,natural:{width:number;height:number}|undefined;

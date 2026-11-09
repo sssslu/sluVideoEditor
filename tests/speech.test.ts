@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {parseWhisperWords,groupCaptionWords,selectOwnedWhisperWords} from '../electron/speech';
+import {promises as fs} from 'node:fs';
+import path from 'node:path';
+import {parseWhisperWords,groupCaptionWords,selectOwnedWhisperWords,wavHasSamples} from '../electron/speech';
+import {runProcess} from '../electron/media';
 import {assertCaptionWords,captionGraphemes} from '../shared/captions';
 import actualTokens from './fixtures/whisper-word-tokens.json';
 
@@ -99,4 +102,13 @@ test('opening and closing quote tokens preserve spacing around the spoken words'
   const [cue]=groupCaptionWords(parsed);assert.equal(cue.text,'He said "hello."');
   assert.deepEqual(cue.words!.map(word=>cue.text.slice(word.from,word.to)),['He','said','"hello."']);
   assertCaptionWords(cue.text,cue.words,cue.start,cue.end);
+});
+test('a chunk starting after the audio track ends is detected as a sample-free WAV',{timeout:60000},async()=>{
+  const root=path.resolve('.test-artifacts/speech-chunks'),ffmpeg=path.resolve('resources/bin/ffmpeg.exe'),source=path.join(root,'short-audio.mkv');await fs.mkdir(root,{recursive:true});
+  // Video continues for 4 s after a 1 s audio track, as in a long recording whose sound stops early.
+  await runProcess(ffmpeg,['-hide_banner','-v','error','-nostdin','-y','-f','lavfi','-i','color=black:s=32x18:r=10:d=5','-f','lavfi','-i','sine=f=440:r=16000:d=1','-c:v','libx264','-preset','ultrafast','-c:a','pcm_s16le',source]);
+  const extract=async(name:string,start:string)=>{const wav=path.join(root,name);await runProcess(ffmpeg,['-hide_banner','-nostdin','-v','error','-y','-ss',start,'-t','1','-protocol_whitelist','file,pipe','-i',source,'-map','0:a:0','-vn','-ar','16000','-ac','1','-c:a','pcm_s16le',wav]);return wav;};
+  const empty=await extract('empty.wav','3'),audible=await extract('audible.wav','0.5');
+  assert.ok((await fs.stat(empty)).size<128);assert.equal(await wavHasSamples(empty),false);assert.equal(await wavHasSamples(audible),true);
+  const other=path.join(root,'not-wav.bin');await fs.writeFile(other,'not a wave file');assert.equal(await wavHasSamples(other),true);
 });
