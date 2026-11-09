@@ -24,7 +24,7 @@ class AudioSource {
   private closed:Promise<void>;
   position=0;
   constructor(ffmpeg:string,clip:Clip,media:MediaAsset,signal:AbortSignal,diagnostic?:(event:AudioDiagnostic)=>void,range:AudioRenderRange={from:0,to:clip.duration}){
-    const args=['-hide_banner','-loglevel','error','-nostdin','-threads','1','-ss',ffmpegSeconds(clipSourceTime(clip,range.from)),'-t',ffmpegSeconds((range.to-range.from)*clip.speed),'-protocol_whitelist','file,pipe','-i',media.path,'-map','0:a:0','-vn','-af',['aresample=48000:async=1:first_pts=0',...tempo(clip.speed),'aformat=sample_fmts=fltp:channel_layouts=stereo'].join(','),'-c:a','pcm_f32le','-ar','48000','-ac','2','-f','f32le','pipe:1'];
+    const args=['-hide_banner','-loglevel','error','-nostdin','-threads','1','-ss',ffmpegSeconds(clipSourceTime(clip,range.from)),'-t',ffmpegSeconds((range.to-range.from)*clip.speed),'-protocol_whitelist','file,pipe','-i',media.path,'-map','0:a:0','-vn','-af',['aresample=48000:async=1:first_pts=0:resampler=soxr:precision=28',...tempo(clip.speed),'aformat=sample_fmts=fltp:channel_layouts=stereo'].join(','),'-c:a','pcm_f32le','-ar','48000','-ac','2','-f','f32le','pipe:1'];
     this.child=spawn(ffmpeg,args,{windowsHide:true,shell:false,stdio:['ignore','pipe','pipe']});this.iterator=this.child.stdout![Symbol.asyncIterator]() as AsyncIterator<Buffer>;
     diagnostic?.({event:'audio-start',pid:this.child.pid,clipId:clip.id});
     this.child.stderr!.on('data',(data:Buffer)=>{this.stderr=(this.stderr+data.toString()).slice(-8000);});
@@ -89,3 +89,5 @@ export class TimelineAudioMixer {
 }
 
 export const AUDIO_RATE=RATE;
+/** soxr at its highest precision: transparent when a source is not already 48 kHz. */
+export const HIGH_QUALITY_RESAMPLER='resampler=soxr:precision=28';

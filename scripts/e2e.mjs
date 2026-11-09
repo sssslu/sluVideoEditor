@@ -1,6 +1,6 @@
 import {electronTestArgs,launchTestElectron,queueConfirmResponses,readQuietDialogs} from './e2e-launch.mjs';
 import {promises as fs} from 'node:fs';
-import path from 'node:path';
+import path from 'node:path';import {execFileSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 const expectedVersion=JSON.parse(await fs.readFile(new URL('../package.json',import.meta.url),'utf8')).version;
 const executable=process.env.SLU_TEST_EXE?path.resolve(process.env.SLU_TEST_EXE):null;
@@ -10,7 +10,7 @@ const model=path.resolve('.test-artifacts/services/models/ggml-base.bin');try{aw
 const env={...process.env,SLU_USER_DATA:data};delete env.ELECTRON_RUN_AS_NODE;
 const app=await launchTestElectron({...(process.env.SLU_TEST_EXE?{executablePath:path.resolve(process.env.SLU_TEST_EXE),args:electronTestArgs(true)}:{args:electronTestArgs()}),env,timeout:90000});
 const page=await app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(String(e)));
-let saved=path.join(root,'ui-project.sluproj');const exportPath=path.join(root,'ui-export.mp4');
+let saved=path.join(root,'ui-project.sluproj');const exportPath=path.join(root,'ui-export.mov');
 async function saveSnapshot(){await app.evaluate(({dialog},file)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:file});},saved);await page.keyboard.press('Control+s');await page.getByText('프로젝트를 저장했습니다.',{exact:true}).waitFor();return JSON.parse(await fs.readFile(saved,'utf8'));}
 async function setOpen(files){await app.evaluate(({dialog},files)=>{globalThis.testOpenCalls=0;dialog.showOpenDialog=async()=>{globalThis.testOpenCalls++;return {canceled:false,filePaths:files};};},files);}
 try{
@@ -28,7 +28,7 @@ try{
   await page.keyboard.press('Shift+ArrowRight');await page.screenshot({path:path.join(root,'02-editing.png')});
   await page.getByRole('button',{name:'내보내기',exact:true}).click();await page.getByLabel('출력 너비',{exact:true}).fill('640');await page.getByLabel('출력 높이',{exact:true}).fill('360');
   await app.evaluate(({dialog},file)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:file});},exportPath);
-  await page.getByRole('button',{name:'내보내기 시작',exact:true}).click();await page.getByText('영상 내보내기가 완료되었습니다.',{exact:true}).waitFor({timeout:120000});assert.ok((await fs.stat(exportPath)).size>10000);await page.screenshot({path:path.join(root,'03-export-complete.png')});
+  await page.getByRole('button',{name:'내보내기 시작',exact:true}).click();await page.getByText('영상 내보내기가 완료되었습니다.',{exact:true}).waitFor({timeout:120000});assert.ok((await fs.stat(exportPath)).size>10000);assert.equal(execFileSync(path.resolve('resources/bin/ffprobe.exe'),['-v','error','-select_streams','a:0','-show_entries','stream=codec_name','-of','csv=p=0',exportPath],{windowsHide:true}).toString().trim(),'pcm_s24le','default export keeps lossless PCM audio');await page.screenshot({path:path.join(root,'03-export-complete.png')});
   // Exercise both save-confirmation branches through the real editor while
   // the test launcher handles the synchronous decision without a native box.
   const projectName=page.getByLabel('프로젝트 이름',{exact:true});

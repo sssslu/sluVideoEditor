@@ -10,7 +10,7 @@ import { clipEnvelope, interpolate, projectDuration } from '../shared/project';
 import {audioTrackEnabled,visualTrackEnabled,ease,clipCrop} from '../shared/effects';
 import {assertProject} from '../shared/validation';
 import {RawStreamBridge} from './render-stream';
-import {TimelineAudioMixer,AUDIO_RATE} from './render-audio';
+import {TimelineAudioMixer,AUDIO_RATE,HIGH_QUALITY_RESAMPLER} from './render-audio';
 import {planRenderWindows,type RenderWindow} from './render-plan';
 import {assertOutputNotSource} from './file-policy';
 import {replaceWithRetry} from './project-store';
@@ -31,6 +31,19 @@ import {videoHasAlpha,videoDecoderArgs} from './video-input';
 import {alphaSpatialFilters,alphaPremultiply,alphaUnpremultiply} from './alpha-filters';
 import {previewProxyPath} from '../shared/media-clock';
 import {proxyCacheKey,hasLegacyProxyTiming} from './proxy-cache';
+
+/** Export audio is lossless wherever the container allows it: 24-bit PCM in MOV and WAV,
+ * 24-bit FLAC in MP4. WebM can only carry Opus, so it gets Opus's highest bitrate. */
+export function exportAudioArguments(format:ExportSettings['format']):string[]{
+  if(format==='mov')return ['-c:a','pcm_s24le'];
+  if(format==='wav')return ['-c:a','pcm_s24le','-rf64','auto'];
+  if(format==='mp4')return ['-c:a','flac','-sample_fmt','s32','-bits_per_raw_sample','24'];
+  if(format==='webm')return ['-c:a','libopus','-b:a','510k'];
+  return [];
+}
+/** Only catches overs. Lossless outputs pass every sample up to full scale untouched;
+ * Opus keeps a little headroom because decoded lossy audio overshoots. */
+export const exportLimiter=(format:ExportSettings['format'])=>`alimiter=limit=${format==='webm'?'0.97':'1'}:level=0:latency=1`;
 
 export interface EngineContext { ffmpeg:string; ffprobe:string; cacheDir:string; workDir?:string; maxWindowSeconds?:number; gpuProcessing?:boolean; audioStretch?:string; captionRasterFactory?:CaptionRasterFactory; diagnostics?:(event:Record<string,unknown>)=>void }
 export type ProgressCallback = (progress:number, message?:string) => void;
@@ -183,11 +196,11 @@ export async function createProxy(asset:MediaAsset,ctx:EngineContext,onProgress?
       // Decode color at native size, then resize premultiplied RGB and alpha
       // together. Straight-alpha scaling leaks invisible background colors.
       const filters=[`${video?previewColorPrefix(video):''}scale=iw:ih:flags=bilinear+full_chroma_int+accurate_rnd${conversion}:out_range=pc`,...alphaSpatialFilters([`${resize}:flags=bilinear+accurate_rnd`]),'scale=iw:ih:out_color_matrix=bt709:out_range=tv','format=yuva420p'];
-      onProgress?.(0,'투명 프록시 생성 · CPU');await ffmpegProgress(ctx,[...input,'-vf',filters.join(','),'-pix_fmt','yuva420p','-c:v','libvpx-vp9','-crf','24','-b:v','0','-deadline','good','-cpu-used','5','-row-mt','1','-threads','4','-auto-alt-ref','0','-g','30','-colorspace','bt709','-color_primaries','bt709','-color_trc','bt709','-c:a','libopus','-b:a','128k',temporary],asset.duration,undefined,onProgress,signal);
+      onProgress?.(0,'투명 프록시 생성 · CPU');await ffmpegProgress(ctx,[...input,'-vf',filters.join(','),'-pix_fmt','yuva420p','-c:v','libvpx-vp9','-crf','24','-b:v','0','-deadline','good','-cpu-used','5','-row-mt','1','-threads','4','-auto-alt-ref','0','-g','30','-colorspace','bt709','-color_primaries','bt709','-color_trc','bt709','-c:a','libopus','-b:a','510k',temporary],asset.duration,undefined,onProgress,signal);
     }else{
       const encoders=await detectEncoders(ctx,signal);const hardware=encoders.includes('h264_nvenc')?'h264_nvenc':encoders.includes('h264_qsv')?'h264_qsv':encoders.includes('h264_amf')?'h264_amf':undefined;
       const color=video?previewVideoColor(video):{matrix:'bt709',range:'tv'},conversion=video&&/^(?:gbr|rgb|bgr|argb|abgr|rgba|bgra)/.test(video.pix_fmt||'')?'':`:in_color_matrix=${color.matrix}:in_range=${color.range}`;
-      const base=[...input,'-vf',`${video?previewColorPrefix(video):''}${resize}${conversion}:out_color_matrix=bt709:out_range=tv,format=yuv420p,setparams=range=limited:colorspace=bt709:color_primaries=bt709:color_trc=bt709`,'-pix_fmt','yuv420p','-color_range','tv','-colorspace','bt709','-color_primaries','bt709','-color_trc','bt709','-c:a','aac','-b:a','128k','-movflags','+faststart'];
+      const base=[...input,'-vf',`${video?previewColorPrefix(video):''}${resize}${conversion}:out_color_matrix=bt709:out_range=tv,format=yuv420p,setparams=range=limited:colorspace=bt709:color_primaries=bt709:color_trc=bt709`,'-pix_fmt','yuv420p','-color_range','tv','-colorspace','bt709','-color_primaries','bt709','-color_trc','bt709','-c:a','flac','-movflags','+faststart'];
       const encode=async(codec:string)=>ffmpegProgress(ctx,[...base,...encoderArguments(codec,'draft'),'-g','30','-video_track_timescale','1000000',temporary],asset.duration,undefined,onProgress,signal);
       try{onProgress?.(0,hardware?`GPU 프록시 생성 · ${hardware}`:'프록시 생성 · CPU');await encode(hardware||'libx264');}catch(error){if(isAbort(error)||!hardware)throw error;onProgress?.(0,'GPU를 사용할 수 없어 CPU로 프록시를 생성합니다.');await encode('libx264');}
     }
@@ -203,7 +216,7 @@ export function validateProject(project:Project,settings:ExportSettings):void {
   validNumber(project.width,16,8192,'프로젝트 너비');validNumber(project.height,16,8192,'프로젝트 높이');
   validNumber(settings.width,16,7680,'출력 너비');validNumber(settings.height,16,7680,'출력 높이');validNumber(settings.fps,1,120,'프레임 속도');
   if(settings.width%2||settings.height%2)throw new Error('출력 너비와 높이는 짝수여야 합니다.');
-  if(!['mp4','webm','gif','wav'].includes(settings.format)||!['h264','hevc','av1'].includes(settings.codec)||!['auto','cpu','nvenc','qsv','amf'].includes(settings.encoder)||!['draft','standard','high'].includes(settings.quality))throw new Error('내보내기 설정이 올바르지 않습니다.');
+  if(!['mov','mp4','webm','gif','wav'].includes(settings.format)||(settings.format==='mov'&&settings.codec==='av1')||!['h264','hevc','av1'].includes(settings.codec)||!['auto','cpu','nvenc','qsv','amf'].includes(settings.encoder)||!['draft','standard','high'].includes(settings.quality))throw new Error('내보내기 설정이 올바르지 않습니다.');
   if(settings.transitionProcessing!==undefined&&!['auto','cpu'].includes(settings.transitionProcessing))throw new Error('전환 처리 설정이 올바르지 않습니다.');
   if(!settings.outputPath||!localPath(settings.outputPath))throw new Error('저장할 로컬 파일 경로가 필요합니다.');
   const output=path.resolve(settings.outputPath).toLowerCase();
@@ -426,7 +439,7 @@ async function canUseCudaScale(media:MediaAsset,ctx:EngineContext,signal?:AbortS
 /** Keep eligible decoded/scaled frames on the GPU through NVENC. General
  * timelines still use bounded composition; no effects are silently omitted. */
 async function nativeCudaClip(project:Project,settings:ExportSettings,ctx:EngineContext,signal?:AbortSignal):Promise<{clip:Clip;media:MediaAsset}|undefined>{
-  if(ctx.gpuProcessing===false||!['mp4','webm'].includes(settings.format))return;
+  if(ctx.gpuProcessing===false||!['mov','mp4','webm'].includes(settings.format))return;
   const tracks=new Map(project.tracks.map(track=>[track.id,track])),assets=new Map(project.media.map(media=>[media.id,media]));
   const visible=project.clips.filter(clip=>visualTrackEnabled(project,tracks.get(clip.trackId))&&(clip.text!==undefined||assets.get(clip.mediaId||'')?.kind!=='audio'));
   if(visible.length!==1)return;
@@ -677,10 +690,10 @@ export async function renderProjectDirect(project:Project,settings:ExportSetting
       for(let i=0;i<sounds.length;i++){
         const c=sounds[i],index=inputIndex.get(c.id)!;
         const gain=`${dec(c.volume)}*${fadeExpression(c,'t')}`;
-        const chain=[`atrim=duration=${dec(c.duration*c.speed)}`,'asetpts=PTS-STARTPTS',...tempoFilters(c.speed),`atrim=duration=${dec(c.duration)}`,'aresample=48000','aformat=sample_fmts=fltp:channel_layouts=stereo',...eqFFmpegFilters(c.audioEQ),`aeval=exprs='val(0)*${gain}|val(1)*${gain}':c=stereo`,'aformat=sample_fmts=fltp:channel_layouts=stereo',`adelay=${Math.round(c.start*1000)}:all=1`];
+        const chain=[`atrim=duration=${dec(c.duration*c.speed)}`,'asetpts=PTS-STARTPTS',...tempoFilters(c.speed),`atrim=duration=${dec(c.duration)}`,`aresample=48000:${HIGH_QUALITY_RESAMPLER}`,'aformat=sample_fmts=fltp:channel_layouts=stereo',...eqFFmpegFilters(c.audioEQ),`aeval=exprs='val(0)*${gain}|val(1)*${gain}':c=stereo`,'aformat=sample_fmts=fltp:channel_layouts=stereo',`adelay=${Math.round(c.start*1000)}:all=1`];
         graph.push(`[${index}:a:0]${chain.join(',')}[audio${i}]`);labels.push(`[audio${i}]`);
       }
-      if(labels.length)graph.push(`${labels.join('')}amix=inputs=${labels.length}:duration=longest:dropout_transition=0:normalize=0,alimiter=limit=0.97:level=0:latency=1,apad=whole_dur=${dec(duration)},atrim=duration=${dec(duration)}[audioout]`);
+      if(labels.length)graph.push(`${labels.join('')}amix=inputs=${labels.length}:duration=longest:dropout_transition=0:normalize=0,${exportLimiter(settings.format)},apad=whole_dur=${dec(duration)},atrim=duration=${dec(duration)}[audioout]`);
       else graph.push(`anullsrc=r=48000:cl=stereo,atrim=duration=${dec(duration)}[audioout]`);
     }
     await fs.writeFile(path.join(work,'filters.txt'),graph.join(';\n'),'utf8');
@@ -690,9 +703,9 @@ export async function renderProjectDirect(project:Project,settings:ExportSetting
       if(window){args.push('-map','[videoout]','-an','-frames:v',String(window.frames),'-fps_mode','passthrough','-c:v','rawvideo','-pix_fmt',settings.format==='gif'?'rgb24':'yuv420p','-f','rawvideo',window.destination);try{await Promise.all([ffmpegProgress(ctx,args,duration,work,onProgress,captionControl.signal),captionStreams?.start(windowFrame,window.frames)]);}catch(error){throw captionFailure||error;}return;}
       if(settings.format!=='wav')args.push('-map','[videoout]','-r',dec(fps),'-fps_mode','cfr');
       if(settings.format!=='gif')args.push('-map','[audioout]');
-      if(settings.format==='wav')args.push('-c:a','pcm_s16le','-rf64','auto');
+      if(settings.format==='wav')args.push(...exportAudioArguments('wav'));
       else if(settings.format==='gif')args.push('-loop','0');
-      else {args.push(...encoderArguments(selected,settings.quality),'-pix_fmt','yuv420p','-color_primaries','bt709','-color_trc','bt709','-colorspace','bt709','-c:a',settings.format==='webm'?'libopus':'aac','-b:a',settings.quality==='high'?'256k':'192k');if(settings.format==='mp4'){args.push('-movflags','+faststart');if(settings.codec==='hevc')args.push('-tag:v','hvc1');}}
+      else {args.push(...encoderArguments(selected,settings.quality),'-pix_fmt','yuv420p','-color_primaries','bt709','-color_trc','bt709','-colorspace','bt709',...exportAudioArguments(settings.format));if(settings.format==='mp4'||settings.format==='mov'){args.push('-movflags','+faststart');if(settings.codec==='hevc')args.push('-tag:v','hvc1');}}
       args.push('-t',dec(duration),'-max_muxing_queue_size','2048',temporary);
       onProgress?.(0,selected?`내보내기 · ${selected}`:`내보내기 · ${settings.format.toUpperCase()}`);
       await ffmpegProgress(ctx,args,duration,work,onProgress,signal);
@@ -715,7 +728,7 @@ export async function renderProjectDirect(project:Project,settings:ExportSetting
 }
 
 async function checkExportSpace(output:string,project:Project,settings:ExportSettings,ctx:EngineContext){
-  const duration=projectDuration(project),estimatedBytes=settings.format==='wav'?Math.ceil(duration*AUDIO_RATE)*4+4096:settings.format==='gif'?duration*settings.width*settings.height*settings.fps*.18:duration*Math.max(1_000_000,settings.width*settings.height*settings.fps*.14)/8;
+  const duration=projectDuration(project),estimatedBytes=settings.format==='wav'?Math.ceil(duration*AUDIO_RATE)*6+4096:settings.format==='gif'?duration*settings.width*settings.height*settings.fps*.18:duration*Math.max(1_000_000,settings.width*settings.height*settings.fps*.14)/8+(settings.format==='webm'?0:Math.ceil(duration*AUDIO_RATE)*6);
   const disk=await fs.statfs(path.dirname(output)),availableBytes=disk.bavail*disk.bsize;
   ctx.diagnostics?.({event:'disk-preflight',availableBytes,estimatedBytes,intermediateBytes:0});
   // Compressed output size depends on content. Enforce a small reserve and
@@ -759,11 +772,11 @@ export async function renderProject(project:Project,settings:ExportSettings,ctx:
       }
       if(video)args.push('-thread_queue_size','4','-f','rawvideo','-pixel_format',settings.format==='gif'?'rgb24':'yuv420p','-video_size',`${settings.width}x${settings.height}`,'-framerate',dec(settings.fps),'-color_range',settings.format==='gif'?'pc':'tv','-colorspace',settings.format==='gif'?'rgb':'bt709','-color_primaries','bt709','-color_trc',settings.format==='gif'?'iec61966-2-1':'bt709','-probesize','32','-analyzeduration','0','-i',video.consumerUrl);
       if(audio)args.push('-thread_queue_size','8','-f','f32le','-ar',String(AUDIO_RATE),'-ac','2','-probesize','32','-analyzeduration','0','-i',audio.consumerUrl);
-      if((video||directCuda)&&settings.format!=='gif')args.push('-map','0:v:0');if(audio)args.push('-map',video||directCuda?'1:a:0':'0:a:0','-af',`alimiter=limit=0.97:level=0:latency=1,atrim=end_sample=${totalSamples}`);
+      if((video||directCuda)&&settings.format!=='gif')args.push('-map','0:v:0');if(audio)args.push('-map',video||directCuda?'1:a:0':'0:a:0','-af',`${exportLimiter(settings.format)},atrim=end_sample=${totalSamples}`);
       if(directCuda)args.push('-vf',`settb=AVTB,settb=1/1000000000,setpts=PTS-STARTPTS-500,fps=${dec(settings.fps)}:start_time=0:round=up,trim=end_frame=${Math.round(duration*settings.fps)},scale_cuda=${settings.width}:${settings.height}:reset_sar=1:interp_algo=bilinear:format=yuv420p,setparams=colorspace=bt709:color_primaries=bt709:color_trc=bt709`,'-frames:v',String(Math.round(duration*settings.fps)));
-      if(settings.format==='wav')args.push('-c:a','pcm_s16le','-rf64','auto');
+      if(settings.format==='wav')args.push(...exportAudioArguments('wav'));
       else if(settings.format==='gif')args.push('-filter_complex','[0:v]split[s][p];[p]palettegen=stats_mode=single[pal];[s][pal]paletteuse=new=1:dither=sierra2_4a[g]','-map','[g]','-an','-loop','0');
-      else {args.push(...encoderArguments(selected,settings.quality),...(!directCuda?['-pix_fmt','yuv420p']:[]),'-color_primaries','bt709','-color_trc','bt709','-colorspace','bt709','-c:a',settings.format==='webm'?'libopus':'aac','-b:a',settings.quality==='high'?'256k':'192k');if(settings.format==='mp4'){args.push('-movflags','+faststart');if(settings.codec==='hevc')args.push('-tag:v','hvc1');}}
+      else {args.push(...encoderArguments(selected,settings.quality),...(!directCuda?['-pix_fmt','yuv420p']:[]),'-color_primaries','bt709','-color_trc','bt709','-colorspace','bt709',...exportAudioArguments(settings.format));if(settings.format==='mp4'||settings.format==='mov'){args.push('-movflags','+faststart');if(settings.codec==='hevc')args.push('-tag:v','hvc1');}}
       args.push('-fps_mode','passthrough',temporary);
       progress(0,`구간 렌더링 · ${selected||settings.format.toUpperCase()} · ${windows.length}구간`);
       encoderPromise=ffmpegProgress({...ctx,diagnostics:event=>ctx.diagnostics?.({...event,role:'encoder'})},args,duration,undefined,progress,control.signal);void encoderPromise.catch(fail);

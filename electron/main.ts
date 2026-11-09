@@ -348,7 +348,7 @@ function setupIPC(){
   });
   handler('project:export',async(project:Project,settings:ExportSettings)=>{
     await prepareProject(project);if(!project.clips.length)throw new Error('타임라인에 클립을 추가해 주세요.');
-    if(!settings||!['mp4','webm','gif','wav'].includes(settings.format))throw new Error('지원하지 않는 출력 형식');
+    if(!settings||!['mov','mp4','webm','gif','wav'].includes(settings.format))throw new Error('지원하지 않는 출력 형식');
     const output=await chooseSave(`${project.name.replace(/[<>:"/\\|?*]/g,'_')}.${settings.format}`,[settings.format]);if(!output)return null;
     const finalPath=path.extname(output).toLowerCase()===`.${settings.format}`?output:`${output}.${settings.format}`;
     await assertOutputNotSource(finalPath,[...project.media.map(m=>m.path),...(project.motionPaths||[]).map(a=>a.path)]);

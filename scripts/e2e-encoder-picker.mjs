@@ -76,6 +76,8 @@ try {
     await page.getByText(label,{exact:true}).waitFor();
     await page.getByRole('button',{name:'내보내기',exact:true}).click();
     await codec.waitFor();
+    // AV1 is offered in MP4 only; MOV (the lossless-PCM default) cannot carry it.
+    await format.selectOption('mp4');
   }
   async function submitted(expected) {
     await page.getByRole('button',{name:'내보내기 시작',exact:true}).click();

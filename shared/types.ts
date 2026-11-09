@@ -65,7 +65,7 @@ export interface PersonCutoutOptions {start:number;duration:number;device?:'auto
 export interface EnhancementOptions {start:number;duration:number;scale:2|4;preview?:boolean}
 export interface EnhancementInfo {installed:boolean;downloadBytes:number;model:string;deviceSupported:boolean;message?:string}
 export interface ReverseOptions {start?:number;duration?:number}
-export interface ExportSettings { width:number; height:number; fps:number; format:'mp4'|'webm'|'gif'|'wav'; codec:'h264'|'hevc'|'av1'; encoder:'auto'|'cpu'|'nvenc'|'qsv'|'amf'; quality:'draft'|'standard'|'high'; outputPath?:string; transitionProcessing?:'auto'|'cpu' }
+export interface ExportSettings { width:number; height:number; fps:number; format:'mov'|'mp4'|'webm'|'gif'|'wav'; codec:'h264'|'hevc'|'av1'; encoder:'auto'|'cpu'|'nvenc'|'qsv'|'amf'; quality:'draft'|'standard'|'high'; outputPath?:string; transitionProcessing?:'auto'|'cpu' }
 export type JobType = 'export'|'proxy'|'transcribe'|'model'|'stabilize'|'range'|'freeze'|'reverse'|'track'|'collect'|'relink'|'cutout'|'enhance'|'enhancement-install';
 export interface JobEvent { id:string; type:JobType; status:'running'|'complete'|'error'|'cancelled'; progress:number; message:string; path?:string; media?:MediaAsset; cues?:SubtitleCue[];tracking?:MotionAnalysis;trackingReconnect?:import('./tracking-reconnect').TrackingReconnectResult;preview?:boolean }
 export interface SystemInfo { version:string; ffmpegVersion:string; gpu:string; encoders:string[]; hardwareAcceleration:boolean; modelReady:boolean; modelDirectory:string; cacheDirectory:string; speechModels?:{id:SpeechModelId;name:string;bytes:number;installed:boolean}[];speechCuda?:boolean }
