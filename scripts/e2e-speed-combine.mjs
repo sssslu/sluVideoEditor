@@ -39,14 +39,14 @@ try{
   await page.waitForFunction(()=>document.querySelector('.preview-gpu-stage').previewRuntime.project.clips.length===2,null,{timeout:60000});
   let p=await project();const videoClip=p.clips.find(c=>p.media.find(m=>m.id===c.mediaId)?.kind==='video'),toneClip=p.clips.find(c=>c.id!==videoClip.id);
   check('drop places the video on the dropped track',videoClip.trackId==='video-1'&&videoClip.start===0&&p.media.length===2,videoClip);
-  check('drop places audio on an audio track at the same point',toneClip.trackId==='audio-1'&&toneClip.start===0,toneClip);
+  check('drop places audio on an audio track at the same point',p.tracks.find(t=>t.id===toneClip.trackId)?.type==='audio'&&toneClip.start===0,toneClip);
   check('drop overlay is gone',!(await page.locator('.drop-overlay').count()),null);
   // A second drop at the video clip's end snaps there.
   const end=await clip(videoClip.id).boundingBox();
   await drop([tone],'.track-lane.lane-audio',end.x+end.width);
   await page.waitForFunction(()=>document.querySelector('.preview-gpu-stage').previewRuntime.project.clips.length===3,null,{timeout:60000});
   p=await project();const tone2=p.clips.find(c=>c.id!==videoClip.id&&c.id!==toneClip.id);
-  check('drop at a position places the clip there',tone2.trackId==='audio-1'&&near(tone2.start,6,1/30),tone2);
+  check('drop at a position places the clip there',tone2.trackId===toneClip.trackId&&near(tone2.start,6,1/30),tone2);
   check('reimporting a file reuses its media',p.media.length===2,p.media.map(m=>m.name));
   await dismissToasts(page);
 
@@ -80,8 +80,8 @@ try{
   await clip(longClip.id).dblclick();
   await page.waitForFunction(at=>Math.abs(document.querySelector('.preview-gpu-stage').previewRuntime.time()-at)<1e-6,longClip.start);
   await page.getByTitle('재생 (Space)',{exact:true}).click();
-  const observed=await page.evaluate(async id=>{const r=document.querySelector('.preview-gpu-stage').previewRuntime,times=new Set(),seen={scrub:false,maxGain:0,element:'',frames:0,missing:0};const until=performance.now()+1200;
-    while(performance.now()<until){const n=[...r.nodes.values()].find(n=>n.clip.id===id&&!n.audioOnly);const t=r.time();if(t>n?.clip.start+.05&&t<n.clip.start+n.clip.duration-.05){seen.frames++;if(!r.renderer.hitRegions.some(h=>h.clip.id===id))seen.missing++;}if(n){seen.scrub||=!!n.scrub;if(n.scrub){seen.maxGain=Math.max(seen.maxGain,n.lastGain);seen.element=`${n.element.paused}:${n.element.playbackRate}`;times.add(n.element.currentTime.toFixed(2));}}await new Promise(f=>requestAnimationFrame(f));}
+  const observed=await page.evaluate(async id=>{const r=document.querySelector('.preview-gpu-stage').previewRuntime,times=new Set(),seen={scrub:false,maxGain:0,element:'',frames:0,missing:0};let draws=r.draws;const until=performance.now()+1200;
+    while(performance.now()<until){const n=[...r.nodes.values()].find(n=>n.clip.id===id&&!n.audioOnly);const t=r.time(),drawn=r.draws!==draws;draws=r.draws;if(drawn&&t>n?.clip.start+.05&&t<n.clip.start+n.clip.duration-.05){seen.frames++;if(!r.renderer.hitRegions.some(h=>h.clip.id===id))seen.missing++;}if(n){seen.scrub||=!!n.scrub;if(n.scrub){seen.maxGain=Math.max(seen.maxGain,n.lastGain);seen.element=`${n.element.paused}:${n.element.playbackRate}`;times.add(n.element.currentTime.toFixed(2));}}await new Promise(f=>requestAnimationFrame(f));}
     return {...seen,distinct:times.size,time:r.time()};},longClip.id);
   if(await page.getByTitle('일시 정지 (Space)',{exact:true}).count())await page.getByTitle('일시 정지 (Space)',{exact:true}).click();
   check('2500% preview steps frames by seeking',observed.scrub&&observed.distinct>=4&&observed.element.startsWith('true:16'),observed);

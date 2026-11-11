@@ -3,12 +3,13 @@ import {visualTrackEnabled} from '../shared/effects';
 import type {CaptionRasterSession,CaptionRasterGroup} from './caption-raster-types';
 import {RawStreamBridge} from './render-stream';
 
-export interface CaptionLayerGroup {rich:boolean;clips:Clip[]}
-export function captionLayerGroups(project:Project,start:number,end:number):CaptionLayerGroup[]{
+/** `slot`: how many picture layers lie beneath the group; it is drawn right after them. */
+export interface CaptionLayerGroup {rich:boolean;clips:Clip[];slot:number}
+export function captionLayerGroups(project:Project,start:number,end:number,slotOf:(clip:Clip)=>number=()=>Infinity):CaptionLayerGroup[]{
   const tracks=new Map(project.tracks.map((track,index)=>[track.id,{track,index}]));
   const clips=project.clips.filter(clip=>clip.text!==undefined&&clip.start<end-1e-9&&clip.start+clip.duration>start+1e-9&&visualTrackEnabled(project,tracks.get(clip.trackId)?.track)).sort((a,b)=>tracks.get(a.trackId)!.index-tracks.get(b.trackId)!.index||a.start-b.start);
   const groups:CaptionLayerGroup[]=[];
-  for(const clip of clips){const rich=!!(clip.captionStyle||clip.motionBinding),last=groups.at(-1);if(last&&last.rich===rich)last.clips.push(clip);else groups.push({rich,clips:[clip]});}
+  for(const clip of clips){const rich=!!(clip.captionStyle||clip.motionBinding),slot=slotOf(clip),last=groups.at(-1);if(last&&last.rich===rich&&last.slot===slot)last.clips.push(clip);else groups.push({rich,clips:[clip],slot});}
   return groups;
 }
 /** One window owns its loopback inputs. Each producer awaits socket drain

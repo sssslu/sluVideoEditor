@@ -2,7 +2,7 @@ import type {Clip,Project} from '../../shared/types';
 import {clipState,EMPTY_CROP,fittedSize,hexRgb,maskAlpha,previewSize} from './math';
 import {rasterCaption,textSignature,type TextFrame} from './text';
 import type {Compositor,Geometry,HitRegion,VisualFrame,VisualRenderNode,TransitionVisualFrame} from './renderer';
-import {transitionHitRegions} from './renderer';
+import {layered,transitionHitRegions} from './renderer';
 import {hasColorGrade,applyColorPixels} from '../../shared/color';
 
 /** Low-resolution Canvas fallback retains effects. It is deliberately identified as CPU. */
@@ -40,8 +40,8 @@ export class CPUCompositor implements Compositor {
     ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';this.context.save();this.context.setTransform(1,0,0,1,0,0);this.context.globalAlpha=1;this.context.drawImage(this.pairOutput,0,0);this.context.restore();
   }
   draw(project:Project,time:number,visuals:VisualRenderNode[],texts:Clip[]){const ctx=this.context,ratio=this.canvas.height/project.height;ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.fillStyle=project.background;ctx.fillRect(0,0,this.canvas.width,this.canvas.height);this.hitRegions=[];
-    for(const node of visuals){if(node.type==='transition')this.pair(project,time,node);else this.layer(project,time,node,this.context);}
-    for(const clip of texts){let text=clip.captionStyle?undefined:this.texts.get(clip.id);const signature=textSignature(clip,project,ratio,time-clip.start);if(!text||text.signature!==signature){text=rasterCaption(clip,project,ratio,time-clip.start);if(!clip.captionStyle)this.texts.set(clip.id,text);}const state=clipState(clip,time),anchor=clip.align==='left'?project.width*.05:clip.align==='right'?project.width*.95:project.width/2,offset=(text.width/2-text.padding)*(clip.align==='left'?1:clip.align==='right'?-1:0);const geometry:Geometry={size:[text.width,text.height],offset:[offset,0],center:[anchor+state.x,project.height/2+state.y],scale:[state.scale,state.scale],rotation:state.rotation*Math.PI/180,uv:[0,0,1,1]};this.hitRegions.push({clip,geometry});ctx.save();ctx.translate(geometry.center[0]*ratio,geometry.center[1]*ratio);ctx.rotate(geometry.rotation);ctx.scale(state.scale,state.scale);ctx.globalAlpha=state.opacity;ctx.drawImage(text.canvas,(offset-text.width/2)*ratio,-text.height/2*ratio,text.width*ratio,text.height*ratio);ctx.restore();}
+    const drawText=(clip:Clip)=>{let text=clip.captionStyle?undefined:this.texts.get(clip.id);const signature=textSignature(clip,project,ratio,time-clip.start);if(!text||text.signature!==signature){text=rasterCaption(clip,project,ratio,time-clip.start);if(!clip.captionStyle)this.texts.set(clip.id,text);}const state=clipState(clip,time),anchor=clip.align==='left'?project.width*.05:clip.align==='right'?project.width*.95:project.width/2,offset=(text.width/2-text.padding)*(clip.align==='left'?1:clip.align==='right'?-1:0);const geometry:Geometry={size:[text.width,text.height],offset:[offset,0],center:[anchor+state.x,project.height/2+state.y],scale:[state.scale,state.scale],rotation:state.rotation*Math.PI/180,uv:[0,0,1,1]};this.hitRegions.push({clip,geometry});ctx.save();ctx.translate(geometry.center[0]*ratio,geometry.center[1]*ratio);ctx.rotate(geometry.rotation);ctx.scale(state.scale,state.scale);ctx.globalAlpha=state.opacity;ctx.drawImage(text.canvas,(offset-text.width/2)*ratio,-text.height/2*ratio,text.width*ratio,text.height*ratio);ctx.restore();};
+    for(const item of layered(project,visuals,texts)){if('text' in item)drawText(item.text);else if(item.visual.type==='transition')this.pair(project,time,item.visual);else this.layer(project,time,item.visual,this.context);}
   }
   release(keys:Set<string>){for(const key of this.texts.keys())if(!keys.has(`text:${key}`))this.texts.delete(key);}
   dispose(){this.texts.clear();this.canvas.width=0;this.scratch.width=0;this.filtered.width=0;for(const canvas of [...this.pairInputs,this.pairOutput])canvas.width=0;}

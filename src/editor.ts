@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Clip, Project, SubtitleCue,MediaAsset,SpeedPoint,Track } from '../shared/types';
-import { newClip, newProject, uid } from '../shared/project';
+import { newClip, startingProject, uid } from '../shared/project';
+import {settleOverlaps} from './timeline-model';
 import {assertSpeedCurve,clipSourceSpan,speedCurveMean,MIN_SPEED,MAX_SPEED,MAX_CURVE_SPEED} from '../shared/speed';
 import {reconcileTransitions} from '../shared/transition-edits';
 import {assertCaptionWords,trimCaptionWords,defaultCaptionStyle,defaultCaptionAnimation,resizeCaptionStyle} from '../shared/captions';
@@ -8,7 +9,7 @@ import {previewProxyPath} from '../shared/media-clock';
 import {reconcileMotion,resizeMotionBinding} from '../shared/motion';
 
 export function useHistory() {
-  const [project, setState] = useState<Project>(newProject);
+  const [project, setState] = useState<Project>(startingProject);
   const current = useRef(project);
   const past = useRef<Project[]>([]);
   const future = useRef<Project[]>([]);
@@ -152,7 +153,9 @@ export function placeDroppedMedia(p:Project,media:readonly MediaAsset[],trackId:
     clips.push(clip);cursor.set(track.id,start+clip.duration);
   }
   if(p.clips.length+clips.length>10000)throw new Error('프로젝트당 최대 10,000개 클립을 지원합니다.');
-  return {project:{...p,tracks,clips:[...p.clips,...clips]},clips};
+  // Files landing on occupied spots go to the next free track up, as in CapCut.
+  const project=settleOverlaps({...p,tracks,clips:[...p.clips,...clips]},clips.map(c=>c.id)),placed=new Map(project.clips.map(c=>[c.id,c]));
+  return {project,clips:clips.map(c=>placed.get(c.id)!)};
 }
 /** Video and audio clips play at a rate; text and still images only last a duration. */
 export const hasPlaybackRate=(clip:Clip,media:readonly MediaAsset[])=>clip.text===undefined&&media.some(m=>m.id===clip.mediaId&&m.kind!=='image');

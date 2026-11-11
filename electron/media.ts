@@ -666,17 +666,19 @@ export async function renderProjectDirect(project:Project,settings:ExportSetting
       // Keep full chroma until the final encoder conversion. Even a disabled
       // 4:4:4 overlay negotiates its input format, so mixing 4:2:0 and 4:4:4
       // by active window changes pixels before/after a transition.
-      for(const [i,draw] of draws.entries()){graph.push(`[${video}][${draw.label}]overlay=x='${draw.x}':y='${draw.y}':format=yuv444:eval=frame:eof_action=repeat:repeatlast=1:enable='${draw.enable}'[composite${i}]`);video=`composite${i}`;}
-      const captionGroups=captionLayerGroups(project,windowStart,windowEnd),hasRich=captionGroups.some(group=>group.rich);
+      const trackIndex=new Map(project.tracks.map((track,index)=>[track.id,index]));
+      const captionGroups=captionLayerGroups(project,windowStart,windowEnd,clip=>{const at=trackIndex.get(clip.trackId)??Infinity;let below=0;for(const draw of draws)if(draw.track<at)below++;return below;}),hasRich=captionGroups.some(group=>group.rich);
       if(hasRich){
         const raster=window?.captionRaster||(ownedRaster=await (ctx.captionRasterFactory||(await import('./caption-raster')).createCaptionRaster)(project,settings,captionControl.signal,ctx.diagnostics));
         captionStreams=new CaptionWindowStreams(raster,failCaption,captionControl.signal);
-        // Composite in RGB to preserve integer/subpixel caption placement;
-        // 4:2:0 overlay would silently round odd caption origins to even pixels.
-        graph.push(`[${video}]scale=in_color_matrix=bt709:in_range=tv:out_range=pc,format=rgba[captionBase]`);video='captionBase';
       }
-      let captionInput=inputs.length;
-      for(const [index,group] of captionGroups.entries()){
+      let captionInput=inputs.length,rgba=false,conversions=0;
+      // Composite rich captions in RGB to preserve integer/subpixel caption placement;
+      // 4:2:0 overlay would silently round odd caption origins to even pixels.
+      const toRgba=()=>{if(rgba)return;const label=conversions?`captionBase${conversions}`:'captionBase';conversions++;graph.push(`[${video}]scale=in_color_matrix=bt709:in_range=tv:out_range=pc,format=rgba[${label}]`);video=label;rgba=true;};
+      const toYuv444=()=>{if(!rgba)return;const label=`layerYuv${conversions++}`;graph.push(`[${video}]scale=in_range=pc:out_color_matrix=bt709:out_range=tv,format=${settings.intermediate?'yuva444p':'yuv444p'},setparams=range=limited:colorspace=bt709[${label}]`);video=label;rgba=false;};
+      const captionsAt=async(slot:number)=>{const groups=captionGroups.filter(group=>group.slot===slot||(slot===draws.length&&group.slot>draws.length));if(groups.some(group=>group.rich))toRgba();for(const group of groups)await emitCaption(group);};
+      const emitCaption=async(group:typeof captionGroups[number])=>{const index=captionGroups.indexOf(group);
         const label=`textvideo${index}`;
         if(group.rich){
           const stream=await captionStreams!.add(group.clips),bounds=stream.group;
@@ -688,10 +690,12 @@ export async function renderProjectDirect(project:Project,settings:ExportSetting
           graph.push(`[${video}]setpts=PTS+${windowFrame},ass=filename=${file},setpts=PTS-${windowFrame}[${label}]`);
         }
         video=label;
-      }
+      };
+      for(const [i,draw] of draws.entries()){await captionsAt(i);toYuv444();graph.push(`[${video}][${draw.label}]overlay=x='${draw.x}':y='${draw.y}':format=yuv444:eval=frame:eof_action=repeat:repeatlast=1:enable='${draw.enable}'[composite${i}]`);video=`composite${i}`;}
+      await captionsAt(draws.length);
       const rgbWindow=!!window&&settings.format==='gif';
-      if(hasRich&&!rgbWindow){graph.push(`[${video}]scale=in_range=pc:out_color_matrix=bt709:out_range=tv,format=${settings.intermediate?'yuva444p':'yuv420p'},setparams=range=limited:colorspace=bt709[captionYuv]`);video='captionYuv';}
-      if(rgbWindow)graph.push(`[${video}]${hasRich?'':'scale=in_color_matrix=bt709:in_range=tv:out_range=pc,'}format=rgb24[videoout]`);
+      if(rgba&&!rgbWindow){graph.push(`[${video}]scale=in_range=pc:out_color_matrix=bt709:out_range=tv,format=${settings.intermediate?'yuva444p':'yuv420p'},setparams=range=limited:colorspace=bt709[captionYuv]`);video='captionYuv';}
+      if(rgbWindow)graph.push(`[${video}]${rgba?'':'scale=in_color_matrix=bt709:in_range=tv:out_range=pc,'}format=rgb24[videoout]`);
       else if(format==='gif'){graph.push(`[${video}]split[gifsource][palettein]`);graph.push('[palettein]palettegen=stats_mode=single[palette]');graph.push('[gifsource][palette]paletteuse=new=1:dither=sierra2_4a[videoout]');}else graph.push(`[${video}]format=${settings.intermediate?'yuva444p':'yuv420p'}[videoout]`);
     }
     if(!window&&format!=='gif'){

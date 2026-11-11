@@ -10,6 +10,19 @@ export interface VideoFrameSource {key:string;source:TexImageSource;width:number
 export interface VisualFrame {clip:PreviewClip;frame:VideoFrameSource;type?:'clip'}
 export interface TransitionVisualFrame {type:'transition';transition:Transition;from?:VisualFrame;to?:VisualFrame;progress:number}
 export type VisualRenderNode=VisualFrame|TransitionVisualFrame;
+/** Upper tracks cover lower ones, text included: each text is drawn between the visual
+ * layers of the tracks below and above it. Visuals and texts arrive sorted by track. */
+export function layered(project:Project,visuals:readonly VisualRenderNode[],texts:readonly Clip[]):Array<{visual:VisualRenderNode}|{text:Clip}> {
+  const index=new Map(project.tracks.map((track,i)=>[track.id,i])),items:Array<{visual:VisualRenderNode}|{text:Clip}>=[];
+  let next=0,at=-Infinity;
+  for(const visual of visuals){
+    const clip=visual.type==='transition'?(visual.from??visual.to)?.clip:visual.clip;if(clip)at=index.get(clip.trackId)??at;
+    while(next<texts.length&&(index.get(texts[next].trackId)??Infinity)<at)items.push({text:texts[next++]});
+    items.push({visual});
+  }
+  while(next<texts.length)items.push({text:texts[next++]});
+  return items;
+}
 export interface Geometry {size:[number,number];offset:[number,number];center:[number,number];scale:[number,number];rotation:number;uv:[number,number,number,number]}
 export interface HitRegion {clip:Clip;geometry:Geometry;contains?:(x:number,y:number)=>boolean;dragScale?:number;transition?:boolean}
 export interface Compositor {readonly mode:'WebGL2'|'CPU';canvas:HTMLCanvasElement;resize(project:Project,quality:number):void;draw(project:Project,time:number,visuals:VisualRenderNode[],texts:Clip[]):void;release(keys:Set<string>):void;hitRegions:HitRegion[];dispose():void}
@@ -97,12 +110,12 @@ export class GLCompositor implements Compositor {
     gl.drawArrays(gl.TRIANGLES,0,6);gl.activeTexture(gl.TEXTURE0);
   }
   draw(project:Project,time:number,visuals:VisualRenderNode[],texts:Clip[]){const gl=this.gl;if(gl.isContextLost())throw new Error('GPU context lost');gl.viewport(0,0,this.canvas.width,this.canvas.height);gl.bindFramebuffer(gl.FRAMEBUFFER,null);const background=hexRgb(project.background);gl.clearColor(...background,1);gl.clear(gl.COLOR_BUFFER_BIT);gl.enable(gl.BLEND);this.hitRegions=[];
-    for(const node of visuals){if(node.type==='transition')this.pair(project,time,node);else this.layer(project,time,node,null);}
     const ratio=this.canvas.height/project.height;
-    for(const clip of texts){let text=clip.captionStyle?undefined:this.textFrames.get(clip.id);const signature=textSignature(clip,project,ratio,time-clip.start);if(!text||text.signature!==signature){text=rasterCaption(clip,project,ratio,time-clip.start);if(!clip.captionStyle)this.textFrames.set(clip.id,text);else this.textFrames.delete(clip.id);const cached=this.textures.get(`text:${clip.id}`);if(cached&&(!clip.captionStyle||cached.version!==(text.version??1)))cached.version=-1;}
+    const drawText=(clip:Clip)=>{let text=clip.captionStyle?undefined:this.textFrames.get(clip.id);const signature=textSignature(clip,project,ratio,time-clip.start);if(!text||text.signature!==signature){text=rasterCaption(clip,project,ratio,time-clip.start);if(!clip.captionStyle)this.textFrames.set(clip.id,text);else this.textFrames.delete(clip.id);const cached=this.textures.get(`text:${clip.id}`);if(cached&&(!clip.captionStyle||cached.version!==(text.version??1)))cached.version=-1;}
       const state=clipState(clip,time),g=textGeometry(clip,text,project,time);this.hitRegions.push({clip,geometry:g});this.geometry(this.simple,g,project);this.texture({key:`text:${clip.id}`,source:text.canvas,width:text.canvas.width,height:text.canvas.height,version:text.version??1});this.float(this.simple,'uOpacity',state.opacity);this.integer(this.simple,'uPremultiplied',1);gl.drawArrays(gl.TRIANGLES,0,6);
       if(clip.captionStyle){const key=`text:${clip.id}`,current=this.textures.get(key)!;this.textures.delete(key);this.textures.set(key,current);let bytes=0;for(const [id,value]of this.textures)if(id.startsWith('text:'))bytes+=value.width*value.height*4;for(const [id,value]of this.textures){if(bytes<=64*1024*1024)break;if(id===key||!id.startsWith('text:'))continue;gl.deleteTexture(value.texture);this.textures.delete(id);this.textFrames.delete(id.slice(5));bytes-=value.width*value.height*4;}}
-    }
+    };
+    for(const item of layered(project,visuals,texts)){if('text' in item)drawText(item.text);else if(item.visual.type==='transition')this.pair(project,time,item.visual);else this.layer(project,time,item.visual,null);}
   }
   release(keys:Set<string>){for(const [key,texture]of this.textures)if(!keys.has(key)){this.gl.deleteTexture(texture.texture);this.textures.delete(key);if(key.startsWith('text:'))this.textFrames.delete(key.slice(5));}}
   dispose(){this.colorTextures.dispose();const gl=this.gl;for(const texture of this.textures.values())gl.deleteTexture(texture.texture);for(const t of this.targets){gl.deleteTexture(t.texture);gl.deleteFramebuffer(t.framebuffer);}for(const p of [this.material,this.simple,this.blur,this.transition])gl.deleteProgram(p.program);gl.deleteBuffer(this.buffer);this.textures.clear();this.textFrames.clear();}

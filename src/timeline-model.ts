@@ -1,4 +1,4 @@
-import type {Clip,Project} from '../shared/types';
+import type {Clip,Project,Track} from '../shared/types';
 import {trimClip,uid} from '../shared/project';
 import {minClipDuration} from './editor';
 export const frameTime=(time:number,fps:number)=>Math.round(time*fps)/fps;
@@ -40,6 +40,61 @@ export function insertClip(project:Project,incoming:Clip,mode:'insert'|'overwrit
     return pieces.filter(piece=>piece.duration>=minimum);
   });
   return [...clips,incoming];
+}
+const occupied=(clips:readonly Clip[],trackId:string,start:number,end:number,except:ReadonlySet<string>)=>clips.some(c=>c.trackId===trackId&&!except.has(c.id)&&c.start<end-1e-6&&c.start+c.duration>start+1e-6);
+const kindName=(type:Track['type'])=>type==='audio'?'오디오':type==='text'?'텍스트':'영상';
+/** A new empty track named after its kind, e.g. "영상 2". */
+export function createTrack(tracks:readonly Track[],type:Track['type']):Track {
+  const names=new Set(tracks.map(t=>t.name));let n=tracks.filter(t=>t.type===type).length+1;
+  while(names.has(`${kindName(type)} ${n}`))n++;
+  return {id:uid(),type,name:`${kindName(type)} ${n}`,muted:false,hidden:false,locked:false};
+}
+/** Like CapCut, a track holds one clip per spot. Clips in `ids` that overlap another clip on
+ * their track move together to another track of the same kind (for audio, further down):
+ * - 'stack' (new clips): the next free track up, else a new one at the top of that run of
+ *   tracks, so repeated drops on one spot stack with the newest on top;
+ * - 'adjacent' (a dragged clip): the track right above if it is free, else a new track right
+ *   above the one it was dropped on.
+ * New tracks never go above a track of another kind, so text above pictures stays above. */
+export function settleOverlaps(p:Project,ids:Iterable<string>,mode:'stack'|'adjacent'='stack'):Project {
+  const wanted=new Set(ids);let tracks=[...p.tracks],clips=p.clips;
+  const groups=new Map<string,Clip[]>();for(const c of clips)if(wanted.has(c.id))groups.set(c.trackId,[...(groups.get(c.trackId)||[]),c]);
+  for(const [trackId,group] of groups){
+    const members=new Set(group.map(c=>c.id)),fits=(id:string)=>!group.some(c=>occupied(clips,id,c.start,c.start+c.duration,members));
+    if(fits(trackId))continue;
+    const from=tracks.findIndex(t=>t.id===trackId),type=tracks[from].type;let i=from+1,target:string|undefined;
+    while(i<tracks.length&&tracks[i].type===type){if(!tracks[i].locked&&fits(tracks[i].id)){target=tracks[i].id;break;}if(mode==='adjacent')break;i++;}
+    if(!target){
+      if(tracks.length>=100)throw new Error('트랙이 100개라 겹친 클립을 새 트랙에 놓을 수 없습니다.');
+      const track=createTrack(tracks,type);tracks=[...tracks.slice(0,i),track,...tracks.slice(i)];target=track.id;
+    }
+    clips=clips.map(c=>members.has(c.id)?{...c,trackId:target!}:c);
+  }
+  return clips===p.clips?p:{...p,tracks,clips};
+}
+/** CapCut drops a track once its last clip leaves it. Tracks that were already empty stay
+ * (a track added from the menu, say), and one picture track always remains. */
+export function pruneEmptiedTracks(before:Project,after:Project):Project {
+  const had=new Set(before.clips.map(c=>c.trackId)),has=new Set(after.clips.map(c=>c.trackId));
+  const emptied=(t:Track)=>had.has(t.id)&&!has.has(t.id)&&!t.locked;
+  let tracks=after.tracks.filter(t=>!emptied(t));
+  if(tracks.length===after.tracks.length)return after;
+  if(!tracks.some(t=>t.type==='video')){const keep=after.tracks.find(t=>t.type==='video');if(keep)tracks=after.tracks.filter(t=>t===keep||!emptied(t));}
+  return {...after,tracks};
+}
+/** End of a timeline drag: clips dropped above or below every track get a new track there,
+ * overlaps move up, and tracks the drag emptied go away. */
+export function finishClipMove(before:Project,after:Project,ids:readonly string[],zone:'top'|'bottom'|null):Project {
+  let p=after;const moved=p.clips.filter(c=>ids.includes(c.id));
+  if(zone&&moved.length){
+    const type=p.tracks.find(t=>t.id===moved[0].trackId)?.type||'video',track=createTrack(p.tracks,type),firstAudio=p.tracks.findIndex(t=>t.type==='audio');
+    if(p.tracks.length>=100)throw new Error('프로젝트당 최대 100개 트랙을 지원합니다.');
+    // Pictures and text: the top of the timeline is the top layer (end of the list). Audio is listed in order.
+    const tracks=type==='audio'?(zone==='top'&&firstAudio>=0?[...p.tracks.slice(0,firstAudio),track,...p.tracks.slice(firstAudio)]:[...p.tracks,track]):zone==='top'?[...p.tracks,track]:[track,...p.tracks];
+    const same=new Set(moved.filter(c=>p.tracks.find(t=>t.id===c.trackId)?.type===type).map(c=>c.id));
+    p={...p,tracks,clips:p.clips.map(c=>same.has(c.id)?{...c,trackId:track.id}:c)};
+  }
+  return pruneEmptiedTracks(before,settleOverlaps(p,ids,'adjacent'));
 }
 /** The empty span under `time` on a track, from what ends before it to the next clip. */
 export function gapAt(clips:readonly Clip[],trackId:string,time:number):{start:number;end:number}|null {

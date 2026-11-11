@@ -6,7 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Activity, ArrowUpRight, Check, ChevronDown, CircleHelp, FilePlus2, FolderOpen, Keyboard, LoaderCircle, Redo2, Save, Undo2, X } from 'lucide-react';
 import type { Clip, ExportSettings, JobEvent, MediaAsset, Project, SystemInfo, TextStyle, Track,SpeechModelId,SpeechOptions,PreviewStatusEvent } from '../shared/types';
 import {previewProxyPath,previewSourceKey} from '../shared/media-clock';
-import { interpolate, keyframeBase, newClip, newProject, projectDuration, splitClip, uid } from '../shared/project';
+import { interpolate, keyframeBase, newClip, startingProject, projectDuration, splitClip, uid } from '../shared/project';
 import {clipSourceSpan,clipSourceTime} from '../shared/speed';
 import {applyEnhancement,restoreEnhancement,enhancementSource,applyCutout,restoreCutout,cutoutSource,applyReversal,restoreReversal,reversalSource,clipMediaIds,applyStabilization,clipMediaAvailable,restoreStabilization,sameSourceInterval,sourceCuesToTimeline,stabilizationSource} from '../shared/processing';
 import type {StabilizationOptions,PersonCutoutOptions} from '../shared/types';
@@ -18,7 +18,7 @@ import { clamp, cuesToClips, inputTarget, toCues, useHistory,mergeAsset,minClipD
 import {planCombination,applyCombination,uncombineClip,type CombinePlan} from '../shared/combine';
 import Preview,{type TransformPatch} from './Preview';
 import SourceMonitor from './SourceMonitor';
-import {frameTime,insertClip,boundedNudgeDelta} from './timeline-model';
+import {frameTime,insertClip,boundedNudgeDelta,settleOverlaps,pruneEmptiedTracks} from './timeline-model';
 import Timeline from './Timeline';
 import Inspector from './Inspector';
 import CutoutDialog from './CutoutDialog';
@@ -194,7 +194,7 @@ export default function App() {
     }
     const at=start??Math.max(0,...p.clips.filter(c=>c.trackId===track!.id).map(c=>c.start+c.duration));
     const clip=newClip(track.id,media,at);clip.duration=Math.min(clip.duration,86400-at);if(clip.duration<minClipDuration(p.fps)){notify('타임라인 길이는 최대 24시간입니다.','error');return;}
-    change(v=>({...v,tracks:v.tracks.some(t=>t.id===track!.id)?v.tracks:[...v.tracks,track!],clips:[...v.clips,clip]}));setSelected([clip.id]);seek(at);
+    change(v=>settleOverlaps({...v,tracks:v.tracks.some(t=>t.id===track!.id)?v.tracks:[...v.tracks,track!],clips:[...v.clips,clip]},[clip.id]));setSelected([clip.id]);seek(at);
   };
   const addSourceRange=(media:MediaAsset,sourceIn:number,sourceOut:number,mode:'insert'|'overwrite'|'append')=>{const p=current.current;if(!p.media.some(m=>m.id===media.id)){notify('원본 미디어가 프로젝트에 없습니다.','error');return;}const type=media.kind==='audio'?'audio':'video';let track=p.tracks.find(t=>t.id===p.clips.find(c=>selected.includes(c.id))?.trackId&&t.type===type&&!t.locked)||p.tracks.find(t=>t.type===type&&!t.locked);
     if(!track){
@@ -209,7 +209,7 @@ export default function App() {
       track={id:uid(),type:'text',name:'자막 · 텍스트',muted:false,hidden:false,locked:false};
     }
     const clip={...newClip(track.id),start:frameTime(timeRef.current,p.fps),textStyle:style,captionStyle:textCaptionStyle(style),y:style==='title'||style==='neon'?0:p.height*.32,fontSize:clamp(Math.round(p.height*(style==='title'?.08:.052)),4,1000),text:'텍스트',animation:'none',color:style==='neon'?'#76fbe0':'#ffffff'} as Clip;
-    clip.name=clip.text!;change(v=>({...v,tracks:v.tracks.some(t=>t.id===track!.id)?v.tracks:[...v.tracks,track!],clips:[...v.clips,clip]}));setSelected([clip.id]);setTab('text');
+    clip.name=clip.text!;change(v=>settleOverlaps({...v,tracks:v.tracks.some(t=>t.id===track!.id)?v.tracks:[...v.tracks,track!],clips:[...v.clips,clip]},[clip.id]));setSelected([clip.id]);setTab('text');
   };
   const insertCaptionAppearance=(appearance:CaptionAppearance)=>{
     const p=current.current,at=frameTime(timeRef.current,p.fps);if(p.clips.length>=10000||at+3>86400){notify('클립 수 또는 타임라인 길이 제한에 도달했습니다.','error');return;}
@@ -232,13 +232,13 @@ export default function App() {
     const clips=p.clips.filter(c=>!removedIds.has(c.id)).map(c=>{
       if(!useRipple||p.tracks.find(t=>t.id===c.trackId)?.locked)return c;
       const ranges=intervalsByTrack.get(c.trackId)||[];let lo=0,hi=ranges.length;while(lo<hi){const mid=(lo+hi)>>>1;if(ranges[mid][1]<=c.start+.0001)lo=mid+1;else hi=mid;}const shift=lo?ranges[lo-1][2]:0;return shift?{...c,start:Math.max(0,c.start-shift)}:c;
-    });change({...p,clips});setSelected([]);
+    });change(pruneEmptiedTracks(p,{...p,clips}));setSelected([]);
   };
-  const duplicate=()=>{try{const p=current.current,source=p.clips.filter(c=>selected.includes(c.id)&&!p.tracks.find(t=>t.id===c.trackId)?.locked);if(!source.length)return;const span=Math.max(...source.map(c=>c.start+c.duration))-Math.min(...source.map(c=>c.start)),ids=new Map(source.map(c=>[c.id,uid()])),added=copyMotionBindings(p,source.map(c=>({...structuredClone(c),id:ids.get(c.id)!,start:c.start+span})),ids,span);if(added.length+p.clips.length>10000||added.some(c=>c.start+c.duration>86400)){notify('클립 수 또는 타임라인 길이 제한을 넘을 수 없습니다.','error');return;}change({...p,clips:[...p.clips,...added],transitions:[...(p.transitions||[]),...copyTransitions(p.transitions,ids,uid)]});setSelected(added.map(c=>c.id));}catch(error){fail(error);}};
+  const duplicate=()=>{try{const p=current.current,source=p.clips.filter(c=>selected.includes(c.id)&&!p.tracks.find(t=>t.id===c.trackId)?.locked);if(!source.length)return;const span=Math.max(...source.map(c=>c.start+c.duration))-Math.min(...source.map(c=>c.start)),ids=new Map(source.map(c=>[c.id,uid()])),added=copyMotionBindings(p,source.map(c=>({...structuredClone(c),id:ids.get(c.id)!,start:c.start+span})),ids,span);if(added.length+p.clips.length>10000||added.some(c=>c.start+c.duration>86400)){notify('클립 수 또는 타임라인 길이 제한을 넘을 수 없습니다.','error');return;}change(settleOverlaps({...p,clips:[...p.clips,...added],transitions:[...(p.transitions||[]),...copyTransitions(p.transitions,ids,uid)]},added.map(c=>c.id)));setSelected(added.map(c=>c.id));}catch(error){fail(error);}};
   const copyClips=(verb='복사했습니다'):boolean=>{const p=current.current,clips=p.clips.filter(c=>selected.includes(c.id)).map(c=>structuredClone(c));if(!clips.length)return false;const ids=new Set(clips.map(c=>c.id));clipboard.current={clips:copyMotionBindings(p,clips,new Map(),0),fps:p.fps,motionPaths:structuredClone((p.motionPaths||[]).filter(a=>clips.some(c=>c.motionBinding?.analysisId===a.id))),colorLuts:(p.colorLuts||[]).filter(l=>clips.some(c=>c.colorGrade?.lutId===l.id)),transitions:structuredClone((p.transitions||[]).filter(t=>ids.has(t.fromClipId)&&ids.has(t.toClipId)))};notify(`${clips.length}개 클립을 ${verb}.`);return true;};
   const copy=()=>{copyClips();};
   const cutClips=()=>{if(copyClips('잘라냈습니다'))remove(ripple);};
-  const paste=()=>{try{const p=current.current,source=clipboard.current.clips.filter(c=>p.tracks.some(t=>t.id===c.trackId&&!t.locked));if(!source.length)return;if(source.some(c=>!clipMediaAvailable(c,p.media))){notify('복사한 클립의 원본 미디어가 없습니다. 미디어 삭제를 취소한 뒤 붙여넣으세요.','error');return;}const first=Math.min(...source.map(c=>c.start)),ids=new Map(source.map(c=>[c.id,uid()])),clips=copyMotionBindings(p,source.map(c=>({...structuredClone(c),id:ids.get(c.id)!,start:timeRef.current+c.start-first})),ids,timeRef.current-first);if(clips.length+p.clips.length>10000||clips.some(c=>c.start+c.duration>86400)){notify('클립 수 또는 타임라인 길이 제한을 넘을 수 없습니다.','error');return;}change({...restoreMotionPaths(restoreColorLuts(p,clips,clipboard.current.colorLuts),clips,clipboard.current.motionPaths),clips:[...p.clips,...clips],transitions:[...(p.transitions||[]),...copyTransitions(clipboard.current.transitions,ids,uid,clipboard.current.fps,p.fps)]});setSelected(clips.map(c=>c.id));}catch(error){fail(error);}};
+  const paste=()=>{try{const p=current.current,source=clipboard.current.clips.filter(c=>p.tracks.some(t=>t.id===c.trackId&&!t.locked));if(!source.length)return;if(source.some(c=>!clipMediaAvailable(c,p.media))){notify('복사한 클립의 원본 미디어가 없습니다. 미디어 삭제를 취소한 뒤 붙여넣으세요.','error');return;}const first=Math.min(...source.map(c=>c.start)),ids=new Map(source.map(c=>[c.id,uid()])),clips=copyMotionBindings(p,source.map(c=>({...structuredClone(c),id:ids.get(c.id)!,start:timeRef.current+c.start-first})),ids,timeRef.current-first);if(clips.length+p.clips.length>10000||clips.some(c=>c.start+c.duration>86400)){notify('클립 수 또는 타임라인 길이 제한을 넘을 수 없습니다.','error');return;}change(settleOverlaps({...restoreMotionPaths(restoreColorLuts(p,clips,clipboard.current.colorLuts),clips,clipboard.current.motionPaths),clips:[...p.clips,...clips],transitions:[...(p.transitions||[]),...copyTransitions(clipboard.current.transitions,ids,uid,clipboard.current.fps,p.fps)]},clips.map(c=>c.id)));setSelected(clips.map(c=>c.id));}catch(error){fail(error);}};
   const detachAudio=()=>{if(current.current.clips.length>=10000){notify('프로젝트당 최대 10,000개 클립을 지원합니다.','error');return;}const p=current.current,c=p.clips.find(v=>v.id===selected[0]),m=p.media.find(v=>v.id===c?.mediaId);if(!c||!m?.hasAudio||p.tracks.find(t=>t.id===c.trackId)?.locked)return;let track=p.tracks.find(t=>t.type==='audio'&&!t.locked);
     if(!track){
       if(p.tracks.length>=100){notify('프로젝트당 최대 100개 트랙을 지원합니다.','error');return;}
@@ -269,7 +269,7 @@ export default function App() {
   const collect=async()=>{try{if(document.activeElement instanceof HTMLElement)document.activeElement.blur();const result=await window.studio.collectProject(current.current);if(result)setJobsOpen(true);}catch(error){fail(error);}};
   const leaveAllowed=()=>!dirty||!(project.clips.length||project.media.length)||window.confirm('저장하지 않은 변경 사항이 있습니다. 현재 프로젝트를 닫고 계속할까요? 프로젝트 파일로 보관하려면 취소한 뒤 Ctrl+S로 저장하세요.');
   const open=async()=>{if(!leaveAllowed())return;const intent=++loadIntent.current,snapshot=editSnapshot(current.current);try{const result=await window.studio.openProject();if(intent!==loadIntent.current)return;if(result){if(editSnapshot(current.current)!==snapshot){notify('프로젝트를 여는 동안 현재 작업이 변경되어 열기를 적용하지 않았습니다.');return;}reset(result.project);setProjectPath(result.path);setSavedStamp(result.modified?'':result.project.updatedAt);setSourceMedia(null);setSelected([]);seek(0);if(result.missing.length)notify(`원본 미디어 ${result.missing.length}개를 찾지 못했습니다. 경로를 확인하세요.`,'error');else notify('프로젝트를 열었습니다.');}}catch(e){if(intent===loadIntent.current)fail(e);}};
-  const create=()=>{if(!leaveAllowed())return;const p=newProject();reset(p);setProjectPath(undefined);setSavedStamp(p.updatedAt);setSourceMedia(null);setSelected([]);seek(0);setTab('media');};
+  const create=()=>{if(!leaveAllowed())return;const p=startingProject();reset(p);setProjectPath(undefined);setSavedStamp(p.updatedAt);setSourceMedia(null);setSelected([]);seek(0);setTab('media');};
   const showRecoveries=async()=>{try{setRecoveries(await window.studio.listRecoveries());setModal('recoveries');}catch(e){fail(e);}};
   const loadArchived=async(id:string)=>{if(!leaveAllowed())return;const intent=++loadIntent.current,snapshot=editSnapshot(current.current);try{const p=await window.studio.loadRecovery(id);if(intent!==loadIntent.current)return;if(p){if(editSnapshot(current.current)!==snapshot){notify('복구본을 여는 동안 현재 작업이 변경되어 열기를 적용하지 않았습니다.');return;}reset(p);setProjectPath(undefined);setSavedStamp('');setSourceMedia(null);setSelected([]);seek(0);setModal(null);}}catch(e){if(intent===loadIntent.current)fail(e);}};
   const importSubtitles=async()=>{try{const cues=await window.studio.importSubtitles();if(!cues?.length)return;const p=current.current,track:Track={id:uid(),name:'가져온 자막',type:'text',muted:false,hidden:false,locked:false},clips=cuesToClips(cues,track.id,p);if(p.clips.length+clips.length>10000||p.tracks.length>=100)throw new Error('자막을 추가하면 최대 클립 수(10,000개) 또는 트랙 수(100개)를 넘습니다.');if(clips.some(c=>c.start+c.duration>86400))throw new Error('자막 시간은 24시간 이내여야 합니다.');change({...p,tracks:[...p.tracks,track],clips:[...p.clips,...clips]});setSelected(clips.length?[clips[0].id]:[]);setTab('captions');notify(`${clips.length}개 자막을 가져왔습니다.`);}catch(e){fail(e);}};
@@ -316,7 +316,7 @@ export default function App() {
   const undoEnhancement=()=>{try{change(p=>({...p,clips:p.clips.map(c=>c.id===selected[0]&&!p.tracks.find(t=>t.id===c.trackId)?.locked?restoreEnhancement(c):c)}));}catch(error){fail(error);}};
   const showFreeze=()=>{try{const p=current.current,target=planFreeze(p,selected[0],frameTime(timeRef.current,p.fps),Math.round(3*p.fps)/p.fps);setPlaying(false);seek(target.at);setFreezeTarget(structuredClone(target));setModal('freeze');}catch(error){fail(error);}};
   const startCombine=async()=>{try{const p=current.current,plan=planCombination(p,selected),clips=structuredClone(p.clips.filter(c=>plan.ids.includes(c.id)));setPlaying(false);const context={...captureJob(),combine:{plan,clips}},result=await window.studio.combineClips(p,plan.ids);jobContexts.current.set(result.jobId,context);setJobsOpen(true);}catch(error){fail(error);}};
-  const uncombine=(clipId=selected[0])=>{try{const result=uncombineClip(current.current,clipId);change(result.project);setSelected(result.ids);notify('합친 클립을 원래 클립으로 풀었습니다.');}catch(error){fail(error);}};
+  const uncombine=(clipId=selected[0])=>{try{const result=uncombineClip(current.current,clipId);change(settleOverlaps(result.project,result.ids));setSelected(result.ids);notify('합친 클립을 원래 클립으로 풀었습니다.');}catch(error){fail(error);}};
   const combineBusy=jobs.some(job=>job.type==='combine'&&job.status==='running');
   const reverseStarting=useRef(new Set<string>());
   const startReverse=async()=>{const p=current.current,clip=p.clips.find(c=>c.id===selected[0]);if(!clip||p.tracks.find(t=>t.id===clip.trackId)?.locked)return;try{
@@ -376,7 +376,7 @@ export default function App() {
           change({...p,media,clips:canApply?p.clips.map(c=>c.id===target.id?applyCutout(c,m,context.cutout!):c):p.clips});
           if(!canApply){notify('클립이 변경되었거나 잠겨 배경 제거 결과를 보관함에만 추가했습니다.');return;}
         }else if(event.type==='combine'&&context?.combine){
-          try{const result=applyCombination({...p,media},context.combine.plan,context.combine.clips,m);change(result.project);setSelected([result.clip.id]);seek(result.clip.start);}
+          try{const result=applyCombination({...p,media},context.combine.plan,context.combine.clips,m);change(pruneEmptiedTracks(p,result.project));setSelected([result.clip.id]);seek(result.clip.start);}
           catch(error){change({...p,media});notify(`${humanError(error)} 합친 결과는 보관함에 추가했습니다.`);return;}
         }else if(event.type==='reverse'&&context?.clip&&context.reverse){
           const target=p.clips.find(c=>c.id===context.clip!.id),canApply=target&&sameSourceInterval(target,context.clip)&&!p.tracks.find(t=>t.id===target.trackId)?.locked;
