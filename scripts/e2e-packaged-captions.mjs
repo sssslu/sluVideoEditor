@@ -51,7 +51,7 @@ try{
   await page.evaluate(()=>{window.captionJobs=[];window.studio.onJob(e=>window.captionJobs.push(e));});
   const projectPath=path.join(root,'reference.sluproj');await fs.writeFile(projectPath,JSON.stringify(fixture.project));
   await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},projectPath);await page.keyboard.press('Control+o');await page.getByText('프로젝트를 열었습니다.',{exact:true}).waitFor();
-  await page.waitForFunction(()=>document.fonts.size===4&&[...document.fonts].every(f=>f.status==='loaded'));
+  await page.waitForFunction(()=>[...document.fonts].filter(f=>!f.family.includes('SluCompany')).length===4&&[...document.fonts].every(f=>f.status==='loaded'));
   const ffmpeg=path.join(resources,'bin','ffmpeg.exe'),ffprobe=path.join(resources,'bin','ffprobe.exe');
   for(const encoder of ['cpu','nvenc']){
     const output=path.join(root,`${encoder}.mp4`),settings={...fixture.settings,encoder,outputPath:undefined};
@@ -78,7 +78,7 @@ try{
   const cancelSpawns=await app.evaluate(()=>globalThis.captionSpawns.filter(s=>s.phase==='cancel'));assert.ok(cancelSpawns.every(s=>s.code!==undefined||s.signal));
   checks.push('Cancellation while the private renderer exists closes it and all owned child processes without publishing output');
   const audit=await app.evaluate(()=>({windows:globalThis.captionWindows,spawns:globalThis.captionSpawns,remoteRequests:globalThis.captionRemoteRequests}));assert.deepEqual(audit.remoteRequests,[]);
-  const fonts=await page.evaluate(()=>[...document.fonts].map(f=>({family:f.family,weight:f.weight,status:f.status})));assertCaptionFaces(fonts);
+  const fonts=await page.evaluate(()=>[...document.fonts].filter(f=>!f.family.includes('SluCompany')).map(f=>({family:f.family,weight:f.weight,status:f.status})));assertCaptionFaces(fonts);
   checks.push('Editor fonts and export fonts work with external network requests blocked and no remote request attempted');
   await fs.writeFile(path.join(root,'audit.json'),JSON.stringify(audit,null,2));assert.deepEqual(errors,[]);
   const bundleHashes={asar:hash(await fs.readFile(path.join(resources,'app.asar'))),ffmpeg:hash(await fs.readFile(ffmpeg))};

@@ -4,9 +4,9 @@ Windows x64용 타임라인 영상 편집기.
 
 ## 다운로드
 
-- **[1.12.0 설치형 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.12.0/SLU-Studio-Setup-1.12.0-x64.exe)**
-- **[1.12.0 포터블 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.12.0/SLU-Studio-1.12.0-Windows-x64.exe)**
-- [최신 릴리스](https://github.com/sssslu/sluVideoEditor/releases/latest) · [전체 사용설명서 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.12.0/SLU-Studio-1.12.0-guide.html) · [파일 해시](https://github.com/sssslu/sluVideoEditor/releases/download/v1.12.0/SHA256SUMS-1.12.0.txt)
+- **[1.13.0 설치형 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.13.0/SLU-Studio-Setup-1.13.0-x64.exe)**
+- **[1.13.0 포터블 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.13.0/SLU-Studio-1.13.0-Windows-x64.exe)**
+- [최신 릴리스](https://github.com/sssslu/sluVideoEditor/releases/latest) · [전체 사용설명서 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.13.0/SLU-Studio-1.13.0-guide.html) · [파일 해시](https://github.com/sssslu/sluVideoEditor/releases/download/v1.13.0/SHA256SUMS-1.13.0.txt)
 
 포터블은 실행할 때 내부 파일을 풀기 때문에 시작 시간이 더 걸릴 수 있습니다. 앱 상단의 이름 옆에서 실행 중인 버전을 확인할 수 있습니다.
 
@@ -36,11 +36,11 @@ AI 화질 향상은 NVIDIA/CUDA가 필요합니다. 1.11에서 RTX 4080 SUPER 16
 
 ## 문서와 검증 범위
 
-Windows 코드 서명이 없습니다. 대화식 설치 절차와 다른 PC의 호환성은 아직 검증하지 않았습니다. 1.12 검사는 브랜딩·버전 표시와 기본 편집·패키지 실행을 대상으로 했으며, AI 품질 측정은 1.11 기록입니다.
+Windows 코드 서명이 없습니다. 대화식 설치 절차와 다른 PC의 호환성은 아직 검증하지 않았습니다. 1.13 검사는 이번에 바뀐 편집 기능(트랙, 속도, 합치기, 단축키, 무손실 오디오)과 기본 편집·출력·패키지 실행을 대상으로 했으며, AI 품질 측정은 1.11 기록입니다.
 
 - [빠른 시작](docs/QUICKSTART.md)
-- [전체 사용설명서 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.12.0/SLU-Studio-1.12.0-guide.html)
-- [검사 조건과 제한](docs/검증결과.md) · [1.12 배포 검증 기록](https://github.com/sssslu/sluVideoEditor/releases/download/v1.12.0/BUILD-INFO-1.12.0.json)
+- [전체 사용설명서 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.13.0/SLU-Studio-1.13.0-guide.html)
+- [검사 조건과 제한](docs/검증결과.md) · [1.13 변경 사항](https://github.com/sssslu/sluVideoEditor/releases/tag/v1.13.0)
 - [개발·빌드 안내](docs/DEVELOPMENT.md)
 
 앱 코드 라이선스는 GPL-3.0-or-later입니다. [라이선스](LICENSE) · [의존성 고지](resources/licenses)
