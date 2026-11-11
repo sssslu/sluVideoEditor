@@ -1,5 +1,5 @@
 import type { Project, MediaAsset,Clip } from './types';
-import {assertSpeedCurve} from './speed';
+import {assertSpeedCurve,MIN_SPEED,MAX_SPEED} from './speed';
 import {assertTransitions} from './transitions';
 import {assertCaptionWords,assertCaptionStyle,assertCaptionAnimation,MAX_PROJECT_CAPTION_WORDS} from './captions';
 import {assertColorGrade,assertColorLut,MAX_PROJECT_LUT_VALUES} from './color';
@@ -28,6 +28,14 @@ export function assertMedia(value:unknown):asserts value is MediaAsset {
   if(m.timing!==undefined&&(!object(m.timing)||m.timing.version!==1||!finite(m.timing.origin,-864000,864000)||!finite(m.timing.previewOffset,0,864000)))throw new Error('잘못된 미디어 시간 정보입니다.');
   if((m.videoStart!==undefined||m.videoEnd!==undefined)&&(m.kind!=='video'||!finite(m.videoStart,0,864000)||!finite(m.videoEnd,0,864000)||m.videoEnd!<=m.videoStart!))throw new Error('잘못된 영상 프레임 범위입니다.');
 }
+let compoundDepth=0;
+function assertCompound(p:Project,k:NonNullable<Clip['compound']>,ids:Set<string>){
+  if(!object(k)||!id(k.derivedMediaId)||!ids.has(k.derivedMediaId)||!finite(k.start,0,86400)||!Array.isArray(k.clips)||!k.clips.length||k.clips.length>2000||!Array.isArray(k.tracks)||!k.tracks.length||k.tracks.length>100||(k.transitions!==undefined&&!Array.isArray(k.transitions)))throw new Error('잘못된 합친 클립 정보입니다.');
+  if(compoundDepth>=8)throw new Error('합친 클립이 너무 깊게 겹쳐 있습니다.');
+  compoundDepth++;
+  try{assertProject({...p,tracks:k.tracks,clips:k.clips,transitions:k.transitions,markers:undefined,fileReferences:undefined});}
+  finally{compoundDepth--;}
+}
 /** Keep these bounds aligned with the renderer inspector and the FFmpeg engine. */
 export function assertProject(value:unknown):asserts value is Project {
   const p=value as Project;
@@ -40,7 +48,7 @@ export function assertProject(value:unknown):asserts value is Project {
   if(p.colorLuts!==undefined){if(p.version<5||!Array.isArray(p.colorLuts)||p.colorLuts.length>32)throw new Error('LUT 라이브러리는 프로젝트 형식 5와 최대 32개 항목을 지원합니다.');for(const lut of p.colorLuts){assertColorLut(lut);if(lutIds.has(lut.id))throw new Error('LUT ID가 중복되었습니다.');lutIds.add(lut.id);lutValues+=3*lut.size**3;if(lutValues>MAX_PROJECT_LUT_VALUES)throw new Error('프로젝트의 LUT 데이터가 너무 많습니다.');}}
   const clips=new Set<string>();let captionWords=0;
   for(const c of p.clips){
-    if(!object(c)||!id(c.id)||clips.has(c.id)||!str(c.name,1000)||!tracks.has(c.trackId)||(c.mediaId!==undefined&&(!id(c.mediaId)||!ids.has(c.mediaId)))||(c.text===undefined&&!c.mediaId)||!finite(c.start,0,86400)||!finite(c.duration,.01,86400)||c.start+c.duration>86400.001||!finite(c.in,0,864000)||!finite(c.speed,.1,16)||!finite(c.volume,0,8)||!finite(c.opacity,0,1)||!finite(c.scale,.01,8)||!finite(c.x,-16384,16384)||!finite(c.y,-16384,16384)||!finite(c.rotation,-3600,3600)||!finite(c.fadeIn,0,86400)||!finite(c.fadeOut,0,86400)||!finite(c.brightness,-1,1)||!finite(c.contrast,0,3)||!finite(c.saturation,0,3)||!finite(c.blur,0,30)||!finite(c.fontSize,4,1000)||!str(c.fontFamily,100)||!color(c.color)||!color(c.textBackground)||!['contain','cover'].includes(c.fit)||!bool(c.flipH)||!bool(c.flipV)||!['none','cinematic','warm','cool','mono','vivid'].includes(c.preset)||!['minimal','bold','box','neon','title'].includes(c.textStyle)||!['left','center','right'].includes(c.align)||!['none','fade','pop','slide'].includes(c.animation)||(c.text!==undefined&&!str(c.text,20000))||!Array.isArray(c.keyframes)||c.keyframes.length>1000)throw new Error('잘못된 클립 설정입니다.');
+    if(!object(c)||!id(c.id)||clips.has(c.id)||!str(c.name,1000)||!tracks.has(c.trackId)||(c.mediaId!==undefined&&(!id(c.mediaId)||!ids.has(c.mediaId)))||(c.text===undefined&&!c.mediaId)||!finite(c.start,0,86400)||!finite(c.duration,.01,86400)||c.start+c.duration>86400.001||!finite(c.in,0,864000)||!finite(c.speed,MIN_SPEED,MAX_SPEED)||!finite(c.volume,0,8)||!finite(c.opacity,0,1)||!finite(c.scale,.01,8)||!finite(c.x,-16384,16384)||!finite(c.y,-16384,16384)||!finite(c.rotation,-3600,3600)||!finite(c.fadeIn,0,86400)||!finite(c.fadeOut,0,86400)||!finite(c.brightness,-1,1)||!finite(c.contrast,0,3)||!finite(c.saturation,0,3)||!finite(c.blur,0,30)||!finite(c.fontSize,4,1000)||!str(c.fontFamily,100)||!color(c.color)||!color(c.textBackground)||!['contain','cover'].includes(c.fit)||!bool(c.flipH)||!bool(c.flipV)||!['none','cinematic','warm','cool','mono','vivid'].includes(c.preset)||!['minimal','bold','box','neon','title'].includes(c.textStyle)||!['left','center','right'].includes(c.align)||!['none','fade','pop','slide'].includes(c.animation)||(c.text!==undefined&&!str(c.text,20000))||!Array.isArray(c.keyframes)||c.keyframes.length>1000)throw new Error('잘못된 클립 설정입니다.');
     if((c.sourceClipOffset!==undefined||c.sourceClipDuration!==undefined)&&(!finite(c.sourceClipOffset,0,86400)||!finite(c.sourceClipDuration,.01,86400)||c.sourceClipOffset!+c.duration>c.sourceClipDuration!+.002))throw new Error('잘못된 클립 효과 구간입니다.');
     if(c.speedCurve!==undefined){if(p.version<2)throw new Error('속도 곡선은 프로젝트 형식 2 이상이 필요합니다.');assertSpeedCurve(c.speedCurve);}
     if(c.audioEQ!==undefined){if(p.version<6||c.text!==undefined||p.media.find(m=>m.id===c.mediaId)?.kind==='image')throw new Error('EQ는 오디오·영상 클립과 프로젝트 형식 6이 필요합니다.');assertAudioEQ(c.audioEQ);}
@@ -79,6 +87,7 @@ export function assertProject(value:unknown):asserts value is Project {
     if(c.mask!==undefined){const m=c.mask;if(!object(m)||!['none','rect','ellipse'].includes(m.type)||!finite(m.x,0,1)||!finite(m.y,0,1)||!finite(m.width,.01,1)||!finite(m.height,.01,1)||!finite(m.feather,0,.5)||!bool(m.invert))throw new Error('잘못된 마스크 설정입니다.');}
     const times=new Set<number>();
     for(const k of c.keyframes){if(!object(k)||!finite(k.time,0,c.duration+.001)||times.has(k.time)||!finite(k.x,-16384,16384)||!finite(k.y,-16384,16384)||!finite(k.scale,.01,8)||!finite(k.opacity,0,1)||!finite(k.rotation,-3600,3600)||(k.easing!==undefined&&!['linear','ease-in','ease-out','ease-in-out','hold'].includes(k.easing))||(k.easingStart!==undefined&&!finite(k.easingStart,0,1))||(k.easingEnd!==undefined&&!finite(k.easingEnd,0,1))||(k.easingStart!==undefined&&k.easingEnd!==undefined&&k.easingStart>k.easingEnd))throw new Error('잘못된 키프레임입니다.');times.add(k.time);}
+    if(c.compound!==undefined)assertCompound(p,c.compound,ids);
     clips.add(c.id);
   }
   assertTransitions(p);assertProjectMotion(p);assertProjectFiles(p);

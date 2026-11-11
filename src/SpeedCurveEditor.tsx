@@ -2,7 +2,7 @@ import {useEffect,useRef,useState} from 'react';
 import type {PointerEvent as ReactPointerEvent} from 'react';
 import {Plus,RotateCcw,Trash2} from 'lucide-react';
 import type {Clip,SpeedPoint} from '../shared/types';
-import {clipSourceSpan,clipSpeedAt,speedCurveMean} from '../shared/speed';
+import {clipSourceSpan,clipSpeedAt,speedCurveMean,MAX_CURVE_SPEED} from '../shared/speed';
 import {clamp} from './editor';
 import {NumberField} from './InspectorFields';
 import './speed-curve.css';
@@ -26,7 +26,8 @@ const presets:{name:string;description:string;points:SpeedPoint[]}[]=[
 export default function SpeedCurveEditor({clip,time,onStart,onChange,onSeek}:Props){
   const [selected,setSelected]=useState(0),[ceiling,setCeiling]=useState(4);
   const svg=useRef<SVGSVGElement>(null),cleanup=useRef<(()=>void)|null>(null);
-  const points=clip.speedCurve||[{position:0,speed:clip.speed},{position:1,speed:clip.speed}],active=!!clip.speedCurve;
+  // Curves stop at 16×; a faster constant clip starts its curve there.
+  const points=clip.speedCurve||[{position:0,speed:Math.min(clip.speed,MAX_CURVE_SPEED)},{position:1,speed:Math.min(clip.speed,MAX_CURVE_SPEED)}],active=!!clip.speedCurve;
   const point=points[Math.min(selected,points.length-1)],index=Math.min(selected,points.length-1);
   const largest=Math.max(...points.map(p=>p.speed));
   useEffect(()=>{setSelected(0);},[clip.id]);

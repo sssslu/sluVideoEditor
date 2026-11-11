@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Clip, Project, SubtitleCue,MediaAsset,SpeedPoint } from '../shared/types';
+import type { Clip, Project, SubtitleCue,MediaAsset,SpeedPoint,Track } from '../shared/types';
 import { newClip, newProject, uid } from '../shared/project';
-import {assertSpeedCurve,clipSourceSpan,speedCurveMean} from '../shared/speed';
+import {assertSpeedCurve,clipSourceSpan,speedCurveMean,MIN_SPEED,MAX_SPEED,MAX_CURVE_SPEED} from '../shared/speed';
 import {reconcileTransitions} from '../shared/transition-edits';
 import {assertCaptionWords,trimCaptionWords,defaultCaptionStyle,defaultCaptionAnimation,resizeCaptionStyle} from '../shared/captions';
 import {previewProxyPath} from '../shared/media-clock';
@@ -126,13 +126,69 @@ function retimeClip(clip:Clip,rawDuration:number,fps:number):Clip {
   return {...clip,duration,fadeIn:clip.fadeIn*factor,fadeOut:clip.fadeOut*factor,keyframes:clip.keyframes.map(k=>({...k,time:k.time*factor})),captionWords:clip.captionWords?.map(word=>({...word,start:word.start*factor,end:word.end*factor})),captionAnimation:clip.captionAnimation?{...clip.captionAnimation,entrySeconds:clip.captionAnimation.entrySeconds*factor,exitSeconds:clip.captionAnimation.exitSeconds*factor}:undefined,sourceClipOffset:clip.sourceClipOffset===undefined?undefined:clip.sourceClipOffset*factor,sourceClipDuration:clip.sourceClipDuration===undefined?undefined:clip.sourceClipDuration*factor};
 }
 export function changeClipSpeed(clip:Clip,speed:number,fps:number):Clip {
-  if(!Number.isFinite(speed)||speed<.1||speed>16)throw new Error('재생 속도는 0.1~16배여야 합니다.');
+  if(!Number.isFinite(speed)||speed<MIN_SPEED||speed>MAX_SPEED)throw new Error('재생 속도는 10~9999%여야 합니다.');
   return {...retimeClip(clip,clipSourceSpan(clip)/speed,fps),speed,speedCurve:undefined};
 }
 export function changeClipSpeedCurve(clip:Clip,points:SpeedPoint[]|undefined,fps:number):Clip {
   if(!points)return changeClipSpeed(clip,clip.speed,fps);
   assertSpeedCurve(points);
   return {...retimeClip(clip,clipSourceSpan(clip)/speedCurveMean(points),fps),speedCurve:points.map(point=>({...point}))};
+}
+/** Clips for files dropped on a track: one after another from the drop point. A file the track
+ * cannot hold (audio on a video track, anything on a text track) starts at the same point on the
+ * first unlocked track that can, which is created when there is none. */
+export function placeDroppedMedia(p:Project,media:readonly MediaAsset[],trackId:string,at:number):{project:Project;clips:Clip[]} {
+  let tracks=[...p.tracks];const clips:Clip[]=[],cursor=new Map<string,number>(),target=tracks.find(t=>t.id===trackId);
+  for(const asset of media){
+    const type:Track['type']=asset.kind==='audio'?'audio':'video';
+    let track=target&&target.type===type&&!target.locked?target:tracks.find(t=>t.type===type&&!t.locked);
+    if(!track){
+      if(tracks.length>=100)throw new Error('프로젝트당 최대 100개 트랙을 지원합니다.');
+      track={id:uid(),type,name:type==='audio'?'오디오':'영상',muted:false,hidden:false,locked:false};tracks=[...tracks,track];
+    }
+    const start=cursor.get(track.id)??at,clip=newClip(track.id,asset,start);
+    clip.duration=Math.min(clip.duration,86400-start);
+    if(clip.duration<minClipDuration(p.fps))throw new Error('타임라인 길이는 최대 24시간입니다.');
+    clips.push(clip);cursor.set(track.id,start+clip.duration);
+  }
+  if(p.clips.length+clips.length>10000)throw new Error('프로젝트당 최대 10,000개 클립을 지원합니다.');
+  return {project:{...p,tracks,clips:[...p.clips,...clips]},clips};
+}
+/** Video and audio clips play at a rate; text and still images only last a duration. */
+export const hasPlaybackRate=(clip:Clip,media:readonly MediaAsset[])=>clip.text===undefined&&media.some(m=>m.id===clip.mediaId&&m.kind!=='image');
+/** The constant speed shared by the rate-bearing clips, 1 when there are none, or undefined when they differ or use curves. */
+export function commonSpeed(clips:readonly Clip[],media:readonly MediaAsset[]):number|undefined {
+  const rated=clips.filter(c=>hasPlaybackRate(c,media));
+  if(!rated.length)return 1;
+  return rated.every(c=>!c.speedCurve&&Math.abs(c.speed-rated[0].speed)<1e-9)?rated[0].speed:undefined;
+}
+const roundSpeed=(speed:number)=>Math.round(speed*1e9)/1e9;
+/** Play the selection `factor` times faster as one block, the way a nested sequence would:
+ * each clip keeps its place relative to the selection's start, rate-bearing clips change speed
+ * (curves scale point by point), and text, stills, fades, keyframes and transitions shrink with them. */
+export function scaleSelectionSpeed(p:Project,ids:readonly string[],factor:number,fps:number):Project {
+  if(!Number.isFinite(factor)||factor<=0)throw new Error('속도 배율이 올바르지 않습니다.');
+  const locked=new Set(p.tracks.filter(t=>t.locked).map(t=>t.id)),wanted=new Set(ids);
+  const chosen=p.clips.filter(c=>wanted.has(c.id)&&!locked.has(c.trackId));
+  if(!chosen.length||Math.abs(factor-1)<1e-12)return p;
+  const origin=Math.min(...chosen.map(c=>c.start)),updated=new Map<string,Clip>();
+  for(const c of chosen){
+    let next:Clip;
+    if(hasPlaybackRate(c,p.media)&&c.speedCurve){
+      const speedCurve=c.speedCurve.map(point=>({...point,speed:roundSpeed(point.speed*factor)}));
+      if(speedCurve.some(point=>point.speed<MIN_SPEED||point.speed>MAX_CURVE_SPEED))throw new Error(`'${c.name}'의 속도 커브가 10~1600% 범위를 벗어납니다. 커브를 해제하거나 배율을 줄이세요.`);
+      next={...retimeClip(c,c.duration/factor,fps),speedCurve};
+    }else if(hasPlaybackRate(c,p.media)){
+      const speed=roundSpeed(c.speed*factor);
+      if(speed<MIN_SPEED||speed>MAX_SPEED)throw new Error(`'${c.name}' 클립의 속도가 10~9999% 범위를 벗어납니다.`);
+      next={...retimeClip(c,c.duration/factor,fps),speed};
+    }else next=retimeClip(c,c.duration/factor,fps);
+    next.start=origin+(c.start-origin)/factor;
+    if(next.start+next.duration>86400)throw new Error('이 속도에서는 타임라인이 24시간을 넘습니다.');
+    updated.set(c.id,next);
+  }
+  const transitions=p.transitions?.map(t=>updated.has(t.fromClipId)&&updated.has(t.toClipId)?{...t,durationFrames:Math.max(1,Math.round(t.durationFrames/factor))}:t);
+  return {...p,clips:p.clips.map(c=>updated.get(c.id)||c),...(transitions?{transitions}:{})};
 }
 export const toCues = (project:Project):SubtitleCue[] => project.clips.filter(c=>c.text!==undefined).sort((a,b)=>a.start-b.start).map(c=>({start:c.start,end:c.start+c.duration,text:c.text!,...(c.captionWords?{words:c.captionWords.map(word=>({...word,start:c.start+word.start,end:c.start+word.end}))}:{})}));
 export const clamp=(n:number,min:number,max:number)=>Math.min(max,Math.max(min,n));

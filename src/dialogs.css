@@ -15,3 +15,5 @@
 .drop-overlay{position:fixed;inset:10px;z-index:140;pointer-events:none;display:flex;align-items:center;justify-content:center;background:#142d2ddf;border:2px dashed #77c9b0;backdrop-filter:blur(3px);border-radius:12px;color:#a5e3c9;text-align:center}.drop-overlay h2{font-size:22px;margin:17px 0 10px;letter-spacing:-.5px}.drop-overlay p{font-size:12px;color:#7eaaa5}
 .browser-fallback{height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;background:#182932;color:#a5d3c8}.browser-fallback h1{font-size:35px;letter-spacing:4px}.browser-fallback p{color:#769ead;font-size:13px}.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}@keyframes appear{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 @media(max-height:750px){.modal{max-height:calc(100vh - 30px);padding:20px}.modal-backdrop{padding:15px}}
+/* Keep the timeline visible while dragging files: dropping on a track places the files there. */
+.app-shell>.drop-overlay{bottom:calc(var(--timeline-height,0px) + 14px)}

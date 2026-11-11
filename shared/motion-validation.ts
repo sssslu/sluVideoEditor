@@ -1,12 +1,12 @@
 import type {Project} from './types';
 import {assertMotionAnalysis,type MotionSource} from './tracking';
-import {assertSpeedCurve} from './speed';
+import {assertSpeedCurve,MIN_SPEED,MAX_SPEED} from './speed';
 import {motionLinks,MAX_MOTION_SOURCES,MAX_PROJECT_MOTION_SOURCES} from './motion-sources';
 
 const finite=(v:unknown,a:number,b:number)=>typeof v==='number'&&Number.isFinite(v)&&v>=a&&v<=b;
 const object=(v:unknown)=>!!v&&typeof v==='object'&&!Array.isArray(v);
 function assertSource(s:MotionSource){
-  if(!object(s)||!finite(s.start,-86400,172800)||!finite(s.duration,.01,86400)||!finite(s.in,0,864000)||!finite(s.speed,.1,16)||!finite(s.x,-16384,16384)||!finite(s.y,-16384,16384)||!finite(s.scale,.01,8)||!finite(s.rotation,-3600,3600)||!['contain','cover'].includes(s.fit)||typeof s.flipH!=='boolean'||typeof s.flipV!=='boolean'||!Array.isArray(s.keyframes)||s.keyframes.length>1000)throw new Error('추적 원본의 변형 정보가 올바르지 않습니다.');
+  if(!object(s)||!finite(s.start,-86400,172800)||!finite(s.duration,.01,86400)||!finite(s.in,0,864000)||!finite(s.speed,MIN_SPEED,MAX_SPEED)||!finite(s.x,-16384,16384)||!finite(s.y,-16384,16384)||!finite(s.scale,.01,8)||!finite(s.rotation,-3600,3600)||!['contain','cover'].includes(s.fit)||typeof s.flipH!=='boolean'||typeof s.flipV!=='boolean'||!Array.isArray(s.keyframes)||s.keyframes.length>1000)throw new Error('추적 원본의 변형 정보가 올바르지 않습니다.');
   if(s.speedCurve!==undefined)assertSpeedCurve(s.speedCurve);
   const crop=s.crop;if(crop!==undefined&&(!object(crop)||![crop.left,crop.right,crop.top,crop.bottom].every(v=>finite(v,0,.98))||crop.left+crop.right>.98||crop.top+crop.bottom>.98))throw new Error('추적 원본의 자르기 영역이 올바르지 않습니다.');
   const times=new Set<number>();for(const k of s.keyframes){if(!object(k)||!finite(k.time,0,s.duration+.001)||times.has(k.time)||!finite(k.x,-16384,16384)||!finite(k.y,-16384,16384)||!finite(k.scale,.01,8)||!finite(k.rotation,-3600,3600)||!finite(k.opacity,0,1)||(k.easing!==undefined&&!['linear','ease-in','ease-out','ease-in-out','hold'].includes(k.easing))||(k.easingStart!==undefined&&!finite(k.easingStart,0,1))||(k.easingEnd!==undefined&&!finite(k.easingEnd,0,1))||(k.easingStart!==undefined&&k.easingEnd!==undefined&&k.easingStart>k.easingEnd))throw new Error('추적 원본의 키프레임이 올바르지 않습니다.');times.add(k.time);}

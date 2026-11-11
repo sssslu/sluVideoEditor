@@ -29,6 +29,7 @@ import {readSourceRevision,requireSourceRevision} from './source-revision';
 import {changedProjectSources,refreshProjectSources} from './project-sources';
 import {AudioPreviewCache} from './audio-preview';
 import {freezeFrame} from './freeze-frame';
+import {combinationProject,planCombination,MAX_COMBINED_CLIPS} from '../shared/combine';
 import type {StabilizationOptions} from '../shared/types';
 import {atomicWrite,saveRecovery,listRecoveries,loadRecovery,readProject,serializeProject,ProjectSaveQueue} from './project-store';
 import {saveProjectWithAssets,resolveProjectAssets,relocateProjectSources,reconnectTrackingFile} from './project-assets';
@@ -379,6 +380,24 @@ function setupIPC(){
   handler('media:stabilize',async(media:MediaAsset,options:StabilizationOptions)=>{checkMedia(media);return {jobId:startJob('stabilize',async(signal,progress)=>{const result=await playableDerived(media,signal,progress,(ctx,p)=>stabilizeMedia(media,options,ctx,p,signal));return {media:result,path:result.path,message:'흔들림 보정 완료'};})};});
   handler('media:freeze',async(media:MediaAsset,time:number)=>{checkMedia(media);return {jobId:startJob('freeze',async(signal,progress)=>{const result=await freezeFrame(media,time,{...engine,derivedDir:path.join(app.getPath('userData'),'media-derived')},progress,signal);register(result);queueAnalysis(result);return {media:result,path:result.path,message:'정지 프레임 준비 완료'};})};});
   handler('media:reverse',async(media:MediaAsset,options:ReverseOptions)=>{checkMedia(media);return {jobId:startJob('reverse',async(signal,progress)=>{const result=await playableDerived(media,signal,progress,(ctx,p)=>reverseMedia(media,options,ctx,p,signal));return {media:result,path:result.path,message:'역재생 완료'};})};});
+  handler('media:combine',async(project:Project,clipIds:string[])=>{
+    if(!Array.isArray(clipIds)||!clipIds.length||clipIds.length>MAX_COMBINED_CLIPS||clipIds.some(id=>typeof id!=='string'))throw new Error('합칠 클립 목록이 올바르지 않습니다.');
+    await prepareProject(project);
+    const plan=planCombination(project,clipIds),input=combinationProject(project,clipIds),format=plan.visual?'mov':'wav';
+    return {jobId:startJob('combine',async(signal,progress)=>{
+      const derivedDir=path.join(app.getPath('userData'),'media-derived'),output=path.join(derivedDir,`combined-${randomUUID()}.${format}`);let complete=false;
+      await fs.mkdir(derivedDir,{recursive:true});
+      try{
+        await renderProject(input,{width:input.width,height:input.height,fps:input.fps,format,codec:'h264',encoder:'cpu',quality:'high',intermediate:true,outputPath:output},engine,(p,message)=>progress(p*.85,message),signal);
+        let media:MediaAsset={...await probeMedia(output,engine,signal,{derivatives:false}),name:`합친 클립 · ${plan.ids.length}개`};
+        // FFV1 is an editing intermediate; Chromium previews its transparent proxy.
+        if(media.codec?.toLowerCase()==='ffv1')media=await createProxy(media,engine,p=>progress(.85+.15*p,'합친 클립 미리보기 준비 중'),signal);
+        if(signal.aborted)throw new CancelledError();
+        register(media);queueAnalysis(media);complete=true;
+        return {media,path:media.path,message:'합치기 완료'};
+      }finally{if(!complete)await fs.rm(output,{force:true}).catch(()=>{});}
+    })};
+  });
   handler('media:track',async(media:MediaAsset,options:TrackingOptions)=>{checkMedia(media);return {jobId:startJob('track',async(signal,progress)=>{
     const revision=await requireSourceRevision(media.path,media.sourceRevision),tracking=await trackMedia(media,options,{...engine,derivedDir:path.join(app.getPath('userData'),'tracking-derived'),createTracker:(backend,signal)=>TrackingProcess.create({modelPath:path.join(resourceRoot,'models','object-tracking-vit.onnx'),backend,signal})},progress,signal);
     try{

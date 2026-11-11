@@ -7,7 +7,7 @@ export function clipMediaAvailable(clip:Clip,media:readonly MediaAsset[]):boolea
 }
 export function clipMediaIds(clip:Clip):string[] {
   const c=clip.cutout,e=clip.enhancement;
-  return [...new Set([clip.mediaId,clip.motionBinding?.source.mediaId,clip.stabilization?.sourceMediaId,clip.reversal?.sourceMediaId,clip.reversal?.derivedMediaId,clip.reversal?.priorStabilization?.sourceMediaId,c?.sourceMediaId,c?.derivedMediaId,c?.priorStabilization?.sourceMediaId,c?.priorReversal?.sourceMediaId,c?.priorReversal?.derivedMediaId,c?.priorReversal?.priorStabilization?.sourceMediaId,e?.sourceMediaId,e?.derivedMediaId,e?.priorStabilization?.sourceMediaId,e?.priorReversal?.sourceMediaId,e?.priorReversal?.derivedMediaId,e?.priorReversal?.priorStabilization?.sourceMediaId].filter((id):id is string=>!!id))];
+  return [...new Set([clip.mediaId,clip.motionBinding?.source.mediaId,clip.stabilization?.sourceMediaId,clip.reversal?.sourceMediaId,clip.reversal?.derivedMediaId,clip.reversal?.priorStabilization?.sourceMediaId,c?.sourceMediaId,c?.derivedMediaId,c?.priorStabilization?.sourceMediaId,c?.priorReversal?.sourceMediaId,c?.priorReversal?.derivedMediaId,c?.priorReversal?.priorStabilization?.sourceMediaId,e?.sourceMediaId,e?.derivedMediaId,e?.priorStabilization?.sourceMediaId,e?.priorReversal?.sourceMediaId,e?.priorReversal?.derivedMediaId,e?.priorReversal?.priorStabilization?.sourceMediaId,clip.compound?.derivedMediaId,...(clip.compound?.clips.flatMap(clipMediaIds)||[])].filter((id):id is string=>!!id))];
 }
 
 /** The fields whose changes invalidate analysis of a selected source interval. */

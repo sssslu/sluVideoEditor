@@ -14,7 +14,7 @@ import {TimelineAudioMixer,AUDIO_RATE,HIGH_QUALITY_RESAMPLER} from './render-aud
 import {planRenderWindows,type RenderWindow} from './render-plan';
 import {assertOutputNotSource} from './file-policy';
 import {replaceWithRetry} from './project-store';
-import {clipSourceSpan,clipSourceTime,clipTimelineTime} from '../shared/speed';
+import {clipSourceSpan,clipSourceTime,clipTimelineTime,MIN_SPEED,MAX_SPEED} from '../shared/speed';
 import {speedTimelineExpression} from './render-speed';
 import {compileTransitions,transitionProgress,type TransitionPlan} from '../shared/transitions';
 import {appendTransitionPair,transitionOpacityCommands} from './render-transitions';
@@ -44,6 +44,13 @@ export function exportAudioArguments(format:ExportSettings['format']):string[]{
 /** Only catches overs. Lossless outputs pass every sample up to full scale untouched;
  * Opus keeps a little headroom because decoded lossy audio overshoots. */
 export const exportLimiter=(format:ExportSettings['format'])=>`alimiter=limit=${format==='webm'?'0.97':'1'}:level=0:latency=1`;
+/** A combined clip's render keeps transparency and every sample as mixed: FFV1 with alpha in
+ * 4:4:4 and 32-bit float PCM. The final export limits the mix later, so none is applied here. */
+const INTERMEDIATE_VIDEO=['-c:v','ffv1','-level','3','-g','30','-slices','4','-slicecrc','1','-pix_fmt','yuva444p','-color_range','tv','-color_primaries','bt709','-color_trc','bt709','-colorspace','bt709'];
+const INTERMEDIATE_AUDIO=['-c:a','pcm_f32le'];
+const rawVideoFormat=(settings:ExportSettings)=>settings.format==='gif'?'rgb24':settings.intermediate?'yuva444p':'yuv420p';
+const rawVideoBytes=(settings:ExportSettings)=>settings.format==='gif'?3:settings.intermediate?4:1.5;
+const audibleClips=(project:Project)=>project.clips.some(c=>c.text===undefined&&c.volume>0&&project.media.some(m=>m.id===c.mediaId&&(m.kind==='audio'||m.hasAudio))&&audioTrackEnabled(project,project.tracks.find(t=>t.id===c.trackId)));
 
 export interface EngineContext { ffmpeg:string; ffprobe:string; cacheDir:string; workDir?:string; maxWindowSeconds?:number; gpuProcessing?:boolean; audioStretch?:string; captionRasterFactory?:CaptionRasterFactory; diagnostics?:(event:Record<string,unknown>)=>void }
 export type ProgressCallback = (progress:number, message?:string) => void;
@@ -218,6 +225,7 @@ export function validateProject(project:Project,settings:ExportSettings):void {
   if(settings.width%2||settings.height%2)throw new Error('출력 너비와 높이는 짝수여야 합니다.');
   if(!['mov','mp4','webm','gif','wav'].includes(settings.format)||(settings.format==='mov'&&settings.codec==='av1')||!['h264','hevc','av1'].includes(settings.codec)||!['auto','cpu','nvenc','qsv','amf'].includes(settings.encoder)||!['draft','standard','high'].includes(settings.quality))throw new Error('내보내기 설정이 올바르지 않습니다.');
   if(settings.transitionProcessing!==undefined&&!['auto','cpu'].includes(settings.transitionProcessing))throw new Error('전환 처리 설정이 올바르지 않습니다.');
+  if(settings.intermediate!==undefined&&(settings.intermediate!==true||!['mov','wav'].includes(settings.format)))throw new Error('합치기 렌더 설정이 올바르지 않습니다.');
   if(!settings.outputPath||!localPath(settings.outputPath))throw new Error('저장할 로컬 파일 경로가 필요합니다.');
   const output=path.resolve(settings.outputPath).toLowerCase();
   if(project.media.some(m=>typeof m.path==='string'&&path.resolve(m.path).toLowerCase()===output))throw new Error('원본 미디어 파일을 덮어쓸 수 없습니다. 다른 파일명을 사용해 주세요.');
@@ -227,7 +235,7 @@ export function validateProject(project:Project,settings:ExportSettings):void {
   if(project.clips.length>10000)throw new Error('한 프로젝트는 최대 10,000개 클립을 지원합니다.');
   for(const c of project.clips){
     if(!tracks.has(c.trackId))throw new Error('클립의 트랙을 찾을 수 없습니다.');
-    validNumber(c.start,0,86400,'시작 시간');validNumber(c.duration,.01,86400,'길이');validNumber(c.in,0,864000,'원본 시작');validNumber(c.speed,.1,16,'재생 속도');validNumber(c.volume,0,10,'볼륨');
+    validNumber(c.start,0,86400,'시작 시간');validNumber(c.duration,.01,86400,'길이');validNumber(c.in,0,864000,'원본 시작');validNumber(c.speed,MIN_SPEED,MAX_SPEED,'재생 속도');validNumber(c.volume,0,10,'볼륨');
     validNumber(c.scale,.01,8,'크기');validNumber(c.x,-16384,16384,'X 위치');validNumber(c.y,-16384,16384,'Y 위치');validNumber(c.rotation,-3600,3600,'회전');validNumber(c.opacity,0,1,'불투명도');
     validNumber(c.fadeIn,0,86400,'페이드 인');validNumber(c.fadeOut,0,86400,'페이드 아웃');validNumber(c.brightness,-1,1,'밝기');validNumber(c.contrast,0,3,'대비');validNumber(c.saturation,0,3,'채도');validNumber(c.blur,0,30,'블러');
     if(c.sourceClipOffset!==undefined||c.sourceClipDuration!==undefined){validNumber(c.sourceClipOffset,0,86400,'효과 시작점');validNumber(c.sourceClipDuration,.01,86400,'효과 전체 길이');if(c.sourceClipOffset!+c.duration>c.sourceClipDuration!+.002)throw new Error('클립 효과 구간이 원래 길이를 초과합니다.');}
@@ -522,7 +530,7 @@ export async function renderProjectDirect(project:Project,settings:ExportSetting
     // clip visible in another window would otherwise move this clip between
     // the native YUV and RGB overlay paths, shifting rows at the boundary.
     const timelineFirst=window?project.clips.filter(visible).reduce<Clip|undefined>((best,c)=>best&&order(best,c)<=0?best:c,undefined):first;
-    const nativeBase=format!=='wav'&&first===timelineFirst&&!transitionClips.has(first?.id||'')&&await canUseNativeBase(first,assets.get(first?.mediaId||''),projectDuration(project),ctx,signal);
+    const nativeBase=format!=='wav'&&!settings.intermediate&&first===timelineFirst&&!transitionClips.has(first?.id||'')&&await canUseNativeBase(first,assets.get(first?.mediaId||''),projectDuration(project),ctx,signal);
     const colors=new Map(await Promise.all([...new Map(visuals.map(clip=>[clip.mediaId!,assets.get(clip.mediaId!)!])).values()].map(async media=>[media.id,await sourceColor(media,ctx,signal)] as const)));
     const cudaBase=!!nativeBase&&colors.get(first.mediaId!)?.matrix==='bt709'&&await canUseCudaScale(assets.get(first.mediaId!)!,ctx,signal);
     if(cudaBase)ctx.diagnostics?.({event:'gpu-processing',backend:'cuda',operations:['decode','scale'],clipId:first.id});
@@ -576,7 +584,8 @@ export async function renderProjectDirect(project:Project,settings:ExportSetting
         if(first.fit==='cover')chain.push(`crop=${width}:${height}`);
         else chain.push(`pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=${project.background.replace('#','0x')}`);
         chain.push('setsar=1','format=yuv444p','setparams=range=limited:colorspace=bt709');graph.push(`[${inputIndex.get(first.id)}:v:0]${chain.join(',')}[base]`);
-      }else graph.push(`color=c=${project.background.replace('#','0x')}:s=${width}x${height}:r=${dec(fps)}:d=${dec(duration)},scale=in_color_matrix=bt601:out_color_matrix=bt709,format=yuv444p,setparams=colorspace=bt709[base]`);
+      }else if(settings.intermediate)graph.push(`color=c=black@0:s=${width}x${height}:r=${dec(fps)}:d=${dec(duration)},format=yuva444p,setparams=range=limited:colorspace=bt709[base]`);
+      else graph.push(`color=c=${project.background.replace('#','0x')}:s=${width}x${height}:r=${dec(fps)}:d=${dec(duration)},scale=in_color_matrix=bt601:out_color_matrix=bt709,format=yuv444p,setparams=colorspace=bt709[base]`);
       for(let i=nativeBase?1:0;i<visuals.length;i++){
         const c=visuals[i],range=exposure(c),phase=clipPhase(c),localClock=phase?`(t-${phase})`:'t',index=inputIndex.get(c.id)!;let layerInput=`${index}:v:0`;
         const color=colors.get(c.mediaId!)!;
@@ -681,9 +690,9 @@ export async function renderProjectDirect(project:Project,settings:ExportSetting
         video=label;
       }
       const rgbWindow=!!window&&settings.format==='gif';
-      if(hasRich&&!rgbWindow){graph.push(`[${video}]scale=in_range=pc:out_color_matrix=bt709:out_range=tv,format=yuv420p,setparams=range=limited:colorspace=bt709[captionYuv]`);video='captionYuv';}
+      if(hasRich&&!rgbWindow){graph.push(`[${video}]scale=in_range=pc:out_color_matrix=bt709:out_range=tv,format=${settings.intermediate?'yuva444p':'yuv420p'},setparams=range=limited:colorspace=bt709[captionYuv]`);video='captionYuv';}
       if(rgbWindow)graph.push(`[${video}]${hasRich?'':'scale=in_color_matrix=bt709:in_range=tv:out_range=pc,'}format=rgb24[videoout]`);
-      else if(format==='gif'){graph.push(`[${video}]split[gifsource][palettein]`);graph.push('[palettein]palettegen=stats_mode=single[palette]');graph.push('[gifsource][palette]paletteuse=new=1:dither=sierra2_4a[videoout]');}else graph.push(`[${video}]format=yuv420p[videoout]`);
+      else if(format==='gif'){graph.push(`[${video}]split[gifsource][palettein]`);graph.push('[palettein]palettegen=stats_mode=single[palette]');graph.push('[gifsource][palette]paletteuse=new=1:dither=sierra2_4a[videoout]');}else graph.push(`[${video}]format=${settings.intermediate?'yuva444p':'yuv420p'}[videoout]`);
     }
     if(!window&&format!=='gif'){
       const labels:string[]=[];
@@ -700,7 +709,7 @@ export async function renderProjectDirect(project:Project,settings:ExportSetting
     const encoder=window?'':await chooseEncoder(settings,ctx,signal);
     const run=async(selected:string)=>{
       const args=[...(transitionDevice?['-init_hw_device',transitionDevice,'-filter_hw_device','sluTransition']:[]),'-filter_complex_threads','2',...(window?['-copyts']:[]),...inputArgs,'-filter_complex_script','filters.txt'];
-      if(window){args.push('-map','[videoout]','-an','-frames:v',String(window.frames),'-fps_mode','passthrough','-c:v','rawvideo','-pix_fmt',settings.format==='gif'?'rgb24':'yuv420p','-f','rawvideo',window.destination);try{await Promise.all([ffmpegProgress(ctx,args,duration,work,onProgress,captionControl.signal),captionStreams?.start(windowFrame,window.frames)]);}catch(error){throw captionFailure||error;}return;}
+      if(window){args.push('-map','[videoout]','-an','-frames:v',String(window.frames),'-fps_mode','passthrough','-c:v','rawvideo','-pix_fmt',rawVideoFormat(settings),'-f','rawvideo',window.destination);try{await Promise.all([ffmpegProgress(ctx,args,duration,work,onProgress,captionControl.signal),captionStreams?.start(windowFrame,window.frames)]);}catch(error){throw captionFailure||error;}return;}
       if(settings.format!=='wav')args.push('-map','[videoout]','-r',dec(fps),'-fps_mode','cfr');
       if(settings.format!=='gif')args.push('-map','[audioout]');
       if(settings.format==='wav')args.push(...exportAudioArguments('wav'));
@@ -728,7 +737,7 @@ export async function renderProjectDirect(project:Project,settings:ExportSetting
 }
 
 async function checkExportSpace(output:string,project:Project,settings:ExportSettings,ctx:EngineContext){
-  const duration=projectDuration(project),estimatedBytes=settings.format==='wav'?Math.ceil(duration*AUDIO_RATE)*6+4096:settings.format==='gif'?duration*settings.width*settings.height*settings.fps*.18:duration*Math.max(1_000_000,settings.width*settings.height*settings.fps*.14)/8+(settings.format==='webm'?0:Math.ceil(duration*AUDIO_RATE)*6);
+  const duration=projectDuration(project),estimatedBytes=settings.intermediate?(settings.format==='wav'?0:duration*settings.width*settings.height*settings.fps*2)+Math.ceil(duration*AUDIO_RATE)*8+4096:settings.format==='wav'?Math.ceil(duration*AUDIO_RATE)*6+4096:settings.format==='gif'?duration*settings.width*settings.height*settings.fps*.18:duration*Math.max(1_000_000,settings.width*settings.height*settings.fps*.14)/8+(settings.format==='webm'?0:Math.ceil(duration*AUDIO_RATE)*6);
   const disk=await fs.statfs(path.dirname(output)),availableBytes=disk.bavail*disk.bsize;
   ctx.diagnostics?.({event:'disk-preflight',availableBytes,estimatedBytes,intermediateBytes:0});
   // Compressed output size depends on content. Enforce a small reserve and
@@ -748,8 +757,8 @@ export async function renderProject(project:Project,settings:ExportSettings,ctx:
   const motion=new RenderMotion(project,signal);if(settings.format!=='wav')await motion.prepare();
   await fs.mkdir(ctx.cacheDir,{recursive:true});await checkExportSpace(output,project,settings,ctx);
   const temporary=path.join(path.dirname(output),`.${path.basename(output)}.${randomUUID()}.partial.${settings.format}`);
-  const encoder=await chooseEncoder(settings,ctx,signal),totalSamples=Math.round(duration*AUDIO_RATE);
-  const nativeCuda=!transitionPlan.transitions.length&&/_nvenc$/.test(encoder)?await nativeCudaClip(project,settings,ctx,signal):undefined;
+  const encoder=settings.intermediate?'ffv1':await chooseEncoder(settings,ctx,signal),totalSamples=Math.round(duration*AUDIO_RATE);
+  const nativeCuda=!settings.intermediate&&!transitionPlan.transitions.length&&/_nvenc$/.test(encoder)?await nativeCudaClip(project,settings,ctx,signal):undefined;
   ctx.diagnostics?.({event:'render-plan',windowCount:windows.length,maxVisualInputs:Math.max(0,...windows.map(w=>w.visualInputs)),totalFrames:windows.reduce((n,w)=>n+w.frames,0),totalAudioSamples:totalSamples});
   let usedCuda=false;
   const attempt=async(selected:string,gpuProcessing=ctx.gpuProcessing!==false)=>{
@@ -760,7 +769,7 @@ export async function renderProject(project:Project,settings:ExportSettings,ctx:
     const fail=(value:unknown)=>{if(!failure&&!signal?.aborted)failure=value instanceof Error?value:new Error(String(value));control.abort();};
     const abort=()=>control.abort();signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)control.abort();
     const video=settings.format==='wav'||directCuda?undefined:await new RawStreamBridge(fail).open(control.signal);
-    const audio=settings.format==='gif'?undefined:await new RawStreamBridge(fail).open(control.signal);
+    const audio=settings.format==='gif'||(settings.intermediate&&!audibleClips(project))?undefined:await new RawStreamBridge(fail).open(control.signal);
     const mixer=audio?new TimelineAudioMixer(project,ctx.ffmpeg,control.signal,event=>ctx.diagnostics?.({...event}),ctx.audioStretch,transitionPlan):undefined;
     const progress:ProgressCallback=(value,message)=>{lastProgress=Math.max(lastProgress,Math.min(.995,value));onProgress?.(lastProgress,message);};
     try{
@@ -770,11 +779,12 @@ export async function renderProject(project:Project,settings:ExportSettings,ctx:
         usedCuda=true;ctx.diagnostics?.({event:'gpu-processing',backend:'cuda-direct',operations:['decode','scale','encode'],clipId:directCuda.clip.id});
         args.push('-hwaccel','cuda','-hwaccel_output_format','cuda','-protocol_whitelist','file,pipe','-i',directCuda.media.path);
       }
-      if(video)args.push('-thread_queue_size','4','-f','rawvideo','-pixel_format',settings.format==='gif'?'rgb24':'yuv420p','-video_size',`${settings.width}x${settings.height}`,'-framerate',dec(settings.fps),'-color_range',settings.format==='gif'?'pc':'tv','-colorspace',settings.format==='gif'?'rgb':'bt709','-color_primaries','bt709','-color_trc',settings.format==='gif'?'iec61966-2-1':'bt709','-probesize','32','-analyzeduration','0','-i',video.consumerUrl);
+      if(video)args.push('-thread_queue_size','4','-f','rawvideo','-pixel_format',rawVideoFormat(settings),'-video_size',`${settings.width}x${settings.height}`,'-framerate',dec(settings.fps),'-color_range',settings.format==='gif'?'pc':'tv','-colorspace',settings.format==='gif'?'rgb':'bt709','-color_primaries','bt709','-color_trc',settings.format==='gif'?'iec61966-2-1':'bt709','-probesize','32','-analyzeduration','0','-i',video.consumerUrl);
       if(audio)args.push('-thread_queue_size','8','-f','f32le','-ar',String(AUDIO_RATE),'-ac','2','-probesize','32','-analyzeduration','0','-i',audio.consumerUrl);
-      if((video||directCuda)&&settings.format!=='gif')args.push('-map','0:v:0');if(audio)args.push('-map',video||directCuda?'1:a:0':'0:a:0','-af',`${exportLimiter(settings.format)},atrim=end_sample=${totalSamples}`);
+      if((video||directCuda)&&settings.format!=='gif')args.push('-map','0:v:0');if(audio)args.push('-map',video||directCuda?'1:a:0':'0:a:0','-af',`${settings.intermediate?'':`${exportLimiter(settings.format)},`}atrim=end_sample=${totalSamples}`);
       if(directCuda)args.push('-vf',`settb=AVTB,settb=1/1000000000,setpts=PTS-STARTPTS-500,fps=${dec(settings.fps)}:start_time=0:round=up,trim=end_frame=${Math.round(duration*settings.fps)},scale_cuda=${settings.width}:${settings.height}:reset_sar=1:interp_algo=bilinear:format=yuv420p,setparams=colorspace=bt709:color_primaries=bt709:color_trc=bt709`,'-frames:v',String(Math.round(duration*settings.fps)));
-      if(settings.format==='wav')args.push(...exportAudioArguments('wav'));
+      if(settings.format==='wav')args.push(...(settings.intermediate?[...INTERMEDIATE_AUDIO,'-rf64','auto']:exportAudioArguments('wav')));
+      else if(settings.intermediate)args.push(...INTERMEDIATE_VIDEO,...INTERMEDIATE_AUDIO,'-movflags','+faststart');
       else if(settings.format==='gif')args.push('-filter_complex','[0:v]split[s][p];[p]palettegen=stats_mode=single[pal];[s][pal]paletteuse=new=1:dither=sierra2_4a[g]','-map','[g]','-an','-loop','0');
       else {args.push(...encoderArguments(selected,settings.quality),...(!directCuda?['-pix_fmt','yuv420p']:[]),'-color_primaries','bt709','-color_trc','bt709','-colorspace','bt709',...exportAudioArguments(settings.format));if(settings.format==='mp4'||settings.format==='mov'){args.push('-movflags','+faststart');if(settings.codec==='hevc')args.push('-tag:v','hvc1');}}
       args.push('-fps_mode','passthrough',temporary);
@@ -789,7 +799,7 @@ export async function renderProject(project:Project,settings:ExportSettings,ctx:
       for(let index=0;!directCuda&&index<windows.length;index++){
         if(control.signal.aborted)throw failure||new CancelledError();
         const window=windows[index];ctx.diagnostics?.({event:'window-start',index,...window});progress(window.start/duration,`합성 ${index+1}/${windows.length} · ${window.visualInputs}개 영상 소스`);
-        const received=video?.expectProducer(settings.width*settings.height*(settings.format==='gif'?3:1.5)*window.frames);if(received)void received.catch(fail);
+        const received=video?.expectProducer(settings.width*settings.height*rawVideoBytes(settings)*window.frames);if(received)void received.catch(fail);
         const motionProject=video?await motion.window(Math.round(window.start*settings.fps),window.frames,settings.fps):project;
         const compose=video?renderProjectDirect(motionProject,settings,{...ctx,gpuProcessing,diagnostics:event=>{if(event.event==='gpu-processing')usedCuda=true;ctx.diagnostics?.({...event,role:'window',index});}},undefined,control.signal,{...window,destination:video.producerUrl,transitionPlan:{...transitionPlan,project:motionProject},captionRaster}):Promise.resolve();
         void compose.catch(fail);

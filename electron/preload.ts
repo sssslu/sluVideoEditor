@@ -18,6 +18,7 @@ const api:StudioAPI={
   stabilizeMedia:(media,options)=>ipcRenderer.invoke('media:stabilize',media,options),
   freezeFrame:(media,time)=>ipcRenderer.invoke('media:freeze',media,time),
   reverseMedia:(media,options)=>ipcRenderer.invoke('media:reverse',media,options),
+  combineClips:(project,clipIds)=>ipcRenderer.invoke('media:combine',project,clipIds),
   removePersonBackground:(media,options)=>ipcRenderer.invoke('media:cutout',media,options),
   enhancementInfo:()=>ipcRenderer.invoke('enhancement:info'),
   installEnhancementEngine:()=>ipcRenderer.invoke('enhancement:install'),

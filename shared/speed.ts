@@ -2,13 +2,17 @@ import type {Clip,SpeedPoint} from './types';
 
 type SpeedClip=Pick<Clip,'duration'|'speed'|'in'|'speedCurve'>;
 export const MAX_SPEED_POINTS=64;
+/** Constant speed spans 10%–9999%. Curves stay within the audio stretcher's 0.1–16× range. */
+export const MIN_SPEED=.1,MAX_SPEED=99.99,MAX_CURVE_SPEED=16;
+/** 1.5 -> "150%", 1/3 -> "33.33%". */
+export const speedPercent=(speed:number)=>`${Number((speed*100).toFixed(2))}%`;
 export interface SpeedSegment {from:number;to:number;rate:number;slope:number;sourceStart:number;sourceEnd:number}
 
 export function assertSpeedCurve(value:unknown):asserts value is SpeedPoint[] {
   if(!Array.isArray(value)||value.length<2||value.length>MAX_SPEED_POINTS)throw new Error('속도 곡선은 2~64개의 점이 필요합니다.');
   let previous=-1;
   for(const point of value){
-    if(!point||typeof point!=='object'||!Number.isFinite(point.position)||point.position<0||point.position>1||point.position-previous<1e-12||!Number.isFinite(point.speed)||point.speed<.1||point.speed>16)throw new Error('속도 곡선의 위치 또는 속도가 유효하지 않습니다.');
+    if(!point||typeof point!=='object'||!Number.isFinite(point.position)||point.position<0||point.position>1||point.position-previous<1e-12||!Number.isFinite(point.speed)||point.speed<MIN_SPEED||point.speed>MAX_CURVE_SPEED)throw new Error('속도 곡선의 위치 또는 속도가 유효하지 않습니다.');
     previous=point.position;
   }
   if(value[0].position!==0||value[value.length-1].position!==1)throw new Error('속도 곡선은 클립의 시작과 끝을 포함해야 합니다.');

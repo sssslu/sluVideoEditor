@@ -53,7 +53,11 @@ export interface Clip {
   reversal?:{sourceMediaId:string;sourceIn:number;sourceDuration:number;derivedMediaId:string;priorStabilization?:Clip['stabilization']};
   cutout?:{sourceMediaId:string;sourceIn:number;sourceDuration:number;derivedMediaId:string;quality:CutoutQuality;priorStabilization?:Clip['stabilization'];priorReversal?:Clip['reversal']};
   enhancement?:{sourceMediaId:string;sourceIn:number;sourceDuration:number;derivedMediaId:string;scale:2|4;priorStabilization?:Clip['stabilization'];priorReversal?:Clip['reversal']};
+  /** A clip rendered from other clips ("합치기"). Keeps those clips, at their original
+   * timeline positions, with their tracks and transitions so they can be restored. */
+  compound?:ClipCompound;
 }
+export interface ClipCompound {derivedMediaId:string;start:number;clips:Clip[];tracks:Track[];transitions?:Transition[]}
 export interface TimelineMarker { id:string; time:number; label:string; color:string }
 export interface Transition {id:string;fromClipId:string;toClipId:string;kind:'dissolve'|'wipe'|'slide'|'zoom';durationFrames:number;easing?:Easing;direction?:'left'|'right'|'up'|'down';audio?:'linear'|'equal-power'|'none'}
 export interface Project { version:1|2|3|4|5|6|7|8|9|10; id:string; name:string; width:number; height:number; fps:number; background:string; media:MediaAsset[]; tracks:Track[]; clips:Clip[]; updatedAt:string; markers?:TimelineMarker[];transitions?:Transition[];colorLuts?:ColorLut[];motionPaths?:MotionAnalysis[];fileReferences?:ProjectFileReference[] }
@@ -65,8 +69,10 @@ export interface PersonCutoutOptions {start:number;duration:number;device?:'auto
 export interface EnhancementOptions {start:number;duration:number;scale:2|4;preview?:boolean}
 export interface EnhancementInfo {installed:boolean;downloadBytes:number;model:string;deviceSupported:boolean;message?:string}
 export interface ReverseOptions {start?:number;duration?:number}
-export interface ExportSettings { width:number; height:number; fps:number; format:'mov'|'mp4'|'webm'|'gif'|'wav'; codec:'h264'|'hevc'|'av1'; encoder:'auto'|'cpu'|'nvenc'|'qsv'|'amf'; quality:'draft'|'standard'|'high'; outputPath?:string; transitionProcessing?:'auto'|'cpu' }
-export type JobType = 'export'|'proxy'|'transcribe'|'model'|'stabilize'|'range'|'freeze'|'reverse'|'track'|'collect'|'relink'|'cutout'|'enhance'|'enhancement-install';
+export interface ExportSettings { width:number; height:number; fps:number; format:'mov'|'mp4'|'webm'|'gif'|'wav'; codec:'h264'|'hevc'|'av1'; encoder:'auto'|'cpu'|'nvenc'|'qsv'|'amf'; quality:'draft'|'standard'|'high'; outputPath?:string; transitionProcessing?:'auto'|'cpu';
+  /** Internal render of combined clips: transparent FFV1 video and 32-bit float PCM, no limiter. */
+  intermediate?:boolean }
+export type JobType = 'export'|'combine'|'proxy'|'transcribe'|'model'|'stabilize'|'range'|'freeze'|'reverse'|'track'|'collect'|'relink'|'cutout'|'enhance'|'enhancement-install';
 export interface JobEvent { id:string; type:JobType; status:'running'|'complete'|'error'|'cancelled'; progress:number; message:string; path?:string; media?:MediaAsset; cues?:SubtitleCue[];tracking?:MotionAnalysis;trackingReconnect?:import('./tracking-reconnect').TrackingReconnectResult;preview?:boolean }
 export interface SystemInfo { version:string; ffmpegVersion:string; gpu:string; encoders:string[]; hardwareAcceleration:boolean; modelReady:boolean; modelDirectory:string; cacheDirectory:string; speechModels?:{id:SpeechModelId;name:string;bytes:number;installed:boolean}[];speechCuda?:boolean }
 export type PreviewStatusEvent = {media:Pick<MediaAsset,'id'|'path'|'sourceRevision'>;attemptId:string}&(
@@ -90,6 +96,7 @@ export interface StudioAPI {
   stabilizeMedia(media:MediaAsset,options:StabilizationOptions):Promise<{jobId:string}>;
   freezeFrame(media:MediaAsset,time:number):Promise<{jobId:string}>;
   reverseMedia(media:MediaAsset,options:ReverseOptions):Promise<{jobId:string}>;
+  combineClips(project:Project,clipIds:string[]):Promise<{jobId:string}>;
   removePersonBackground(media:MediaAsset,options:PersonCutoutOptions):Promise<{jobId:string}>;
   enhancementInfo():Promise<EnhancementInfo>;
   installEnhancementEngine():Promise<{jobId:string}>;
