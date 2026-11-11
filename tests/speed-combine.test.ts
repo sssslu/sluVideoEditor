@@ -24,12 +24,13 @@ function sample():Project{
   return p;
 }
 
-test('constant speed spans 10% to 9999% and shows as a percentage',()=>{
+test('constant speed spans 10% to 50000% and shows as a percentage',()=>{
   const clip={...newClip('video-1',video),duration:50};
-  assert.equal(changeClipSpeed(clip,MAX_SPEED,30).speed,99.99);
-  assert.ok(Math.abs(changeClipSpeed(clip,MAX_SPEED,30).duration-50/99.99)<1e-9);
-  assert.throws(()=>changeClipSpeed(clip,100,30),/10~9999%/);
-  assert.throws(()=>changeClipSpeed(clip,.09,30),/10~9999%/);
+  assert.equal(changeClipSpeed(clip,MAX_SPEED,30).speed,500);
+  assert.ok(Math.abs(changeClipSpeed(clip,MAX_SPEED,30).duration-50/500)<1e-9);
+  assert.throws(()=>changeClipSpeed(clip,500.01,30),/10~50000%/);
+  assert.throws(()=>changeClipSpeed(clip,.09,30),/10~50000%/);
+  assert.throws(()=>changeClipSpeed({...clip,duration:10},500,30),/최소 길이/);
   assert.equal(speedPercent(2),'200%');assert.equal(speedPercent(1/3),'33.33%');assert.equal(speedPercent(.5),'50%');
 });
 
@@ -53,9 +54,9 @@ test('a selection speeds up as one block: rates, gaps, text and transitions scal
 });
 
 test('selection speed reports mixed rates and refuses rates out of range',()=>{
-  const p=sample();p.clips=p.clips.map(c=>c.id==='b'?{...c,speed:50,duration:.2}:c);
+  const p=sample();p.clips=p.clips.map(c=>c.id==='b'?{...c,speed:300,duration:4/300}:c);
   assert.equal(commonSpeed(p.clips,p.media),undefined);
-  assert.throws(()=>scaleSelectionSpeed(p,['a','b'],3,30),/10~9999%/);
+  assert.throws(()=>scaleSelectionSpeed(p,['a','b'],2,30),/10~50000%/);
   p.clips=p.clips.map(c=>c.id==='a'?{...c,speedCurve:[{position:0,speed:1},{position:1,speed:10}]}:c);
   assert.throws(()=>scaleSelectionSpeed(p,['a'],2,30),/커브/);
   assert.equal(scaleSelectionSpeed(p,['a'],1.5,30).clips.find(c=>c.id==='a')!.speedCurve![1].speed,15);

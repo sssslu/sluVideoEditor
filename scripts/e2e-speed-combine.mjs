@@ -80,11 +80,12 @@ try{
   await clip(longClip.id).dblclick();
   await page.waitForFunction(at=>Math.abs(document.querySelector('.preview-gpu-stage').previewRuntime.time()-at)<1e-6,longClip.start);
   await page.getByTitle('재생 (Space)',{exact:true}).click();
-  const observed=await page.evaluate(async id=>{const r=document.querySelector('.preview-gpu-stage').previewRuntime,times=new Set(),seen={scrub:false,maxGain:0,element:''};const until=performance.now()+1200;
-    while(performance.now()<until){const n=[...r.nodes.values()].find(n=>n.clip.id===id&&!n.audioOnly);if(n){seen.scrub||=!!n.scrub;if(n.scrub){seen.maxGain=Math.max(seen.maxGain,n.lastGain);seen.element=`${n.element.paused}:${n.element.playbackRate}`;times.add(n.element.currentTime.toFixed(2));}}await new Promise(f=>requestAnimationFrame(f));}
+  const observed=await page.evaluate(async id=>{const r=document.querySelector('.preview-gpu-stage').previewRuntime,times=new Set(),seen={scrub:false,maxGain:0,element:'',frames:0,missing:0};const until=performance.now()+1200;
+    while(performance.now()<until){const n=[...r.nodes.values()].find(n=>n.clip.id===id&&!n.audioOnly);const t=r.time();if(t>n?.clip.start+.05&&t<n.clip.start+n.clip.duration-.05){seen.frames++;if(!r.renderer.hitRegions.some(h=>h.clip.id===id))seen.missing++;}if(n){seen.scrub||=!!n.scrub;if(n.scrub){seen.maxGain=Math.max(seen.maxGain,n.lastGain);seen.element=`${n.element.paused}:${n.element.playbackRate}`;times.add(n.element.currentTime.toFixed(2));}}await new Promise(f=>requestAnimationFrame(f));}
     return {...seen,distinct:times.size,time:r.time()};},longClip.id);
   if(await page.getByTitle('일시 정지 (Space)',{exact:true}).count())await page.getByTitle('일시 정지 (Space)',{exact:true}).click();
   check('2500% preview steps frames by seeking',observed.scrub&&observed.distinct>=4&&observed.element.startsWith('true:16'),observed);
+  check('2500% preview never drops the clip while seeking (no flicker)',observed.frames>20&&observed.missing===0,observed);
   check('2500% preview is silent and error free',observed.maxGain===0&&!issues.length&&!errors.length,{observed,issues,errors});
   await clip(longClip.id).click();await page.keyboard.press('Delete');
   await page.waitForFunction(()=>document.querySelector('.preview-gpu-stage').previewRuntime.project.clips.length===3);

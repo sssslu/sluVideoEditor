@@ -2,8 +2,8 @@ import type {Clip,SpeedPoint} from './types';
 
 type SpeedClip=Pick<Clip,'duration'|'speed'|'in'|'speedCurve'>;
 export const MAX_SPEED_POINTS=64;
-/** Constant speed spans 10%–9999%. Curves stay within the audio stretcher's 0.1–16× range. */
-export const MIN_SPEED=.1,MAX_SPEED=99.99,MAX_CURVE_SPEED=16;
+/** Constant speed spans 10%–50000%. Curves stay within the audio stretcher's 0.1–16× range. */
+export const MIN_SPEED=.1,MAX_SPEED=500,MAX_CURVE_SPEED=16;
 /** 1.5 -> "150%", 1/3 -> "33.33%". */
 export const speedPercent=(speed:number)=>`${Number((speed*100).toFixed(2))}%`;
 export interface SpeedSegment {from:number;to:number;rate:number;slope:number;sourceStart:number;sourceEnd:number}

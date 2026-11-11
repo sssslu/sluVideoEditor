@@ -41,6 +41,32 @@ export function insertClip(project:Project,incoming:Clip,mode:'insert'|'overwrit
   });
   return [...clips,incoming];
 }
+/** The empty span under `time` on a track, from what ends before it to the next clip. */
+export function gapAt(clips:readonly Clip[],trackId:string,time:number):{start:number;end:number}|null {
+  const own=clips.filter(c=>c.trackId===trackId);
+  if(own.some(c=>c.start<=time&&c.start+c.duration>time))return null;
+  const next=Math.min(...own.filter(c=>c.start>=time).map(c=>c.start));
+  if(!Number.isFinite(next))return null;
+  const start=Math.max(0,...own.filter(c=>c.start+c.duration<=time).map(c=>c.start+c.duration));
+  return next-start>1e-6?{start,end:next}:null;
+}
+/** Close one gap: the clips on its track from its end onwards move left by its length. */
+export function closeGap(p:Project,trackId:string,gap:{start:number;end:number}):Project {
+  const shift=gap.end-gap.start;
+  return {...p,clips:p.clips.map(c=>c.trackId===trackId&&c.start>=gap.end-1e-6?{...c,start:Math.max(0,c.start-shift)}:c)};
+}
+/** New starts that remove every gap on a track, the one before its first clip included. Overlaps stay. */
+function packedStarts(clips:readonly Clip[],trackId:string):{moved:Map<string,number>;gaps:number} {
+  const own=clips.filter(c=>c.trackId===trackId).sort((a,b)=>a.start-b.start),moved=new Map<string,number>();
+  let cursor=0,shift=0,gaps=0;
+  for(const c of own){let start=c.start-shift;if(start>cursor+1e-6){gaps++;shift+=start-cursor;start=cursor;}moved.set(c.id,start);cursor=Math.max(cursor,start+c.duration);}
+  return {moved,gaps};
+}
+export const trackGapCount=(clips:readonly Clip[],trackId:string)=>packedStarts(clips,trackId).gaps;
+export function closeAllGaps(p:Project,trackId:string):Project {
+  const {moved}=packedStarts(p.clips,trackId);
+  return {...p,clips:p.clips.map(c=>{const start=moved.get(c.id);return start!==undefined&&Math.abs(start-c.start)>1e-9?{...c,start}:c;})};
+}
 export function tickSpacing(zoom:number):number {const ideal=80/zoom,power=10**Math.floor(Math.log10(ideal));return [1,2,5,10].map(n=>n*power).find(n=>n>=ideal)||power*10;}
 /** At overview scale collapse sub-pixel clips into four-pixel bins; full project data stays selectable. */
 export function visibleTimelineClips(clips:Clip[],left:number,right:number,zoom:number,selected:Set<string>):Clip[] {

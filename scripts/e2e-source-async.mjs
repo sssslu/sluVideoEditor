@@ -14,7 +14,7 @@ page.on('pageerror',e=>errors.push(String(e)));page.on('dialog',d=>d.accept());c
 async function state(){await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));await page.getByText('자동 저장됨',{exact:true}).waitFor({timeout:20000});return JSON.parse(await fs.readFile(recovery,'utf8'));}
 async function clean(){await dismissToasts(page);}
 async function choose(file){await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},file);}
-async function freshProject(){await page.getByRole('button',{name:'프로젝트',exact:true}).click();await page.getByRole('button',{name:'새 프로젝트',exact:true}).click();return state();}
+async function freshProject(){await page.getByRole('button',{name:'프로젝트',exact:true}).click();await page.getByRole('button',{name:/^새 프로젝트/}).click();return state();}
 try{
  await page.getByRole('button',{name:'가져오기',exact:true}).first().waitFor();version=(await page.evaluate(()=>window.studio.getSystemInfo())).version;assert.equal(version,JSON.parse(await fs.readFile('package.json','utf8')).version);
  await choose(source);await page.getByRole('button',{name:'가져오기',exact:true}).first().click();await page.getByText('1개 미디어를 가져왔습니다.',{exact:true}).waitFor();await page.getByTitle('source.mp4 타임라인에 추가',{exact:true}).click();const x=page.getByLabel('위치 X',{exact:true});await x.fill('10');await x.press('Enter');const before=await state(),original=before.media[0];assert.equal(before.clips[0].x,10);

@@ -48,12 +48,14 @@ test('an audio-only combination is float WAV that keeps a mix above full scale',
   assert.ok(peak>1.5,`two 0.8 tones should sum to about 1.6, got ${peak}`);
 });
 
-test('a 5000% clip exports at its sped-up length',{timeout:240000},async()=>{
+test('a 50000% clip exports at its sped-up length with sound',{timeout:240000},async()=>{
   await fs.mkdir(root,{recursive:true});
   const source=path.join(root,'long.mp4');
-  await ff(['-f','lavfi','-i','testsrc2=s=160x90:r=30:d=10','-f','lavfi','-i','sine=frequency=500:sample_rate=48000:duration=10','-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p','-c:a','aac','-shortest',source]);
+  await ff(['-f','lavfi','-i','testsrc2=s=160x90:r=30:d=60','-f','lavfi','-i','sine=frequency=500:sample_rate=48000:duration=60','-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p','-c:a','aac','-shortest',source]);
   const media=await probeMedia(source,ctx),p=newProject();p.width=160;p.height=90;p.fps=30;p.media=[media];
-  p.clips=[{...newClip('video-1',media),id:'fast',speed:50,duration:.2}];
+  p.clips=[{...newClip('video-1',media),id:'fast',speed:500,duration:.12}];
   const output=await renderProject(p,{width:160,height:90,fps:30,format:'mov',codec:'h264',encoder:'cpu',quality:'draft',outputPath:path.join(root,'fast.mov')},ctx);
-  const exported=await probeMedia(output,ctx);assert.ok(Math.abs(exported.duration-.2)<.05,String(exported.duration));assert.equal(exported.hasAudio,true);
+  const exported=await probeMedia(output,ctx);assert.ok(Math.abs(exported.duration-.12)<.04,String(exported.duration));assert.equal(exported.hasAudio,true);
+  let peak=0;for(const v of await samples(output))peak=Math.max(peak,Math.abs(v));// The sine source peaks at 0.125.
+  assert.ok(peak>.05,`sped-up audio is audible (${peak})`);
 });

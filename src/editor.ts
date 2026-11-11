@@ -126,7 +126,7 @@ function retimeClip(clip:Clip,rawDuration:number,fps:number):Clip {
   return {...clip,duration,fadeIn:clip.fadeIn*factor,fadeOut:clip.fadeOut*factor,keyframes:clip.keyframes.map(k=>({...k,time:k.time*factor})),captionWords:clip.captionWords?.map(word=>({...word,start:word.start*factor,end:word.end*factor})),captionAnimation:clip.captionAnimation?{...clip.captionAnimation,entrySeconds:clip.captionAnimation.entrySeconds*factor,exitSeconds:clip.captionAnimation.exitSeconds*factor}:undefined,sourceClipOffset:clip.sourceClipOffset===undefined?undefined:clip.sourceClipOffset*factor,sourceClipDuration:clip.sourceClipDuration===undefined?undefined:clip.sourceClipDuration*factor};
 }
 export function changeClipSpeed(clip:Clip,speed:number,fps:number):Clip {
-  if(!Number.isFinite(speed)||speed<MIN_SPEED||speed>MAX_SPEED)throw new Error('재생 속도는 10~9999%여야 합니다.');
+  if(!Number.isFinite(speed)||speed<MIN_SPEED||speed>MAX_SPEED)throw new Error('재생 속도는 10~50000%여야 합니다.');
   return {...retimeClip(clip,clipSourceSpan(clip)/speed,fps),speed,speedCurve:undefined};
 }
 export function changeClipSpeedCurve(clip:Clip,points:SpeedPoint[]|undefined,fps:number):Clip {
@@ -180,7 +180,7 @@ export function scaleSelectionSpeed(p:Project,ids:readonly string[],factor:numbe
       next={...retimeClip(c,c.duration/factor,fps),speedCurve};
     }else if(hasPlaybackRate(c,p.media)){
       const speed=roundSpeed(c.speed*factor);
-      if(speed<MIN_SPEED||speed>MAX_SPEED)throw new Error(`'${c.name}' 클립의 속도가 10~9999% 범위를 벗어납니다.`);
+      if(speed<MIN_SPEED||speed>MAX_SPEED)throw new Error(`'${c.name}' 클립의 속도가 10~50000% 범위를 벗어납니다.`);
       next={...retimeClip(c,c.duration/factor,fps),speed};
     }else next=retimeClip(c,c.duration/factor,fps);
     next.start=origin+(c.start-origin)/factor;
