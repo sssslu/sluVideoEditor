@@ -1,3 +1,4 @@
+import {installAudioProbe} from './audio-test-probe.mjs';
 import {launchTestElectron,electronTestArgs,captureElectron} from './e2e-launch.mjs';
 import {editorEvidence,testExecutable} from './e2e-release-evidence.mjs';
 import {dismissToasts} from './e2e-toast-helper.mjs';
@@ -59,8 +60,8 @@ try{
   const saved=path.join(root,'saved.sluproj');await app.evaluate(({dialog},filePath)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath});},saved);await page.keyboard.press('Control+Shift+s');await page.getByText('프로젝트를 저장했습니다.',{exact:true}).waitFor();
   const serialized=JSON.parse(await fs.readFile(saved,'utf8'));assert.equal(serialized.clips.length,2);assert.ok(serialized.clips.every(c=>!!c.cutout));await open(saved);await seek(1786,right.id);await seek(165,originalId);
   checks.push('Save and reopen retain both split intervals, original links and exact early/late decoded frames');
-  await page.getByTitle('오디오 레벨',{exact:true}).click();await page.getByLabel('오디오 레벨 위치',{exact:true}).selectOption('0');await seek(1650,right.id);await page.keyboard.press('Space');
-  await page.waitForFunction(()=>document.querySelector('.preview-gpu-stage').previewRuntime.time()>57,{timeout:15000});const playback=await page.evaluate(()=>({time:document.querySelector('.preview-gpu-stage').previewRuntime.time(),levels:[...document.querySelectorAll('.audio-meter-track')].map(n=>({peak:Number(n.dataset.peak),rms:Number(n.dataset.rms)}))}));await page.keyboard.press('Space');
+  await installAudioProbe(page);await seek(1650,right.id);await page.keyboard.press('Space');
+  await page.waitForFunction(()=>document.querySelector('.preview-gpu-stage').previewRuntime.time()>57,{timeout:15000});const playback=await page.evaluate(()=>({time:document.querySelector('.preview-gpu-stage').previewRuntime.time(),levels:window.__audioLevels()}));await page.keyboard.press('Space');
   assert.equal(playback.levels.length,2);assert.ok(playback.levels.every(c=>c.rms>-50&&c.peak<0),JSON.stringify(playback));checks.push('Actual late playback advances with both stereo channels active');
   await select(right.id);await captureElectron(app,{path:path.join(root,'long-cutout.png')});assert.deepEqual(errors,[]);
   const evidence=await editorEvidence(app,import.meta.url,{matting:true});

@@ -54,15 +54,25 @@ function Comparison({media,result,start,duration,onPrepareSource}:{media:MediaAs
 
 export default function EnhancementDialog({media,start,duration,previewStart,onClose,onValidate,onApply,onPrepareSource}:Props){
   const [info,setInfo]=useState<EnhancementInfo>(),[scale,setScale]=useState<2|4>(2),[error,setError]=useState(''),[job,setJob]=useState<JobEvent>(),[starting,setStarting]=useState(false),[applying,setApplying]=useState(false),[result,setResult]=useState<MediaAsset>();
-  const alive=useRef(true),owned=useRef<ReturnType<typeof ownEnhancementJob>|undefined>(undefined),attempt=useRef(0);
+  const alive=useRef(true),owned=useRef<ReturnType<typeof ownEnhancementJob>|undefined>(undefined),attempt=useRef(0),hardwareRequest=useRef(0);
   const sampleDuration=Math.min(2,duration),sampleStart=Math.max(start,Math.min(previewStart,start+duration-sampleDuration));
   const report=useCallback((failure:unknown)=>{if(alive.current){setError(message(failure));setStarting(false);}},[]);
-  const refresh=useCallback(async()=>{try{const next=await window.studio.enhancementInfo();if(alive.current)setInfo(next);}catch(failure){report(failure);}},[report]);
-  useEffect(()=>{alive.current=true;void refresh();return()=>{alive.current=false;attempt.current++;owned.current?.dispose();};},[refresh]);
-  const busy=starting||job?.status==='running',sizeSupported=Math.max(media.width,media.height)*scale<=7680&&media.width*media.height*scale**2<=33177600,supported=!!info?.deviceSupported&&sizeSupported;
+  const sizeSupported=Math.max(media.width,media.height)*scale<=7680&&media.width*media.height*scale**2<=33177600;
+  const refresh=useCallback(async()=>{
+    const request=++hardwareRequest.current;
+    setInfo(undefined);
+    if(!sizeSupported)return;
+    try {
+      const next=await window.studio.enhancementInfo({width:media.width,height:media.height,scale});
+      if(alive.current&&request===hardwareRequest.current)setInfo(next);
+    } catch(failure) {if(request===hardwareRequest.current)report(failure);}
+  },[media.width,media.height,scale,sizeSupported,report]);
+  useEffect(()=>{alive.current=true;return()=>{alive.current=false;hardwareRequest.current++;attempt.current++;owned.current?.dispose();};},[]);
+  useEffect(()=>{void refresh();return()=>{hardwareRequest.current++;};},[refresh]);
+  const busy=starting||job?.status==='running',supported=!!info?.canRun&&sizeSupported;
   const clearPreview=()=>{attempt.current++;owned.current?.dispose();owned.current=undefined;setResult(undefined);setJob(undefined);setError('');};
   const begin=(preview:boolean)=>{
-    try{if(busy||applying)return;onValidate();clearPreview();setStarting(true);const generation=attempt.current;
+    try{if(busy||applying||!supported)return;onValidate();clearPreview();setStarting(true);const generation=attempt.current;
       owned.current=ownEnhancementJob(window.studio,()=>preview?window.studio.enhanceMedia(media,{start:sampleStart,duration:sampleDuration,scale,preview:true}):window.studio.installEnhancementEngine(),preview,event=>{
         if(!alive.current||generation!==attempt.current)return;
         setStarting(false);setJob(event);
@@ -74,13 +84,14 @@ export default function EnhancementDialog({media,start,duration,previewStart,onC
   return <Modal title="AI 화질 향상" onClose={onClose} wide>
     <div className="transcribe-source"><div><b>{media.name}</b><span>{start.toFixed(2)}–{(start+duration).toFixed(2)}초</span></div></div>
     <div className="enhancement-settings"><label className="form-field"><span>확대</span><select aria-label="화질 향상 배율" value={scale} disabled={busy||applying} onChange={event=>{clearPreview();setScale(+event.target.value as 2|4);}}><option value="2">2×</option><option value="4">4×</option></select></label><span>{media.width} × {media.height} → {media.width*scale} × {media.height*scale}</span></div>
-    {!info&&(error?<button className="button secondary" onClick={()=>{setError('');void refresh();}}>엔진 다시 확인</button>:<p className="field-note">엔진 확인 중…</p>)}
-    {info&&!info.installed&&<button className="button secondary full" disabled={busy||!info.deviceSupported} onClick={()=>begin(false)}><Download size={15}/>AI 엔진 설치 · {Math.ceil(info.downloadBytes/1000000)} MB</button>}
-    {info?.message&&<p className="field-note">{info.message}</p>}
+    {!info&&sizeSupported&&(error?<button className="button secondary" onClick={()=>{setError('');void refresh();}}>사양 다시 확인</button>:<p className="field-note" role="status">실행 사양 확인 중…</p>)}
+    {info&&!info.installed&&<button className="button secondary full" disabled={busy||!supported} onClick={()=>begin(false)}><Download size={15}/>AI 엔진 설치 · {Math.ceil(info.downloadBytes/1000000)} MB</button>}
+    {info?.gpu&&<p className="field-note">{info.gpu} · VRAM {((info.vramTotalBytes||0)/1024**3).toFixed(1)} GiB · RAM {((info.ramTotalBytes||0)/1024**3).toFixed(1)} GiB</p>}
+    {info?.message&&<div className="enhancement-hardware-warning" role="alert"><p>{info.message}</p><button className="button secondary tiny" disabled={busy||applying} onClick={()=>{setError('');void refresh();}}>사양 다시 확인</button></div>}
     {!sizeSupported&&<p className="enhancement-error">결과는 최대 7680px, 3,318만 화소까지 지원합니다.</p>}
     {result&&<Comparison media={media} result={result} start={sampleStart} duration={sampleDuration} onPrepareSource={onPrepareSource}/>}
     {busy&&<div className="enhancement-progress" role="status"><LoaderCircle size={15} className="spin"/><span>{job?.message||'작업 준비 중…'}</span><progress max="1" value={job?.progress||0}/><button className="button secondary tiny" onClick={()=>{owned.current?.dispose();attempt.current++;setStarting(false);setJob(undefined);}}>취소</button></div>}
     {error&&<p className="enhancement-error" role="alert">{error}</p>}
-    <div className="modal-actions"><button className="button secondary" onClick={onClose}>닫기</button><button className="button secondary" disabled={!info?.installed||!supported||busy||applying} onClick={()=>begin(true)}>{result?'비교 다시 생성':`${sampleDuration.toFixed(sampleDuration<1?2:1)}초 비교`}</button><button className="button primary" disabled={!info?.installed||!supported||busy||applying} onClick={async()=>{setApplying(true);setError('');try{onValidate();await onApply(scale);if(alive.current)onClose();}catch(failure){report(failure);}finally{if(alive.current)setApplying(false);}}}>{applying&&<LoaderCircle size={15} className="spin"/>}클립에 적용</button></div>
+    <div className="modal-actions"><button className="button secondary" onClick={onClose}>닫기</button><button className="button secondary" disabled={!info?.installed||!supported||busy||applying} onClick={()=>begin(true)}>{result?'비교 다시 생성':`${sampleDuration.toFixed(sampleDuration<1?2:1)}초 비교`}</button><button className="button primary" disabled={!info?.installed||!supported||busy||applying} onClick={async()=>{if(!supported||busy||applying)return;setApplying(true);setError('');try{onValidate();await onApply(scale);if(alive.current)onClose();}catch(failure){report(failure);}finally{if(alive.current)setApplying(false);}}}>{applying&&<LoaderCircle size={15} className="spin"/>}클립에 적용</button></div>
   </Modal>;
 }

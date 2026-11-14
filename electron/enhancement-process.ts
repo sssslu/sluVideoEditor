@@ -19,6 +19,7 @@ export interface EnhancementProcessOptions {
   progress?:(progress:number,message:string)=>void;
   diagnostics?:(event:Record<string,unknown>)=>void;
   requestTimeoutMs?:number;
+  cudaDevice?:string;
 }
 
 export interface EnhancementBatch {
@@ -59,7 +60,8 @@ export class EnhancementProcess {
       '--job-dir',options.jobDirectory,'--parent-pid',String(process.pid),
     ],{
       windowsHide:true,shell:false,cwd:options.jobDirectory,stdio:['pipe','pipe','pipe'],
-      env:{...process.env,PYTHONDONTWRITEBYTECODE:'1',HF_HUB_OFFLINE:'1',TRANSFORMERS_OFFLINE:'1',TOKENIZERS_PARALLELISM:'false'},
+      env:{...process.env,PYTHONDONTWRITEBYTECODE:'1',HF_HUB_OFFLINE:'1',TRANSFORMERS_OFFLINE:'1',TOKENIZERS_PARALLELISM:'false',
+        ...(options.cudaDevice?{CUDA_VISIBLE_DEVICES:options.cudaDevice}:{})},
     });
     this.abort=()=>this.fail(new CancelledError());
     this.child.once('error',error=>this.fail(error));
@@ -96,6 +98,7 @@ export class EnhancementProcess {
 
   static async create(options:EnhancementProcessOptions):Promise<EnhancementProcess> {
     if(options.signal?.aborted)throw new CancelledError();
+    if(options.cudaDevice!==undefined&&!/^GPU-[a-f\d-]+$/i.test(options.cudaDevice))throw new Error('화질 향상 GPU 선택이 올바르지 않습니다.');
     for(const file of [options.pythonExecutable,options.workerPath,options.runtimeRoot,options.jobDirectory]) {
       if(!localFilePath(file)||!path.isAbsolute(file))throw new Error('화질 향상 실행 경로가 올바르지 않습니다.');
     }

@@ -20,8 +20,7 @@ const transitions=await read('.test-artifacts/transitions-ui/results.json');
 const transitionJobs=await read('.test-artifacts/transition-jobs/results.json'),sourceRevision=await read('.test-artifacts/source-revision/ipc/results.json');
 const sourceAsync=await read('.test-artifacts/source-async/results.json');
 const captions=await read('.test-artifacts/captions-ui/results.json');
-const color=await read('.test-artifacts/color-ui/results.json'),scopes=await read('.test-artifacts/scopes-ui/results.json');
-const audioMeter=await read('.test-artifacts/audio-meter-ui/results.json');
+const color=await read('.test-artifacts/color-ui/results.json');
 const audioEQ=await read('.test-artifacts/audio-eq-ui/results.json');
 const continuity=await read('.test-artifacts/eq-continuity-ui/results.json');
 const clock=await read('.test-artifacts/media-clock-ui/results.json'),freeze=await read('.test-artifacts/freeze-frame-ui/results.json');
@@ -66,7 +65,7 @@ if(integrity.buildReceiptId!==buildReceipt.contentId)throw new Error('Package in
 if(integrity.installer.sha256!==files.find(file=>file.name===`SLU-Studio-Setup-${version}-x64.exe`).sha256)throw new Error('Installer changed after integrity verification');
 if(!source.passed||source.version!==version||source.sha256!==files.find(file=>file.name===`SLU-Studio-${version}-source.zip`).sha256)throw new Error('Current source archive must pass byte-for-byte verification');
 if(ui.errors.length||editor.errors.length||ipc.errors.length||bounds.errors.length||additional.errors.length)throw new Error('UI errors remain');
-for(const result of [ui,editor,bounds,additional,ipc,speed,stabilization,jobLocks,transitions,transitionJobs,sourceRevision,sourceAsync,captions,color,scopes,packagedTransitions,packagedCaptions]){if(result.version!==version||result.errors.length||result.findings?.length||!result.executable||path.resolve(result.executable)!==path.join(root,'win-unpacked','SLU Studio.exe'))throw new Error('Every editor check must pass in the current packaged executable');}
+for(const result of [ui,editor,bounds,additional,ipc,speed,stabilization,jobLocks,transitions,transitionJobs,sourceRevision,sourceAsync,captions,color,packagedTransitions,packagedCaptions]){if(result.version!==version||result.errors.length||result.findings?.length||!result.executable||path.resolve(result.executable)!==path.join(root,'win-unpacked','SLU Studio.exe'))throw new Error('Every editor check must pass in the current packaged executable');}
 const asarHash=createHash('sha256').update(await fs.readFile(path.join(root,'win-unpacked/resources/app.asar'))).digest('hex');
 if(reverse.version!==version||reverse.executable!==path.join(root,'win-unpacked','SLU Studio.exe')||reverse.errors.length||reverse.asarSha256!==asarHash||reverse.checks.length!==24||reverse.frames.length!==13||reverse.frames.some(row=>row.actual!==row.expected)||reverse.exports.length!==2||reverse.exports.some(row=>row.codes.length!==12||!row.audit.some(e=>e.code===0&&e.codec===(row.encoder==='nvenc'?'h264_nvenc':'libx264')))||Object.keys(reverse.sourceHashes||{}).length<11)throw new Error('Current packaged reverse editor, frame stepping and CPU/NVENC exports must pass');
 if(reverse.colors?.length!==7||reverse.colors.some(row=>row.maximum>2||!row.audit.some(e=>e.code===0&&e.codec==='h264_nvenc'&&e.decoder===(row.name==='vp9-sd-pc'?'cpu':'cuda'))))throw new Error('Packaged reverse native color and decoder checks must pass');
@@ -84,12 +83,9 @@ if(clock.exports?.length!==18||clock.exports.some(row=>row.frames<30||row.mismat
 if(packagedCaptions.checks.length<5||packagedCaptions.bundleHashes.asar!==asarHash||packagedTransitions.bundleHashes.asar!==asarHash)throw new Error('Packaged export evidence must match the current ASAR');
 if(jobLocks.findings?.length)throw new Error('Editor lock/job findings remain');
 if(captions.checks.length<18)throw new Error('Latest caption UI checks are missing');
-if(color.checks.length<13||scopes.checks.length<12||color.asarSha256!==asarHash||scopes.asarSha256!==asarHash)throw new Error('Color and scopes checks must match the packaged ASAR');
+if(color.checks.length<13||color.asarSha256!==asarHash)throw new Error('Color checks must match the packaged ASAR');
 if(color.exportPixels.frames!==15||color.exportPixels.mean>=2.5||color.exportPixels.max>=45)throw new Error('Packaged color export pixel comparison did not pass');
-if(audioMeter.version!==version||audioMeter.executable!==path.join(root,'win-unpacked','SLU Studio.exe')||audioMeter.errors.length||audioMeter.checks.length<12||audioMeter.asarSha256!==asarHash||audioMeter.parity.frames!==9600||audioMeter.parity.different!==0)throw new Error('Current packaged audio meter checks must pass');
-if(Object.keys(audioMeter.sourceHashes||{}).length<7)throw new Error('Audio meter fingerprints missing');
-for(const [file,hash] of Object.entries(audioMeter.sourceHashes))if(createHash('sha256').update(await fs.readFile(file)).digest('hex')!==hash)throw new Error(`Stale audio meter evidence: ${file}`);
-for(const evidence of [color,scopes]){if(Object.keys(evidence.sourceHashes||{}).length<4)throw new Error('Color/scopes source fingerprints are missing');for(const [file,hash] of Object.entries(evidence.sourceHashes))if(createHash('sha256').update(await fs.readFile(file)).digest('hex')!==hash)throw new Error(`Stale packaged color/scopes evidence: ${file}`);}
+for(const evidence of [color]){if(Object.keys(evidence.sourceHashes||{}).length<4)throw new Error('Color source fingerprints are missing');for(const [file,hash] of Object.entries(evidence.sourceHashes))if(createHash('sha256').update(await fs.readFile(file)).digest('hex')!==hash)throw new Error(`Stale packaged color/scopes evidence: ${file}`);}
 const manifest={product:'SLU Studio',version,platform:'Windows x64',builtAt:new Date().toISOString(),signed:false,files,verification:{packagedApplicationUI:ui.checks,editorUI:editor.checks,editingBoundaries:bounds.checks,additionalUI:additional.checks,speedCurveUI:speed.checks,stabilizationUI:stabilization.checks,jobAndLockUI:jobLocks.checks,ipc:ipc.checks,portable:portable.checks,portableStartupSeconds:portable.startupSeconds,hardware:portable.system.gpu,encoders:portable.system.encoders,installer:'Payload integrity verified; interactive installation not executed',packageIntegrity:integrity.checks,sourceArchive:source.checks}};
 manifest.verification.portablePayload={files:portablePayload.observations[0].payloadFiles,omissions:portablePayload.observations[0].payloadOmissions,editorSeconds:portablePayload.observations[0].editorSeconds,timingScope:portablePayload.timingScope};
 manifest.verification.transitionUI=transitions.checks;
@@ -99,9 +95,6 @@ manifest.verification.sourceAsyncUI=sourceAsync.checks;
 manifest.verification.captionUI=captions.checks;
 manifest.verification.colorUI=color.checks;
 manifest.verification.colorExport=color.exportPixels;
-manifest.verification.scopesUI=scopes.checks;
-manifest.verification.audioMeterUI=audioMeter.checks;
-manifest.verification.audioMeterSampleParity=audioMeter.parity;
 if(audioEQ.version!==version||audioEQ.executable!==path.join(root,'win-unpacked','SLU Studio.exe')||audioEQ.errors.length||audioEQ.checks.length<13||audioEQ.asarSha256!==asarHash||audioEQ.parity.length!==8||audioEQ.parity.some(r=>r.frames!==12000||r.channels!==2||r.max>=2e-6)||audioEQ.churn.maximum>14||audioEQ.churn.pending||audioEQ.churn.outgoing)throw new Error('Current packaged EQ checks must pass');
 if(Object.keys(audioEQ.sourceHashes||{}).length<8)throw new Error('EQ fingerprints missing');for(const [file,hash] of Object.entries(audioEQ.sourceHashes))if(createHash('sha256').update(await fs.readFile(file)).digest('hex')!==hash)throw new Error(`Stale EQ evidence: ${file}`);
 manifest.verification.audioEQUI=audioEQ.checks;manifest.verification.audioEQParity=audioEQ.parity;

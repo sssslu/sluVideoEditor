@@ -136,7 +136,7 @@
 .search-field input::placeholder {
   color: #85837c;
 }
-.timecode > b, .keyframe-info, .scope-time {
+.timecode > b, .keyframe-info {
   color: var(--slu-ink);
 }
 
@@ -151,7 +151,7 @@ input, textarea, select {
 .form-field select, .form-field input, .keyframe-property select,
 .keyframe-list select, .speed-control-row > select,
 .speed-graph-heading select, .speed-point-toolbar select,
-.audio-meter-heading select, .eq-toolbar select, .eq-band-options select,
+.eq-toolbar select, .eq-band-options select,
 .tracking-settings input, .tracking-settings select, .tracking-transport input,
 .caption-color input[type=color], .search-field {
   background: var(--slu-input);
@@ -434,7 +434,7 @@ input[type=range] {
   color: var(--slu-accent);
 }
 
-/* Graph chrome changes separately from RGB channels, scopes and level colors. */
+/* Graph chrome changes separately from RGB channel colors. */
 .keyframe-graph-background {
   fill: var(--slu-input);
   stroke: var(--slu-line-strong);
@@ -476,7 +476,7 @@ input[type=range] {
 .speed-unity text {
   fill: var(--slu-ink);
 }
-.speed-graph, .eq-graph, .scope-panel, .audio-meter {
+.speed-graph, .eq-graph {
   background: var(--slu-input);
   border-color: var(--slu-line);
 }
@@ -495,29 +495,7 @@ input[type=range] {
 .color-channel.active, .eq-band-tabs button.active {
   background: var(--slu-hover);
 }
-.scope-toolbar button, .scope-range, .audio-meter-heading,
-.audio-meter-row, .audio-meter-scale {
-  color: var(--slu-muted);
-}
-.scope-toolbar button {
-  border-color: var(--slu-line-strong);
-}
-.scope-toolbar button.active {
-  color: var(--slu-accent);
-  border-color: var(--slu-selected-line);
-}
-.audio-meter-track {
-  background: #080807;
-  border-color: var(--slu-line);
-}
-.meter-maximum:not(.overload) {
-  background: var(--slu-raised);
-  border-color: var(--slu-line-strong);
-  color: var(--slu-ink);
-}
-.meter-maximum:focus-visible {
-  outline-color: var(--slu-accent);
-}
+
 
 /* Floating UI and status feedback use the same surface palette. */
 .modal-backdrop {
@@ -576,7 +554,7 @@ input[type=range] {
   border-color: #79534c;
 }
 .toast-error, .toast-error > span, .job-error .job-title,
-.job-error p, .enhancement-error, .audio-meter-error {
+.job-error p, .enhancement-error {
   color: var(--slu-error);
 }
 .inline-warning, .tracking-error, .gpu-issues > div {
@@ -603,14 +581,12 @@ input[type=range] {
   background: var(--slu-accent);
   color: #251c11;
 }
-.gpu-stats, .gpu-seeking {
+.gpu-seeking {
   background: #161615ed;
   border-color: var(--slu-line-strong);
   color: var(--slu-muted);
 }
-.gpu-stats b {
-  color: var(--slu-ink);
-}
+
 .tracking-view, .enhancement-pictures figure {
   background: var(--slu-bg);
   border-color: var(--slu-line);

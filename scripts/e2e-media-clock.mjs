@@ -1,3 +1,4 @@
+import {installAudioProbe} from './audio-test-probe.mjs';
 import {launchTestElectron,electronTestArgs,captureElectron} from './e2e-launch.mjs';
 import {dismissToasts} from './e2e-toast-helper.mjs';
 
@@ -78,13 +79,13 @@ try{
  }
  for(const name of ['shifted','mp4-shifted']){const media=imported[name],ref=await reference(media),project=await open(media,`export-${name}`,false,{fps:30,clip:{in:.06,duration:1}});await exportFrames(project,media,ref,name,'cpu');if(system.encoders.includes('h264_nvenc'))await exportFrames(project,media,ref,name,'nvenc');}
  checks.push('Shifted MKV and MP4 actual CPU/NVENC exports retain normalized fractional source trims');
- await page.getByTitle('오디오 레벨',{exact:true}).click();await page.getByLabel('오디오 레벨 위치',{exact:true}).selectOption('0');
+ await installAudioProbe(page);
  for(const name of ['mp3','m4a','opus']){
   const media=imported[name],raw=(await run(path.resolve('resources/bin/ffmpeg.exe'),['-v','error','-i',media.path,'-ss','1.5','-t','0.2','-ac','2','-ar','48000','-f','f32le','pipe:1'],{windowsHide:true,encoding:'buffer',maxBuffer:1024*1024})).stdout;
   const reference=[0,1].map(channel=>{let peak=0,sum=0;for(let i=channel*4;i<raw.length;i+=8){const sample=raw.readFloatLE(i);peak=Math.max(peak,Math.abs(sample));sum+=sample*sample;}return {peak:20*Math.log10(peak),rms:20*Math.log10(Math.sqrt(sum/(raw.length/8)))};});
   await open(media,name);await seek(1.3);const paused=await page.evaluate(()=>{const n=document.querySelector('.preview-gpu-stage').previewRuntime.nodes.get('clock-clip');return {source:n.element.currentTime,offset:n.media.timing.previewOffset};});assert.ok(Math.abs(paused.source-(1.5+paused.offset))<.003);
   await page.keyboard.press('Space');await page.waitForFunction(()=>document.querySelector('.preview-gpu-stage').previewRuntime.time()>1.55);
-  const moving=await page.evaluate(()=>{const r=document.querySelector('.preview-gpu-stage').previewRuntime,n=r.nodes.get('clock-clip');return {timeline:r.time(),source:n.element.currentTime,offset:n.media.timing.previewOffset,levels:[...document.querySelectorAll('.audio-meter-track')].map(n=>({peak:Number(n.dataset.peak),rms:Number(n.dataset.rms)}))};});
+  const moving=await page.evaluate(()=>{const r=document.querySelector('.preview-gpu-stage').previewRuntime,n=r.nodes.get('clock-clip');return {timeline:r.time(),source:n.element.currentTime,offset:n.media.timing.previewOffset,levels:window.__audioLevels()};});
   assert.ok(moving.timeline<1.8);assert.ok(Math.abs(moving.source-moving.offset-moving.timeline-.2)<.04);assert.equal(moving.levels.length,2);
   for(let channel=0;channel<2;channel++){assert.ok(Math.abs(moving.levels[channel].peak-reference[channel].peak)<.6,`${name} channel${channel} peak`);assert.ok(Math.abs(moving.levels[channel].rms-reference[channel].rms)<.6,`${name} channel${channel} RMS`);}
   playback.push({name,...moving,reference});await page.keyboard.press('Space');
@@ -94,7 +95,7 @@ try{
   }
  }
  checks.push('MP3, M4A and Opus audio retain normalized seek and playback clocks');
- checks.push('Actual stereo audio-meter peaks and RMS at the requested source interval match independently decoded FFmpeg PCM');
+ checks.push('Actual stereo audio peaks and RMS at the requested source interval match independently decoded FFmpeg PCM');
  assert.deepEqual(errors,[]);await captureElectron(app,{path:path.join(root,'clock.png')});const sourceHashes={};for(const file of ['shared/media-clock.ts','electron/media-timing.ts','electron/media.ts','electron/video-color.ts','electron/video-input.ts','electron/audio-preview.ts','electron/main.ts','electron/project-sources.ts','src/preview/runtime.ts','src/SourceMonitor.tsx','scripts/e2e-media-clock.mjs','tests/media-clock.test.ts','tests/render-clock.test.ts','tests/audio-preview.test.ts'])sourceHashes[file]=digest(await fs.readFile(file));
  const asar=await app.evaluate(({app})=>app.isPackaged?app.getAppPath():null);await fs.writeFile(path.join(root,'results.json'),JSON.stringify({version,executable:process.env.SLU_TEST_EXE?path.resolve(process.env.SLU_TEST_EXE):null,checks,errors,frames,playback,exports,sourceHashes,asarSha256:asar?digest(await fs.readFile(asar)):null,profile},null,2));console.log(JSON.stringify({checks,errors,frames,playback,exports},null,2));
 }catch(error){errors.push(String(error));await captureElectron(app,{path:path.join(root,'failure.png')}).catch(()=>{});await fs.writeFile(path.join(root,'failure.json'),JSON.stringify({checks,errors,frames,playback,exports,profile},null,2));throw error;}finally{await app.evaluate(()=>{const {createRequire,syncBuiltinESMExports}=process.getBuiltinModule('module'),cp=createRequire(process.execPath)('node:child_process');if(globalThis.clockOriginalSpawn){cp.spawn=globalThis.clockOriginalSpawn;syncBuiltinESMExports();}}).catch(()=>{});await app.close();}

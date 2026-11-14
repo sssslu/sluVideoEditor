@@ -145,16 +145,7 @@ export async function verifyPackage(){
     result.unpackedPackageVersion=bundledPackage.version;check(bundledPackage.version===version,'Unpacked app.asar package version matches package.json');
     const asarPaths=asar.listPackage(asarFile),asarEntries=new Set(asarPaths.map(archiveKey));
     check(['/package.json','/dist/index.html','/dist/caption-export.html','/dist-electron/caption-preload.cjs',`/${pkg.main}`].every(name=>asarEntries.has(archiveKey(name))),'app.asar contains the editor and isolated caption renderer entry points');
-    const scopeWorkers=asarPaths.filter(file=>/^\/dist\/assets\/scopes\.worker-[^/]+\.js$/i.test(archiveKey(file)));
-    check(scopeWorkers.length===1,'Exactly one dedicated scopes worker is bundled');
-    const scopeWorker=scopeWorkers[0].replace(/^[\\/]/,''),scopeBytes=asar.extractFile(asarFile,scopeWorker);
-    check(scopeBytes.equals(await fs.readFile(path.join(workspace,scopeWorker))),'Bundled scopes worker matches the current build byte for byte');
-    const editorScripts=asarPaths.filter(file=>/^\/dist\/assets\/editor-[^/]+\.js$/i.test(archiveKey(file)));
-    check(editorScripts.some(file=>asar.extractFile(asarFile,file.replace(/^[\\/]/,'')).toString('utf8').includes(path.basename(scopeWorker))),'Editor bundle references the packaged scopes worker');
-    const meterFiles=asarPaths.filter(file=>/^\/dist\/assets\/audio-meter\.worklet-[^/]+\.js$/i.test(archiveKey(file)));
-    check(meterFiles.length===1,'Audio meter worklet is a bundled file, not an inline data URL');
-    const meterFile=meterFiles[0].replace(/^[\\/]/,'');check(asar.extractFile(asarFile,meterFile).equals(await fs.readFile(path.join(workspace,meterFile))),'Bundled audio meter worklet matches the current build byte for byte');
-    check(editorScripts.some(file=>asar.extractFile(asarFile,file.replace(/^[\\/]/,'')).toString('utf8').includes(path.basename(meterFile))),'Editor references the packaged audio meter worklet');
+    check(!asarPaths.some(file=>/scopes\.worker|audio-meter\.worklet/i.test(file)),'Removed preview analysis workers are absent');
     const fontEntries=asarPaths.filter(file=>archiveKey(file).startsWith('/dist/assets/')&&/\.(?:ttf|otf|woff2?)$/i.test(file));
     check(fontEntries.length===5,'Exactly five font assets: four caption/fallback faces and one UI wordmark face');
     const bundledFonts=fontEntries.map(file=>{const data=asar.extractFile(asarFile,file.replace(/^[\\/]/,''));return {file,bytes:data.length,sha256:createHash('sha256').update(data).digest('hex')};});

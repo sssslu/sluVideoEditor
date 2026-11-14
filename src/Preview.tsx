@@ -1,49 +1,40 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react';
-import {Activity,AudioLines,ChartColumn,ChevronLeft,ChevronRight,Film,FolderPlus,Maximize2,Pause,Play,SkipBack,SkipForward,Volume2,VolumeX,X} from 'lucide-react';
+import {ChevronLeft,ChevronRight,Film,FolderPlus,Pause,Play,SkipBack,SkipForward,Volume2,VolumeX,X} from 'lucide-react';
 import {needsPreviewProxy,previewSourceKey} from '../shared/media-clock';
 import type {Keyframe,MediaAsset,Project} from '../shared/types';
 import {projectDuration} from '../shared/project';
-import {formatTime,inputTarget} from './editor';
+import {formatTime} from './editor';
 import {clamp} from './preview/math';
 import {PreviewRuntime,type PreviewStats} from './preview/runtime';
 import type {Geometry} from './preview/renderer';
 import {SNAP_DISTANCE,handleCursor,regionBounds,regionCenter,rotationTransform,scaleTransform,snapMove,snapRotation,sweepAngle,type Box,type Guide,type Handle,type Point} from './preview/transform-handles';
 import './preview/gpu-preview.css';
-import ScopePanel from './ScopePanel';
-import type {ScopeResult} from '../shared/scopes';
-import AudioMeter from './AudioMeter';
-import {AudioMeterFeed} from './preview/audio-meter';
 
-interface PreviewProps {active?:boolean;project:Project;time:number;playing:boolean;onPlay:()=>void;onSeek:(time:number)=>void;onImport:()=>void;selected:string[];onSelect:(id:string)=>void;proxy:boolean;onProxy:(media:MediaAsset)=>void;onError:(message:string,media?:MediaAsset)=>void;onMediaReady?:(media:MediaAsset)=>void;previewFailures?:Record<string,{message:string}>;seekId?:number;onTimeUpdate?:(time:number)=>void;onEnded?:()=>void;onTransformStart?:(time:number)=>void;onTransform?:(id:string,values:TransformPatch,time:number)=>void;onDeselect?:()=>void}
+interface PreviewProps {project:Project;time:number;playing:boolean;onPlay:()=>void;onSeek:(time:number)=>void;onImport:()=>void;selected:string[];onSelect:(id:string)=>void;proxy:boolean;onProxy:(media:MediaAsset)=>void;onError:(message:string,media?:MediaAsset)=>void;onMediaReady?:(media:MediaAsset)=>void;previewFailures?:Record<string,{message:string}>;seekId?:number;onTimeUpdate?:(time:number)=>void;onEnded?:()=>void;onTransformStart?:(time:number)=>void;onTransform?:(id:string,values:TransformPatch,time:number)=>void;onDeselect?:()=>void;onEnhance?:(clipId:string)=>void;enhancementBusy?:boolean}
 export type TransformPatch=Partial<Pick<Keyframe,'x'|'y'|'scale'|'rotation'>>;
 interface DragState {id:string;pointer:number;mode:'move'|Handle;time:number;transition:boolean;from:Point;last:Point;clientX:number;clientY:number;state:Keyframe;geometry:Geometry;bounds:Box;dragScale:number;started:boolean;angle:number}
 interface Issue {media?:MediaAsset;message:string;preparation?:boolean}
 export default function Preview(props:PreviewProps){
-  const {active=true,project,time,playing,onPlay,onSeek,onImport,selected,onSelect,proxy,onProxy,seekId=0}=props;
-  const panel=useRef<HTMLElement>(null),wrap=useRef<HTMLDivElement>(null),stage=useRef<HTMLDivElement>(null),overlay=useRef<HTMLCanvasElement>(null),runtime=useRef<PreviewRuntime|undefined>(undefined);
+  const {project,time,playing,onPlay,onSeek,onImport,selected,onSelect,proxy,onProxy,seekId=0}=props;
+  const wrap=useRef<HTMLDivElement>(null),stage=useRef<HTMLDivElement>(null),overlay=useRef<HTMLCanvasElement>(null),runtime=useRef<PreviewRuntime|undefined>(undefined);
   const current=useRef(props);current.current=props;
-  const [showScopes,setShowScopes]=useState(false),[scopeResult,setScopeResult]=useState<ScopeResult>(),[scopeError,setScopeError]=useState<string>();
-  const [showAudioMeter,setShowAudioMeter]=useState(false),[audioFeed]=useState(()=>new AudioMeterFeed());
-  const [size,setSize]=useState({width:640,height:360}),[quality,setQuality]=useState(()=>Number(localStorage.getItem('slu-preview-height'))||720),[muted,setMuted]=useState(false),[stats,setStats]=useState<PreviewStats>(),[showStats,setShowStats]=useState(false),[issues,setIssues]=useState<Issue[]>([]);
+  const [size,setSize]=useState({width:640,height:360}),[quality,setQuality]=useState(()=>Number(localStorage.getItem('slu-preview-height'))||720),[muted,setMuted]=useState(false),[stats,setStats]=useState<PreviewStats>(),[issues,setIssues]=useState<Issue[]>([]);
+  const [context,setContext]=useState<{id:string;x:number;y:number}|null>(null);
   const drag=useRef<DragState|undefined>(undefined);
   // Undo, redo or Escape during a drag ends it, as in the keyframe editor, so later moves cannot overwrite the restored state.
   useEffect(()=>{const key=(event:KeyboardEvent)=>{if(drag.current&&(event.key==='Escape'||((event.ctrlKey||event.metaKey)&&['z','y','o','n'].includes(event.key.toLowerCase())))){drag.current=undefined;runtime.current?.setGuides([]);}};window.addEventListener('keydown',key,true);return()=>window.removeEventListener('keydown',key,true);},[]);
-  // CapCut: Ctrl+Shift+F toggles the player full screen.
-  useEffect(()=>{const key=(event:KeyboardEvent)=>{if(!(event.ctrlKey||event.metaKey)||!event.shiftKey||event.altKey||event.key.toLowerCase()!=='f'||inputTarget(event.target)||document.querySelector('.modal-backdrop'))return;event.preventDefault();if(document.fullscreenElement)void document.exitFullscreen();else void panel.current?.requestFullscreen();};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[]);
-  useLayoutEffect(()=>{const host=stage.current;if(!host)return;const engine=new PreviewRuntime(host,{onTime:value=>current.current.onTimeUpdate?.(value),onEnded:()=>current.current.onEnded?.(),onStats:setStats,onScopes:setScopeResult,onScopeError:setScopeError,onAudioLevels:frame=>audioFeed.publish(frame),onAudioMeterError:error=>audioFeed.publish(undefined,error),onMediaReady:media=>{setIssues(previous=>previous.some(item=>item.media&&previewSourceKey(item.media)===previewSourceKey(media))?previous.filter(item=>!item.media||previewSourceKey(item.media)!==previewSourceKey(media)):previous);current.current.onMediaReady?.(media);},onIssue:(media,message)=>{setIssues(previous=>[...previous.filter(item=>item.media?.id!==media?.id),{media,message}].slice(-3));current.current.onError(message,media);}},overlay.current??undefined);runtime.current=engine;(host as HTMLDivElement&{previewRuntime?:PreviewRuntime}).previewRuntime=engine;return()=>{engine.dispose();runtime.current=undefined;delete(host as HTMLDivElement&{previewRuntime?:PreviewRuntime}).previewRuntime;};},[audioFeed]);
+  useLayoutEffect(()=>{const host=stage.current;if(!host)return;const engine=new PreviewRuntime(host,{onTime:value=>current.current.onTimeUpdate?.(value),onEnded:()=>current.current.onEnded?.(),onStats:setStats,onMediaReady:media=>{setIssues(previous=>previous.some(item=>item.media&&previewSourceKey(item.media)===previewSourceKey(media))?previous.filter(item=>!item.media||previewSourceKey(item.media)!==previewSourceKey(media)):previous);current.current.onMediaReady?.(media);},onIssue:(media,message)=>{setIssues(previous=>[...previous.filter(item=>item.media?.id!==media?.id),{media,message}].slice(-3));current.current.onError(message,media);}},overlay.current??undefined);runtime.current=engine;(host as HTMLDivElement&{previewRuntime?:PreviewRuntime}).previewRuntime=engine;return()=>{engine.dispose();runtime.current=undefined;delete(host as HTMLDivElement&{previewRuntime?:PreviewRuntime}).previewRuntime;};},[]);
   useLayoutEffect(()=>{runtime.current?.setProject(project);setIssues(previous=>{const remaining=previous.filter(item=>!item.media||project.clips.some(c=>c.mediaId===item.media!.id)&&project.media.some(media=>media.id===item.media!.id&&previewSourceKey(media)===previewSourceKey(item.media!)));return remaining.length===previous.length?previous:remaining;});},[project]);
   useLayoutEffect(()=>{runtime.current?.setOptions(proxy,quality,muted,selected);localStorage.setItem('slu-preview-height',String(quality));},[proxy,quality,muted,selected]);
   useLayoutEffect(()=>{runtime.current?.setTransport(time,playing,seekId);},[time,playing,seekId]);
-  useLayoutEffect(()=>{setScopeError(undefined);runtime.current?.setScopes(showScopes&&active);},[showScopes,active]);
-  useLayoutEffect(()=>{runtime.current?.setAudioMeter(showAudioMeter&&active);},[showAudioMeter,active]);
   useLayoutEffect(()=>{const element=wrap.current;if(!element)return;const observer=new ResizeObserver(entries=>{const rect=entries[0].contentRect;setSize({width:Math.max(1,rect.width-32),height:Math.max(1,rect.height-24)});});observer.observe(element);return()=>observer.disconnect();},[]);
-  useLayoutEffect(()=>{setIssues([]);},[project.id]);
+  useLayoutEffect(()=>{setIssues([]);setContext(null);},[project.id]);
   useLayoutEffect(()=>{const host=wrap.current,frame=stage.current;if(!host||!frame)return;const outer=host.getBoundingClientRect(),inner=frame.getBoundingClientRect();runtime.current?.setViewport({width:host.clientWidth,height:host.clientHeight,left:inner.left-outer.left-host.clientLeft,top:inner.top-outer.top-host.clientTop,scale:inner.width/Math.max(1,project.width)});},[size.width,size.height,project.width,project.height]);
   const preparationIssues:Issue[]=project.media.filter(media=>needsPreviewProxy(media)&&props.previewFailures?.[previewSourceKey(media)]&&project.clips.some(clip=>clip.mediaId===media.id)).map(media=>({media,message:props.previewFailures![previewSourceKey(media)].message,preparation:true}));
   const displayedIssues=[...issues,...preparationIssues];
   const waitingSources=stats?.waitingProxySources??[],preparing=waitingSources.some(key=>!props.previewFailures?.[key]);
   const scale=Math.min(size.width/project.width,size.height/project.height),duration=projectDuration(project);
-  const getPoint=(event:React.PointerEvent):Point=>{const rect=stage.current!.getBoundingClientRect();return [(event.clientX-rect.left)/rect.width*project.width,(event.clientY-rect.top)/rect.height*project.height];};
+  const getPoint=(event:{clientX:number;clientY:number}):Point=>{const rect=stage.current!.getBoundingClientRect();return [(event.clientX-rect.left)/rect.width*project.width,(event.clientY-rect.top)/rect.height*project.height];};
   const unit=()=>1/Math.max(1e-6,scale);
   // Overlays inside the monitor (issue cards, the empty-state button) keep their own clicks.
   const ownClick=(event:React.PointerEvent)=>!!(event.target as Element).closest?.('button,.gpu-issues');
@@ -60,21 +51,35 @@ export default function Preview(props:PreviewProps){
     if(state.mode==='move'){let delta:Point=[point[0]-state.from[0],point[1]-state.from[1]],guides:Guide[]=[];if(!event.ctrlKey&&!state.transition)({delta,guides}=snapMove(state.bounds,delta,project.width,project.height,SNAP_DISTANCE*unit()));runtime.current?.setGuides(guides);transform(state.id,{x:clamp(state.state.x+delta[0]/state.dragScale,-16384,16384),y:clamp(state.state.y+delta[1]/state.dragScale,-16384,16384)},state.time);}
     else if(state.mode==='rotate'){state.angle+=sweepAngle(regionCenter(state.geometry),state.last,point);state.last=point;transform(state.id,rotationTransform(state.geometry,state.state,snapRotation(state.state.rotation+state.angle,event.shiftKey?15:undefined),state.dragScale),state.time);}
     else transform(state.id,scaleTransform(state.geometry,state.state,state.from,point,state.dragScale),state.time);};
+  useEffect(()=>{
+    if(!context)return;
+    const close=()=>setContext(null);
+    const key=(event:KeyboardEvent)=>{if(event.key==='Escape')close();};
+    window.addEventListener('keydown',key);window.addEventListener('resize',close);
+    return()=>{window.removeEventListener('keydown',key);window.removeEventListener('resize',close);};
+  },[context]);
+  const openContext=(event:React.MouseEvent)=>{
+    event.preventDefault();event.stopPropagation();
+    const target=runtime.current?.pick(...getPoint(event));
+    if(!target||project.media.find(media=>media.id===target.clip.mediaId)?.kind!=='video'){setContext(null);return;}
+    onSelect(target.clip.id);
+    setContext({id:target.clip.id,x:Math.max(0,Math.min(event.clientX,innerWidth-235)),y:Math.max(0,Math.min(event.clientY,innerHeight-50))});
+  };
+  const contextClip=project.clips.find(clip=>clip.id===context?.id);
+  const contextDisabled=props.enhancementBusy||project.tracks.find(track=>track.id===contextClip?.trackId)?.locked||
+    (!contextClip?.enhancement&&(!!contextClip?.cutout||!!project.media.find(media=>media.id===contextClip?.mediaId)?.hasAlpha));
   const seekFrame=(direction:number)=>onSeek(clamp((Math.round((runtime.current?.time()??time)*project.fps)+direction)/project.fps,0,duration));
-  return <section className="preview-panel gpu-preview-panel" ref={panel} aria-label="프로그램 모니터">
-    <div className="panel-heading"><span>프로그램</span><div className="preview-meta"><span>{project.width} × {project.height}</span><select aria-label="미리보기 해상도" title="미리보기 해상도" value={quality} onChange={event=>setQuality(Number(event.target.value))}><option value={360}>360p</option><option value={540}>540p</option><option value={720}>720p</option><option value={1080}>1080p</option></select><button className={`icon-button ${showScopes?'active':''}`} title="색상 스코프" aria-pressed={showScopes} onClick={()=>setShowScopes(v=>!v)}><ChartColumn size={15}/></button><button className={`icon-button ${showAudioMeter?'active':''}`} title="오디오 레벨" aria-pressed={showAudioMeter} onClick={()=>setShowAudioMeter(value=>!value)}><AudioLines size={15}/></button><button className={`icon-button ${showStats?'active':''}`} title="재생 성능" onClick={()=>setShowStats(value=>!value)}><Activity size={15}/></button><button className="icon-button" title="플레이어 전체 화면 (Ctrl+Shift+F)" onClick={()=>{if(document.fullscreenElement)void document.exitFullscreen();else void panel.current?.requestFullscreen();}}><Maximize2 size={15}/></button></div></div>
-    <div className="preview-display-row"><div className="preview-wrap gpu-preview-wrap" ref={wrap} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={event=>{endDrag(event);hover(event);}} onPointerCancel={endDrag} onPointerLeave={event=>{if(!drag.current)event.currentTarget.style.cursor='';}}>
+  return <section className="preview-panel gpu-preview-panel" aria-label="프로그램 모니터">
+    <div className="panel-heading"><span>프로그램</span><div className="preview-meta"><span>{project.width} × {project.height}</span><select aria-label="미리보기 해상도" title="미리보기 해상도" value={quality} onChange={event=>setQuality(Number(event.target.value))}><option value={360}>360p</option><option value={540}>540p</option><option value={720}>720p</option><option value={1080}>1080p</option></select></div></div>
+    <div className="preview-wrap gpu-preview-wrap" ref={wrap} onContextMenu={openContext} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={event=>{endDrag(event);hover(event);}} onPointerCancel={endDrag} onPointerLeave={event=>{if(!drag.current)event.currentTarget.style.cursor='';}}>
       <div className="preview-gpu-stage" ref={stage} style={{width:Math.max(1,project.width*scale),height:Math.max(1,project.height*scale)}} tabIndex={0} aria-label="영상 캔버스"/>
       <canvas className="gpu-preview-selection" ref={overlay} aria-hidden="true"/>
       {!project.clips.length&&<div className="gpu-empty"><Film size={26}/><span>타임라인에 클립을 추가하세요</span><button className="button secondary" onClick={onImport}><FolderPlus size={15}/>가져오기</button></div>}
       {displayedIssues.length>0&&<div className="gpu-issues">{displayedIssues.map((issue,index)=><div key={issue.media?.id||index}><span>{issue.message}</span>{issue.media?.kind==='video'&&<button onClick={()=>{onProxy(issue.media!);setIssues(previous=>previous.filter(item=>item!==issue));}}>프록시 생성</button>}{!issue.preparation&&<button aria-label="안내 닫기" onClick={()=>setIssues(previous=>previous.filter(item=>item!==issue))}><X size={14}/></button>}</div>)}</div>}
-      {showStats&&stats&&<div className="gpu-stats" data-testid="preview-stats"><b>{stats.mode} · {stats.width}×{stats.height}</b><span>{stats.playing?'합성 '+stats.fps.toFixed(1)+' fps':'정지'} · {stats.decoders} 미디어</span><span>합성 제출 {stats.renderMs.toFixed(2)} ms · P95 {stats.p95Ms.toFixed(2)} ms</span><span>소스 지연 {stats.maxSourceLagSeconds.toFixed(2)} s</span><span>브라우저 영상 누락 {stats.droppedVideoFrames} / {stats.totalVideoFrames}</span><span>타임라인 누락 {stats.missedFrames} · {stats.audioContext==='running'?'오디오 믹서 활성':'오디오 대기'}</span></div>}
       {stats?.seeking&&project.clips.length>0&&(preparing||!waitingSources.length)&&<span className="gpu-seeking" role="status">{preparing?'미리보기 파일 준비 중':'프레임 준비 중'}</span>}
     </div>
-    {showAudioMeter&&<AudioMeter feed={audioFeed} onReset={()=>runtime.current?.resetAudioMeter()}/>}
-    </div>
-    {showScopes&&<ScopePanel result={scopeResult} error={scopeError} fps={project.fps}/>}
     <input className="gpu-preview-scrub" type="range" aria-label="미리보기 재생 위치" min={0} max={Math.max(duration,.001)} step={1/project.fps} value={Math.min(time,duration)} disabled={!duration} onChange={event=>onSeek(Number(event.target.value))}/>
     <div className="transport"><span className="timecode"><b>{formatTime(time,project.fps)}</b><span> / {formatTime(duration,project.fps)}</span></span><div className="transport-buttons"><button className="icon-button" title="처음으로 (Home)" onClick={()=>onSeek(0)}><SkipBack size={15}/></button><button className="icon-button" title="이전 프레임 (←)" onClick={()=>seekFrame(-1)}><ChevronLeft size={16}/></button><button className="play-button" title={playing?'일시 정지 (Space)':'재생 (Space)'} disabled={!duration} onClick={()=>{void runtime.current?.resumeAudio();onPlay();}}>{playing?<Pause size={18} fill="currentColor"/>:<Play size={18} fill="currentColor"/>}</button><button className="icon-button" title="다음 프레임 (→)" onClick={()=>seekFrame(1)}><ChevronRight size={16}/></button><button className="icon-button" title="끝으로 (End)" onClick={()=>onSeek(duration)}><SkipForward size={15}/></button></div><div className="transport-right"><button className="icon-button" title={muted?'미리보기 소리 켜기':'미리보기 소리 끄기'} onClick={()=>setMuted(value=>!value)}>{muted?<VolumeX size={16}/>:<Volume2 size={16}/>}</button><span className="preview-quality">{stats?.mode||'준비'}{proxy?' · 프록시 우선':''}</span></div></div>
+    {context&&contextClip&&props.onEnhance&&<><div className="context-dismiss" onPointerDown={()=>setContext(null)}/><div className="timeline-context" role="menu" style={{left:context.x,top:context.y}}><button role="menuitem" disabled={contextDisabled} onClick={()=>{props.onEnhance?.(contextClip.id);setContext(null);}}>AI 화질 향상</button></div></>}
   </section>;
 }

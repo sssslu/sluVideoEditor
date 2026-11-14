@@ -13,3 +13,6 @@
 .enhancement-progress progress{width:90px;accent-color:var(--accent)}
 .enhancement-error{color:#ffacac;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
 @media(max-height:750px){.enhancement-pictures video{height:170px}}
+
+.enhancement-hardware-warning{margin-top:12px;padding:12px;border:1px solid #84633b;border-radius:4px;background:#36291b;color:#f0c991;font-size:12px;line-height:1.6}
+.enhancement-hardware-warning p{margin:0 0 8px;white-space:pre-line}

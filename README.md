@@ -4,13 +4,13 @@ Windows x64용 타임라인 영상 편집기.
 
 ## 다운로드
 
-- **[1.13.0 설치형 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.13.0/SLU-Studio-Setup-1.13.0-x64.exe)**
-- **[1.13.0 포터블 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.13.0/SLU-Studio-1.13.0-Windows-x64.exe)**
-- [최신 릴리스](https://github.com/sssslu/sluVideoEditor/releases/latest) · [전체 사용설명서 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.13.0/SLU-Studio-1.13.0-guide.html) · [파일 해시](https://github.com/sssslu/sluVideoEditor/releases/download/v1.13.0/SHA256SUMS-1.13.0.txt)
+- **[1.14.0 설치형 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.14.0/SLU-Studio-Setup-1.14.0-x64.exe)**
+- **[1.14.0 포터블 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.14.0/SLU-Studio-1.14.0-Windows-x64.exe)**
+- [최신 릴리스](https://github.com/sssslu/sluVideoEditor/releases/latest) · [전체 사용설명서 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.14.0/SLU-Studio-1.14.0-guide.html) · [파일 해시](https://github.com/sssslu/sluVideoEditor/releases/download/v1.14.0/SHA256SUMS-1.14.0.txt)
 
 포터블은 실행할 때 내부 파일을 풀기 때문에 시작 시간이 더 걸릴 수 있습니다. 앱 상단의 이름 옆에서 실행 중인 버전을 확인할 수 있습니다.
 
-![SLU Studio 1.12 편집 화면](docs/assets/editor-1.12.png)
+![SLU Studio 1.14 편집 화면](docs/assets/editor-1.14.png)
 
 ## 처음 편집하기
 
@@ -26,9 +26,9 @@ Windows x64용 타임라인 영상 편집기.
 ## 기능
 
 - 다중 트랙 편집, 분할·트리밍, 속도 커브, 역재생, 정지 프레임, 키프레임 그래프
-- 전환, 크롭·마스크·크로마키, HSL·RGB 곡선·LUT, 색상 스코프
+- 전환, 크롭·마스크·크로마키, HSL·RGB 곡선·LUT
 - Whisper 자동 자막, 단어 강조, SRT/VTT 가져오기, Noto Sans KR·Gmarket Sans 글꼴
-- 오디오 볼륨·페이드·6밴드 EQ, 파형·레벨 표시
+- 오디오 볼륨·페이드·6밴드 EQ, 파형 표시
 - 인물 배경 제거, 객체 추적, 흔들림 보정, 선택형 2×·4× AI 화질 향상
 - GPU 미리보기, 지원되는 GPU 인코더 출력, 프로젝트 모아 저장·복구
 
@@ -36,11 +36,11 @@ AI 화질 향상은 NVIDIA/CUDA가 필요합니다. 1.11에서 RTX 4080 SUPER 16
 
 ## 문서와 검증 범위
 
-Windows 코드 서명이 없습니다. 대화식 설치 절차와 다른 PC의 호환성은 아직 검증하지 않았습니다. 1.13 검사는 이번에 바뀐 편집 기능(트랙, 속도, 합치기, 단축키, 무손실 오디오)과 기본 편집·출력·패키지 실행을 대상으로 했으며, AI 품질 측정은 1.11 기록입니다.
+Windows 코드 서명이 없습니다. 대화식 설치 절차와 다른 PC의 호환성은 아직 검증하지 않았습니다. 1.14에서는 미리보기 화면 정리, 영상 우클릭 AI 메뉴, 메모리 부족 차단과 이 PC의 실제 1080p AI 처리를 확인했습니다. 자연 영상의 AI 품질·속도 수치는 1.11 기록입니다.
 
 - [빠른 시작](docs/QUICKSTART.md)
-- [전체 사용설명서 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.13.0/SLU-Studio-1.13.0-guide.html)
-- [검사 조건과 제한](docs/검증결과.md) · [1.13 변경 사항](https://github.com/sssslu/sluVideoEditor/releases/tag/v1.13.0)
+- [전체 사용설명서 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.14.0/SLU-Studio-1.14.0-guide.html)
+- [검사 조건과 제한](docs/검증결과.md) · [1.14 변경 사항](https://github.com/sssslu/sluVideoEditor/releases/tag/v1.14.0)
 - [개발·빌드 안내](docs/DEVELOPMENT.md)
 
 앱 코드 라이선스는 GPL-3.0-or-later입니다. [라이선스](LICENSE) · [의존성 고지](resources/licenses)

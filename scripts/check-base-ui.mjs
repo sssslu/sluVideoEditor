@@ -11,7 +11,7 @@ export const baseUISuites = [
   'e2e', 'e2e-additional', 'editor-v2', 'editor-boundaries', 'speed-curve',
   'stabilization-ui', 'stabilization-fidelity-ui', 'reverse-ui', 'job-locks-ui',
   'transitions-ui', 'transition-jobs', 'source-revision/ipc', 'source-async',
-  'captions-ui', 'ipc-v2', 'color-ui', 'scopes-ui', 'audio-meter-ui', 'audio-eq-ui',
+  'captions-ui', 'ipc-v2', 'color-ui', 'audio-eq-ui',
   'eq-continuity-ui', 'media-clock-ui', 'freeze-frame-ui', 'media-alpha-ui', 'color-range-ui',
 ];
 const reportFiles = baseUISuites.map(name => `.test-artifacts/${name}/results.json`);

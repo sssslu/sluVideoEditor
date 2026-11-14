@@ -79,9 +79,8 @@ UI 자동 검사는 사용자 작업을 가리지 않도록 격리된 숨김 창
 
 - 실제 FFmpeg 출력 {len(color['render']['results'])}종의 최대 채널 오차 {max(item['max'] for item in color['render']['results'])}/255. 33³·65³ LUT, 입력 도메인, 강도 0·우회, 알파 보존을 포함합니다.
 - WebGL2·CPU 미리보기 {len(color['pixels']['details'])}개 비교에서 최대 채널 오차 {max(item['max'] for item in color['pixels']['details'])}/255. 실제 내보내기 창에서 만든 NVENC 영상 {color['ui']['exportPixels']['frames']}프레임의 기준 대비 평균 YUV 차이는 {color['ui']['exportPixels']['mean']:.4f}/255였습니다. 표본 결과이며 모든 영상의 오차 상한을 뜻하지 않습니다.
-- 색 보정 UI {len(color['ui']['checks'])}개와 스코프 UI {len(color['scopes']['checks'])}개 통과. 스코프는 히스토그램·파형·RGB 퍼레이드·벡터스코프를 지원하며 최대 320×180, 초당 8회, 작업 하나로 제한합니다. 정지 중 색 변경·빠른 탐색·프로젝트 교체의 오래된 결과 폐기·소스 화면 전환·실제 GPU 컨텍스트 소실 후 CPU 전환을 검사했습니다.
+- 색 보정 UI {len(color['ui']['checks'])}개 통과.
 
-스코프는 현재 합성 화면의 SDR 표본이며 전체 해상도/HDR 측정 도구가 아닙니다. HSL, Log/HDR 컬러 관리와 사용자 효과 체인은 미구현입니다. 프로젝트 형식 5는 LUT를 내장하며 이전 형식 1–4를 읽습니다. 이전 앱은 형식 5를 읽을 수 없습니다.
 
 ## 자막과 단어 시간
 

@@ -19,9 +19,10 @@ import {removePersonBackground} from './matting';
 import {MattingProcess} from './matting-process';
 import {enhanceMedia,validateEnhancementOptions} from './enhancement';
 import {EnhancementProcess} from './enhancement-process';
+import {checkEnhancementHardware,requireEnhancementHardware} from './enhancement-hardware';
 import {enhancementInstallState,installEnhancementRuntime,verifyEnhancementRuntime} from './enhancement-install';
 import {previewProxyPath} from '../shared/media-clock';
-import type {EnhancementOptions,PersonCutoutOptions,PreviewStatusEvent} from '../shared/types';
+import type {EnhancementOptions,EnhancementRequest,PersonCutoutOptions,PreviewStatusEvent} from '../shared/types';
 import {TrackingRegistry} from './tracking-registry';
 import type {TrackingOptions} from '../shared/tracking';
 import {probeVideoRange} from './video-range';
@@ -142,10 +143,6 @@ function startJob(type:JobType,task:(signal:AbortSignal,progress:(p:number,messa
   },80);
   return id;
 }
-async function enhancementDeviceSupported():Promise<boolean>{
-  try{return !!(await execute('nvidia-smi',['--query-gpu=name','--format=csv,noheader'],{windowsHide:true,timeout:10000})).stdout.trim();}
-  catch{return false;}
-}
 async function removeEnhancementDirectory(directory:string,root:string){
   const stat=await fs.lstat(directory).catch(()=>undefined);
   if(!stat||!stat.isDirectory()||stat.isSymbolicLink())return;
@@ -177,9 +174,14 @@ async function prepareEnhancedMedia(media:MediaAsset,options:EnhancementOptions,
   try{
     result=await enhanceMedia(media,options,{
       ...engine,cacheDir:directory,derivedDir,
-      createEnhancement:(config,signal,progress)=>EnhancementProcess.create({
-        ...config,...runtime,signal,progress,workerPath:path.join(enhancementResources,'seedvr_worker.py'),
-      }),
+      createEnhancement:async(config,signal,progress)=>{
+        const hardware=await requireEnhancementHardware(config);
+        signal?.throwIfAborted();
+        return EnhancementProcess.create({
+          ...config,...runtime,signal,progress,cudaDevice:hardware.gpuUuid,
+          workerPath:path.join(enhancementResources,'seedvr_worker.py'),
+        });
+      },
     },(p,m)=>progress(p*.95,m),signal);
     result=await createProxy(result,{...engine,cacheDir:directory},p=>progress(.95+.05*p,'결과 미리보기 준비 중'),signal);
     if(signal.aborted)throw new CancelledError();
@@ -264,16 +266,19 @@ async function getSystemInfo():Promise<SystemInfo>{
 async function chooseSave(defaultPath:string,extensions:string[]){if(!win)return null;const r=await dialog.showSaveDialog(win,{defaultPath,filters:[{name:extensions.join(', ').toUpperCase(),extensions}],properties:['createDirectory','showOverwriteConfirmation']});return r.canceled?null:r.filePath||null;}
 function setupIPC(){
   handler('system:info',getSystemInfo);
-  handler('enhancement:info',async()=>{
-    const [state,deviceSupported]=await Promise.all([enhancementInstallState(enhancementInstallation),enhancementDeviceSupported()]);
-    return {installed:state.installed,downloadBytes:state.downloadBytes,model:state.model,deviceSupported,...(!deviceSupported?{message:'AI 화질 향상에는 NVIDIA GPU와 CUDA 드라이버가 필요합니다.'}:{})};
+  handler('enhancement:info',async(request:EnhancementRequest={width:640,height:360,scale:2})=>{
+    const [state,hardware]=await Promise.all([enhancementInstallState(enhancementInstallation),checkEnhancementHardware(request)]);
+    return {installed:state.installed,downloadBytes:state.downloadBytes,model:state.model,...hardware};
   });
   handler('enhancement:install',async()=>({jobId:startJob('enhancement-install',async(signal,progress)=>{
+    await requireEnhancementHardware({width:1,height:1,scale:2});
+    signal.throwIfAborted();
     await installEnhancementRuntime(enhancementInstallation,progress,signal);return {message:'화질 향상 엔진 설치 완료'};
   })}));
   handler('media:enhance',async(media:MediaAsset,options:EnhancementOptions)=>{
     checkMedia(media);validateEnhancementOptions(options);
     const snapshot={...options};
+    await requireEnhancementHardware({width:media.width,height:media.height,scale:snapshot.scale});
     return {jobId:startJob('enhance',async(signal,progress)=>{
       const result=await prepareEnhancedMedia(media,snapshot,signal,progress);
       return {media:result,path:result.path,message:snapshot.preview?'비교 준비 완료':'AI 화질 향상 완료'};

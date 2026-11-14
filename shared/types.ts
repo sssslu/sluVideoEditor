@@ -67,7 +67,14 @@ export interface SpeechOptions {model?:SpeechModelId;device?:'auto'|'cpu'|'cuda'
 export interface StabilizationOptions {start?:number;duration?:number;smoothing?:number;accuracy?:number;shakiness?:number;crop?:'auto'|'black';zoom?:number}
 export interface PersonCutoutOptions {start:number;duration:number;device?:'auto'|'cpu'|'gpu';quality?:CutoutQuality}
 export interface EnhancementOptions {start:number;duration:number;scale:2|4;preview?:boolean}
-export interface EnhancementInfo {installed:boolean;downloadBytes:number;model:string;deviceSupported:boolean;message?:string}
+export interface EnhancementRequest {width:number;height:number;scale:2|4}
+export interface EnhancementHardware {
+  deviceSupported:boolean;canRun:boolean;message?:string;gpu?:string;gpuUuid?:string;
+  vramTotalBytes?:number;vramAvailableBytes?:number;vramBudgetBytes?:number;
+  ramTotalBytes?:number;ramAvailableBytes?:number;commitAvailableBytes?:number;
+  requiredVramBytes?:number;requiredRamBytes?:number;requiredCommitBytes?:number;
+}
+export interface EnhancementInfo extends EnhancementHardware {installed:boolean;downloadBytes:number;model:string}
 export interface ReverseOptions {start?:number;duration?:number}
 export interface ExportSettings { width:number; height:number; fps:number; format:'mov'|'mp4'|'webm'|'gif'|'wav'; codec:'h264'|'hevc'|'av1'; encoder:'auto'|'cpu'|'nvenc'|'qsv'|'amf'; quality:'draft'|'standard'|'high'; outputPath?:string; transitionProcessing?:'auto'|'cpu';
   /** Internal render of combined clips: transparent FFV1 video and 32-bit float PCM, no limiter. */
@@ -98,7 +105,7 @@ export interface StudioAPI {
   reverseMedia(media:MediaAsset,options:ReverseOptions):Promise<{jobId:string}>;
   combineClips(project:Project,clipIds:string[]):Promise<{jobId:string}>;
   removePersonBackground(media:MediaAsset,options:PersonCutoutOptions):Promise<{jobId:string}>;
-  enhancementInfo():Promise<EnhancementInfo>;
+  enhancementInfo(request?:EnhancementRequest):Promise<EnhancementInfo>;
   installEnhancementEngine():Promise<{jobId:string}>;
   enhanceMedia(media:MediaAsset,options:EnhancementOptions):Promise<{jobId:string}>;
   discardEnhancementPreview(mediaId:string):Promise<void>;

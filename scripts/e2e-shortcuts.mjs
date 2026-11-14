@@ -1,5 +1,5 @@
 // CapCut-style shortcuts (Ctrl+B, Q/W, ↑/↓, Ctrl+X, N, Ctrl+=/-, Shift+Z, Alt+G, Ctrl+E,
-// Ctrl+Shift+F, Ctrl+I, Ctrl+N) and removing gaps from the track context menu.
+// Ctrl+I, Ctrl+N) and removing gaps from the track context menu.
 import {launchTestElectron,electronTestArgs} from './e2e-launch.mjs';
 import {dismissToasts} from './e2e-toast-helper.mjs';
 import {promises as fs} from 'node:fs';
@@ -87,13 +87,9 @@ try{
   check('Alt+G combines and Alt+Shift+G restores',JSON.stringify(await waitLayout([[2,2,6],[4,2,0]]))==='[[2,2,6],[4,2,0]]',await layout());
   await dismissToasts(page);
 
-  // Ctrl+E, Ctrl+Shift+F, ?, Ctrl+I, Ctrl+N.
+  // Ctrl+E, ?, Ctrl+I, Ctrl+N.
   await focusProgram();await page.keyboard.press('Control+e');
   check('Ctrl+E opens export',await page.getByRole('dialog').getByText('내보내기',{exact:false}).first().isVisible(),null);await page.keyboard.press('Escape');
-  // A hidden test window cannot enter real full screen; record the request instead.
-  await page.evaluate(()=>{window.__fullscreen=[];Element.prototype.requestFullscreen=function(){window.__fullscreen.push(this.getAttribute('aria-label')||this.className);return Promise.resolve();};});
-  await page.keyboard.press('Control+Shift+F');await page.waitForTimeout(150);const full=await page.evaluate(()=>window.__fullscreen);
-  check('Ctrl+Shift+F asks for the player full screen',full.length===1,full);
   await page.keyboard.press('Shift+Slash');const shortcuts=await page.getByRole('dialog').innerText();
   check('the shortcut list shows the CapCut keys',['Ctrl + B','Q / W','Alt + G','↑ / ↓','Shift + Z','Ctrl + E'].every(key=>shortcuts.includes(key)),shortcuts.slice(0,200));await page.keyboard.press('Escape');
   await app.evaluate(({dialog})=>{globalThis.__importAsked=0;dialog.showOpenDialog=async()=>{globalThis.__importAsked++;return {canceled:true,filePaths:[]};};});
