@@ -70,10 +70,12 @@ def selected_files(package):
                 'electron/video-frame.ts', 'tests/stabilization-fidelity.test.ts', 'scripts/e2e-stabilization-fidelity.mjs',
                 'electron/reverse.ts', 'electron/reverse-frames.ts', 'tests/reverse.test.ts', 'scripts/e2e-reverse.mjs',
                 'scripts/benchmark-reverse-gpu.ts', 'scripts/measure-process-memory.ps1',
-                'shared/color.ts', 'shared/color-edits.ts',
-                'electron/render-color.ts', 'src/ColorGradeEditor.tsx',
-                'src/preview/color-grade.ts',
-                'tests/color.test.ts', 'scripts/e2e-color.mjs',
+                'shared/color.ts', 'shared/color-edits.ts', 
+                'electron/render-color.ts', 'src/ColorGradeEditor.tsx', 
+                'src/preview/color-grade.ts', 
+                'tests/color.test.ts', 'scripts/e2e-color.mjs', 
+                
+                
                 'scripts/benchmark-startup.mjs',
                 'shared/audio-eq.ts', 'src/AudioEQEditor.tsx', 'src/audio-eq.css', 'src/preview/audio-eq.ts',
                 'tests/audio-eq.test.ts', 'scripts/e2e-audio-eq.mjs',
