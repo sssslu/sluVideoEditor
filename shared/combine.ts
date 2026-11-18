@@ -1,8 +1,10 @@
 import type {Clip,MediaAsset,Project,Track,Transition} from './types';
-import type {MotionBinding} from './tracking';
 import {newClip,uid} from './project';
 import {audioTrackEnabled,visualTrackEnabled} from './effects';
 import {clipMediaIds} from './processing';
+import {walkClips} from './clip-tree';
+import {copyMotionBindings,motionSource} from './motion';
+import {resolveMotionSources} from './motion-sources';
 
 /** "합치기": selected clips are rendered into one transparent intermediate and replaced by a
  * single clip of it. The clip keeps the originals so "합치기 풀기" can put them back. */
@@ -15,6 +17,8 @@ export function planCombination(p:Project,ids:readonly string[]):CombinePlan {
   const wanted=new Set(ids),clips=p.clips.filter(c=>wanted.has(c.id));
   if(!clips.length)throw new Error('합칠 클립을 선택하세요.');
   if(clips.length>MAX_COMBINED_CLIPS)throw new Error(`한 번에 최대 ${MAX_COMBINED_CLIPS.toLocaleString()}개 클립까지 합칠 수 있습니다.`);
+  // Reserve the new compound's outer level before starting an expensive render.
+  const nested=walkClips(clips,1);while(!nested.next().done){/* Validate all selected branches. */}
   const tracks=new Map(p.tracks.map(t=>[t.id,t])),media=new Map(p.media.map(m=>[m.id,m]));
   if(clips.some(c=>tracks.get(c.trackId)?.locked))throw new Error('잠긴 트랙의 클립은 합칠 수 없습니다.');
   const visual=clips.some(c=>visualTrackEnabled(p,tracks.get(c.trackId))&&(c.text!==undefined||(!!c.mediaId&&media.get(c.mediaId)?.kind!=='audio')));
@@ -24,16 +28,23 @@ export function planCombination(p:Project,ids:readonly string[]):CombinePlan {
   return {ids:clips.map(c=>c.id),start,end,visual,audio};
 }
 
-const mapLinks=(binding:MotionBinding,map:(id:string|undefined)=>string|undefined):MotionBinding=>({...binding,sourceClipId:map(binding.sourceClipId),...(binding.segments?{segments:binding.segments.map(link=>({...link,sourceClipId:map(link.sourceClipId)}))}:{})});
+/** Snapshot external tracking sources before entering the compound's ID scope.
+ * Render inputs additionally move both source and follower clocks to zero. */
+function selectionClips(p:Project,wanted:ReadonlySet<string>,shift=0):Clip[]{
+  const lookup=new Map(p.clips.map(clip=>[clip.id,clip]));
+  return p.clips.filter(clip=>wanted.has(clip.id)).map(clip=>{
+    const result={...clip,start:clip.start+shift},binding=clip.motionBinding;if(!binding)return result;
+    const links=resolveMotionSources(p,binding,lookup).map(({sourceClipId,source})=>({sourceClipId:sourceClipId&&wanted.has(sourceClipId)?sourceClipId:undefined,source:{...motionSource(source as Clip),start:source.start+shift}}));
+    return {...result,motionBinding:{...binding,...links[0],segments:links.length>1?links.slice(1):undefined}};
+  });
+}
 
 /** The selected clips alone, starting at zero, as the render input. Track visibility, mute and
  * solo are baked in exactly as the user currently sees and hears them. */
 export function combinationProject(p:Project,ids:readonly string[]):Project {
   const plan=planCombination(p,ids),wanted=new Set(plan.ids);
-  const clips=p.clips.filter(c=>wanted.has(c.id)).map(c=>({...c,start:c.start-plan.start,
-    // A tracked overlay whose source clip stays outside follows its stored source snapshot.
-    ...(c.motionBinding?{motionBinding:mapLinks(c.motionBinding,id=>id&&wanted.has(id)?id:undefined)}:{})}));
-  const used=new Set(clips.map(c=>c.trackId)),media=new Set(clips.flatMap(clipMediaIds)),analyses=new Set(clips.flatMap(c=>c.motionBinding?[c.motionBinding.analysisId]:[]));
+  const clips=selectionClips(p,wanted,-plan.start);
+  const used=new Set(clips.map(c=>c.trackId)),media=new Set(clips.flatMap(clipMediaIds)),analyses=new Set([...walkClips(clips)].flatMap(c=>c.motionBinding?[c.motionBinding.analysisId]:[]));
   const tracks=p.tracks.filter(t=>used.has(t.id)).map(t=>({...t,locked:false,solo:undefined,hidden:t.type==='audio'?t.hidden:!visualTrackEnabled(p,t),muted:t.type==='text'?t.muted:!audioTrackEnabled(p,t)}));
   return {...p,media:p.media.filter(m=>media.has(m.id)),tracks,clips,transitions:(p.transitions||[]).filter(t=>wanted.has(t.fromClipId)&&wanted.has(t.toClipId)),markers:undefined,motionPaths:p.motionPaths?.filter(a=>analyses.has(a.id)),fileReferences:undefined};
 }
@@ -60,7 +71,7 @@ export function applyCombination(p:Project,plan:CombinePlan,rendered:readonly Cl
     tracks=[...p.tracks.slice(0,top+1),track,...p.tracks.slice(top+1)];
   }
   const span=plan.end-plan.start,duration=media.duration>0?Math.min(span,media.duration):span;
-  const clip:Clip={...newClip(track.id,media,plan.start),name:media.name,duration,compound:{derivedMediaId:media.id,start:plan.start,clips:structuredClone(live),tracks:p.tracks.filter(t=>live.some(c=>c.trackId===t.id)).map(t=>({...t})),transitions:(p.transitions||[]).filter(t=>wanted.has(t.fromClipId)&&wanted.has(t.toClipId)).map(t=>({...t}))}};
+  const clip:Clip={...newClip(track.id,media,plan.start),name:media.name,duration,compound:{derivedMediaId:media.id,start:plan.start,clips:structuredClone(selectionClips(p,wanted)),tracks:p.tracks.filter(t=>live.some(c=>c.trackId===t.id)).map(t=>({...t})),transitions:(p.transitions||[]).filter(t=>wanted.has(t.fromClipId)&&wanted.has(t.toClipId)).map(t=>({...t}))}};
   return {clip,project:{...p,tracks,media:p.media.some(m=>m.id===media.id)?p.media:[...p.media,media],clips:[...rest,clip],transitions:(p.transitions||[]).filter(t=>!wanted.has(t.fromClipId)&&!wanted.has(t.toClipId))}};
 }
 
@@ -75,7 +86,7 @@ export function uncombineClip(p:Project,clipId:string):{project:Project;ids:stri
   const shift=clip.start-compound.start-(clip.speedCurve?0:clip.in/clip.speed);
   const remaining=p.clips.filter(c=>c.id!==clip.id),taken=new Set(remaining.map(c=>c.id));
   const ids=new Map(compound.clips.map(c=>[c.id,taken.has(c.id)?uid():c.id]));
-  const restored=compound.clips.map(c=>{const copy:Clip={...structuredClone(c),id:ids.get(c.id)!,start:c.start+shift};if(copy.motionBinding)copy.motionBinding=mapLinks(copy.motionBinding,id=>id&&ids.has(id)?ids.get(id):id);return copy;});
+  const restored=copyMotionBindings({...p,clips:compound.clips},compound.clips.map(c=>({...structuredClone(c),id:ids.get(c.id)!,start:c.start+shift})),ids,shift);
   if(restored.some(c=>c.start<-1e-9||c.start+c.duration>86400))throw new Error('원래 클립을 놓을 타임라인 공간이 없습니다. 합친 클립을 옮긴 뒤 다시 시도하세요.');
   for(const c of restored)c.start=Math.max(0,c.start);
   let tracks=[...p.tracks],insert=tracks.findIndex(t=>t.id===clip.trackId)+1;

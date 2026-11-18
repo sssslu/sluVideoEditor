@@ -1,6 +1,26 @@
 import type {Clip,MediaAsset,Project,StabilizationOptions,SubtitleCue,PersonCutoutOptions} from './types';
 import {clipSourceSpan,clipSourceTime,clipTimelineTime} from './speed';
 import {assertCaptionWords} from './captions';
+import {mapClipTree} from './clip-tree';
+
+/** A replaced original can no longer restore the historical enhancement span.
+ * Retain the processed picture and later effects; never rewrite its provenance
+ * to claim that a shorter/different source produced those frames. */
+export function reconcileEnhancementSources(previous:Project,next:Project):{project:Project;detached:string[]}{
+  if(previous.media===next.media)return {project:next,detached:[]};
+  const old=new Map(previous.media.map(asset=>[asset.id,asset])),media=new Map(next.media.map(asset=>[asset.id,asset]));
+  const changed=new Set(next.media.filter(asset=>{const before=old.get(asset.id);return before&&(before.duration!==asset.duration||before.kind!==asset.kind||before.hasAlpha!==asset.hasAlpha);}).map(asset=>asset.id));
+  const detached:string[]=[];if(!changed.size)return {project:next,detached};
+  const clips=mapClipTree(next.clips,clip=>{
+    const state=clip.enhancement;if(!state)return clip;
+    const source=media.get(state.sourceMediaId),derived=media.get(state.derivedMediaId);
+    const invalidSource=changed.has(state.sourceMediaId)&&(!source||source.kind!=='video'||source.hasAlpha||state.sourceIn+state.sourceDuration>source.duration+.002);
+    const invalidDerived=changed.has(state.derivedMediaId)&&(!derived||derived.kind!=='video'||derived.hasAlpha);
+    if(!invalidSource&&!invalidDerived)return clip;
+    detached.push(clip.id);return {...clip,enhancement:undefined};
+  });
+  return {project:clips===next.clips?next:{...next,clips},detached};
+}
 
 export function clipMediaAvailable(clip:Clip,media:readonly MediaAsset[]):boolean {
   return clipMediaIds(clip).every(id=>media.some(asset=>asset.id===id));

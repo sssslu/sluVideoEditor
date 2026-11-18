@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import {promises as fs,utimesSync} from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
+import childProcess,{type ChildProcess} from 'node:child_process';
+import {syncBuiltinESMExports} from 'node:module';
 import {trackMedia,normalizeTrackingOptions,type TrackingContext,type TrackingSession} from '../electron/tracking';
-import {ObjectTracker} from '../electron/tracking-model';
 import {MotionFileReader,MotionSampleWriter,assembleMotionFile} from '../electron/tracking-file';
 import type {TrackingFrame,TrackingObservation} from '../electron/tracking-math';
 import {probeMedia,runProcess} from '../electron/media';
@@ -44,21 +45,36 @@ test('tracking validates anchors and rejects duplicate anchors on one held frame
   await assert.rejects(trackMedia(assets['missing-pts'],options,ctx),/정확한 표시 구간/);
 });
 
-test('tracking pairs every decoded barcode with its actual PTS, forwards and backwards across bounded windows',{timeout:180000},async()=>{
+test('tracking pairs every decoded barcode with its actual PTS, forwards and backwards across bounded windows',{timeout:180000},async t=>{
+  // Windows can reuse a finished decoder's PID before the many backward
+  // windows end. Observe the owned child handles, rather than an unrelated
+  // process that happens to receive the same numeric PID later.
+  const original=childProcess.spawn,owned:{child:ChildProcess;closed:boolean}[]=[];
+  childProcess.spawn=function(this:typeof childProcess,...args:any[]){
+    const child=Reflect.apply(original,this,args),entry={child,closed:false};owned.push(entry);
+    child.once('close',()=>{entry.closed=true;});return child;
+  } as typeof childProcess.spawn;syncBuiltinESMExports();
+  t.after(()=>{childProcess.spawn=original;syncBuiltinESMExports();});
+  const assertClosed=()=>{
+    assert.ok(owned.length>0,'The tracking pipeline must spawn real native children');
+    for(const {child,closed} of owned){
+      assert.ok(closed,`Owned native child ${child.pid} has not closed when tracking returns`);
+      assert.ok(child.exitCode!==null||child.signalCode!==null,`Owned native child ${child.pid} has not exited`);
+    }
+  };
   for(const name of ['base','shifted','mp4','mp4-shifted','vfr','sparse','hours','negative','fractional','late-video']){
     const media=assets[name],start=['sparse','fractional'].includes(name)?.137:name==='late-video'?.337:1.137,duration=name==='sparse'?5.731:name==='fractional'?1.131:1.731,anchorTime=name==='sparse'?4.137:start+.8;
     const info=await probe(media.path,['-show_streams','-show_format']),origin=media.timing!.origin,rawFrames=(await probe(media.path,['-select_streams','v:0','-show_frames','-show_entries','frame=best_effort_timestamp_time'])).frames as {best_effort_timestamp_time:string}[],pts=rawFrames.map(f=>Math.round(Number(f.best_effort_timestamp_time)*1e6));
     if(name==='negative'){assert.equal(origin,-2);assert.equal(pts[0],-2000000);}if(name==='fractional')assert.equal(info.streams[0].time_base,'1/30000');
     const raw=(await ff(['-i',media.path,'-map','0:v:0','-fps_mode','passthrough','-pix_fmt','bgr24','-f','rawvideo','pipe:1'])).stdout,stride=160*90*3,sourceCodes=pts.map((_,i)=>{let code=0;for(let bit=0;bit<8;bit++)if(raw[i*stride+(5*160+bit*20+10)*3]>128)code|=1<<bit;return code;});
     const at=Math.round((origin+start)*1e6),until=Math.round((origin+start+duration)*1e6),first=Math.max(0,pts.reduce((last,t,i)=>t<=at?i:last,-1)),indices=pts.flatMap((t,i)=>i>=first&&t<until?[i]:[]),expected=indices.map(i=>Math.max(start,pts[i]/1e6-origin));
-    const codes:number[]=[],events:Record<string,unknown>[]=[],pids=new Set<number>(),factory=async()=>mock(frame=>{let code=0;for(let bit=0;bit<8;bit++)if(frame.data[(5*160+bit*20+10)*3]>128)code|=1<<bit;codes.push(code);});
-    const result=await trackMedia(media,{start,duration,anchors:[{time:anchorTime,box}],device:'cpu'}, {...ctx,createTracker:factory,diagnostics:e=>{events.push(e);if(typeof e.pid==='number')pids.add(e.pid);}}),data=await readAll(result.path);
+    const codes:number[]=[],events:Record<string,unknown>[]=[],factory=async()=>mock(frame=>{let code=0;for(let bit=0;bit<8;bit++)if(frame.data[(5*160+bit*20+10)*3]>128)code|=1<<bit;codes.push(code);});
+    const result=await trackMedia(media,{start,duration,anchors:[{time:anchorTime,box}],device:'cpu'}, {...ctx,createTracker:factory,diagnostics:e=>events.push(e)});assertClosed();const data=await readAll(result.path);
     assert.equal(data.samples.length,expected.length,name+' frame count');for(let i=0;i<expected.length;i++)assert.ok(Math.abs(data.samples[i].time-expected[i])<.000002,name+' timestamp '+i);
     const anchor=pts.reduce((last,t,i)=>t<=Math.round((origin+anchorTime)*1e6)?i:last,0),anchorAt=indices.indexOf(anchor),expectedCodes=[...indices.slice(anchorAt).map(i=>sourceCodes[i]),...(anchorAt?[sourceCodes[anchor],...indices.slice(0,anchorAt).reverse().map(i=>sourceCodes[i])]:[])];
     assert.deepEqual(codes,expectedCodes,name+' decoder barcode sequence');assert.equal(data.samples.filter(s=>s.anchor).length,1);assert.ok(events.some(e=>e.event==='tracking-buffer'&&e.capacity===3));
-    for(const pid of pids)assert.throws(()=>process.kill(pid,0),{code:'ESRCH'});
-    const still=await trackingStill(media,anchorTime,1280,{...ctx,diagnostics:e=>{if(typeof e.pid==='number')pids.add(e.pid);}});let stillCode=0;for(let bit=0;bit<8;bit++)if(still.bgr[(5*160+bit*20+10)*3]>128)stillCode|=1<<bit;
-    assert.equal(stillCode,sourceCodes[anchor],name+' selected still barcode');assert.ok(Math.abs(still.time-(pts[anchor]/1e6-origin))<.000002);assert.equal(still.previousTime,anchor>0?pts[anchor-1]/1e6-origin:undefined);assert.equal(still.nextTime,pts[anchor+1]===undefined?undefined:pts[anchor+1]/1e6-origin);for(const pid of pids)assert.throws(()=>process.kill(pid,0),{code:'ESRCH'});
+    const still=await trackingStill(media,anchorTime,1280,ctx);assertClosed();let stillCode=0;for(let bit=0;bit<8;bit++)if(still.bgr[(5*160+bit*20+10)*3]>128)stillCode|=1<<bit;
+    assert.equal(stillCode,sourceCodes[anchor],name+' selected still barcode');assert.ok(Math.abs(still.time-(pts[anchor]/1e6-origin))<.000002);assert.equal(still.previousTime,anchor>0?pts[anchor-1]/1e6-origin:undefined);assert.equal(still.nextTime,pts[anchor+1]===undefined?undefined:pts[anchor+1]/1e6-origin);
     reports.push({name,frames:expected.length,times:expected,codes,origin,still:{time:still.time,previousTime:still.previousTime,nextTime:still.nextTime,code:stillCode}});assert.ok(info.streams.length);
   }
   await fs.writeFile(path.join(root,'clock-results.json'),JSON.stringify(reports,null,2));

@@ -13,12 +13,16 @@ const profile=path.join(root,`profile-${Date.now()}`),env={...process.env,SLU_US
 const app=await launchTestElectron({...(process.env.SLU_TEST_EXE?{executablePath:path.resolve(process.env.SLU_TEST_EXE),args:electronTestArgs(true)}:{args:electronTestArgs()}),env,timeout:90000});
 const page=await app.firstWindow(),errors=[],checks=[];let system;page.on('pageerror',e=>errors.push(String(e)));page.on('dialog',d=>d.accept());
 const recovery=path.join(profile,'recovery.sluproj');
-async function snapshot(predicate){let last;const begun=Date.now();while(Date.now()-begun<60000){try{last=JSON.parse(await fs.readFile(recovery,'utf8'));if(predicate(last))return last;}catch{}await new Promise(r=>setTimeout(r,100));}throw new Error(`Snapshot condition failed: ${JSON.stringify(last)?.slice(0,1400)}`);}
+const jobEvents=[];let jobEventCount=0,jobId,lastJob,lastSnapshot,nativeStartedAt,nativeElapsedSeconds;
+const compactProject=p=>p?{id:p.id,updatedAt:p.updatedAt,mediaCount:p.media?.length,clipCount:p.clips?.length,media:p.media?.slice(0,12).map(m=>({id:m.id,path:m.path,kind:m.kind,duration:m.duration})),clips:p.clips?.slice(0,12).map(c=>({id:c.id,mediaId:c.mediaId,trackId:c.trackId,start:c.start,in:c.in,duration:c.duration,speed:c.speed,stabilization:c.stabilization}))}:null;
+async function snapshot(predicate,timeoutMs=60000){let last;const begun=Date.now();while(Date.now()-begun<timeoutMs){try{last=JSON.parse(await fs.readFile(recovery,'utf8'));lastSnapshot=last;if(predicate(last))return last;}catch{}if(lastJob&&['error','cancelled'].includes(lastJob.status))throw new Error(`Stabilization job ${lastJob.status}: ${lastJob.message}`);await new Promise(r=>setTimeout(r,100));}throw new Error(`Snapshot condition failed after ${timeoutMs}ms: ${JSON.stringify({project:compactProject(last),lastJob}).slice(0,4000)}`);}
 async function open(file){await dismissToasts(page);await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},file);await page.keyboard.press('Control+o');await page.getByText('프로젝트를 열었습니다.',{exact:true}).waitFor();}
 async function numeric(name,value){const el=page.getByLabel(name,{exact:true});await el.fill(String(value));await el.press('Enter');}
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} != ${b}`);
 try{
   await page.getByRole('button',{name:'가져오기',exact:true}).first().waitFor();
+  await page.exposeFunction('__sluStabilizationJob',event=>{if(event.type!=='stabilize')return;jobId??=event.id;if(event.id!==jobId)return;lastJob={id:event.id,status:event.status,progress:event.progress,message:String(event.message||'').slice(0,500),elapsedSeconds:nativeStartedAt===undefined?null:(Date.now()-nativeStartedAt)/1000};jobEventCount++;jobEvents.push(lastJob);if(jobEvents.length>64)jobEvents.shift();});
+  await page.evaluate(()=>{window.__sluStopStabilizationJob=window.studio.onJob(event=>{if(event.type==='stabilize')void window.__sluStabilizationJob(event).catch(()=>{});});});
   system=await page.evaluate(()=>window.studio.getSystemInfo());assert.equal(system.version,JSON.parse(await fs.readFile('package.json','utf8')).version);
   
   assert.equal(await page.evaluate(()=>Object.hasOwn(window.studio,'downloadVideo')),false);
@@ -31,8 +35,10 @@ try{
   await page.locator('[data-clip-id="stabilization-clip"]').click();
   await page.locator('.inspector').getByRole('button',{name:'미디어',exact:true}).click();
   await page.getByRole('button',{name:'흔들림 보정',exact:true}).click();await page.getByRole('dialog',{name:'흔들림 보정'}).waitFor();
-  await page.getByLabel('보정 부드러움',{exact:true}).fill('15');await page.getByRole('button',{name:'분석 후 적용',exact:true}).click();
-  let p=await snapshot(p=>p.clips[0].stabilization&&p.media.length===2),corrected=p.clips[0],derived=p.media.find(m=>m.id===corrected.mediaId);
+  await page.getByLabel('보정 부드러움',{exact:true}).fill('15');nativeStartedAt=Date.now();await page.getByRole('button',{name:'분석 후 적용',exact:true}).click();
+  // Native processing shares this PC with other apps; keep ordinary edit waits at 60s.
+  let p=await snapshot(p=>p.clips[0].stabilization&&p.media.length===2,240000),corrected=p.clips[0],derived=p.media.find(m=>m.id===corrected.mediaId);
+  nativeElapsedSeconds=(Date.now()-nativeStartedAt)/1000;
   assert.equal(corrected.stabilization.sourceMediaId,asset.id);near(corrected.stabilization.sourceIn,source.in);near(corrected.in,0);
   for(const key of ['start','duration','speed','x','y','scale','rotation','fadeIn','fadeOut','speedCurve'])assert.deepEqual(corrected[key],source[key]);
   assert.ok(derived.path.toLowerCase().startsWith(path.join(profile,'media-derived').toLowerCase()));assert.ok(!derived.path.toLowerCase().startsWith(path.join(profile,'cache').toLowerCase()));
@@ -56,5 +62,5 @@ try{
   await page.keyboard.press('Control+z');await snapshot(p=>p.media.some(m=>m.id===asset.id));await page.keyboard.press('Control+v');
   p=await snapshot(p=>p.clips.length===1);assert.equal(p.clips[0].stabilization.sourceMediaId,asset.id);checks.push('Clipboard refuses a removed original reference and pastes after undo restores the asset');
   await captureElectron(app,{path:path.join(root,'stabilization.png')});assert.deepEqual(errors,[]);
-  await fs.writeFile(path.join(root,'results.json'),JSON.stringify({date:new Date().toISOString(),version:system.version,executable:process.env.SLU_TEST_EXE?path.resolve(process.env.SLU_TEST_EXE):null,checks,errors,profile,source:asset.path,derived:derived.path,frame},null,2));console.log(JSON.stringify({checks,errors}));
-}catch(error){await captureElectron(app,{path:path.join(root,'failure.png')}).catch(()=>{});console.error(await page.locator('body').innerText());throw error;}finally{await app.close();}
+  await fs.writeFile(path.join(root,'results.json'),JSON.stringify({date:new Date().toISOString(),version:system.version,executable:process.env.SLU_TEST_EXE?path.resolve(process.env.SLU_TEST_EXE):null,checks,errors,profile,source:asset.path,derived:derived.path,frame,nativeElapsedSeconds,nativeElapsedScope:'UI apply to recovered project observation under shared PC load; not a performance benchmark'},null,2));console.log(JSON.stringify({checks,errors}));
+}catch(error){const diagnostic=path.join(root,`failure-${Date.now()}-${process.pid}.json`);await fs.writeFile(diagnostic,JSON.stringify({date:new Date().toISOString(),profile,error:error instanceof Error?error.stack:String(error),nativeElapsedSeconds:nativeElapsedSeconds??(nativeStartedAt===undefined?null:(Date.now()-nativeStartedAt)/1000),project:compactProject(lastSnapshot),jobEventCount,jobEvents},null,2),{flag:'wx'}).catch(()=>{});await captureElectron(app,{path:path.join(root,'failure.png')}).catch(()=>{});console.error(await page.locator('body').innerText());throw error;}finally{await page.evaluate(()=>window.__sluStopStabilizationJob?.()).catch(()=>{});await app.close();}

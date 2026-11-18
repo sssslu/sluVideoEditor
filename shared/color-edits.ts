@@ -1,5 +1,6 @@
 import type {Clip,ColorGrade,ColorLut,Project} from './types';
 import {assertColorGrade,assertColorLut,MAX_PROJECT_LUT_VALUES} from './color';
+import {walkClips} from './clip-tree';
 export function patchColorGrades(project:Project,ids:ReadonlySet<string>,patch:Partial<ColorGrade>|null):Project {
   const clips=project.clips.map(clip=>{
     if(!ids.has(clip.id)||clip.text!==undefined||project.tracks.find(t=>t.id===clip.trackId)?.locked||project.tracks.find(t=>t.id===clip.trackId)?.type!=='video'||project.media.find(m=>m.id===clip.mediaId)?.kind==='audio')return clip;
@@ -18,7 +19,7 @@ export function addColorLut(project:Project,lut:ColorLut):Project {
 }
 /** Clipboard snapshots retain embedded LUTs even after unused-library cleanup or undo. */
 export function restoreColorLuts(project:Project,clips:Clip[],available:ColorLut[]):Project {
-  let next=project;const required=new Set(clips.flatMap(c=>c.colorGrade?.lutId?[c.colorGrade.lutId]:[]));
+  let next=project;const required=new Set([...walkClips(clips)].flatMap(c=>c.colorGrade?.lutId?[c.colorGrade.lutId]:[]));
   for(const id of required){const lut=available.find(l=>l.id===id);if(lut)next=addColorLut(next,lut);else if(!next.colorLuts?.some(l=>l.id===id))throw new Error('복사한 클립의 LUT 데이터가 없습니다.');}
   return next;
 }

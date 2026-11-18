@@ -4,7 +4,7 @@ import {promises as fs} from 'node:fs';
 import path from 'node:path';
 import {newClip,newProject,splitClip,projectDuration} from '../shared/project';
 import {clipTimelineTime,clipSourceSpan,clipSourceTime} from '../shared/speed';
-import {clipSourceOffset,clipSpeedAt} from '../shared/speed';
+import {clipSourceOffset} from '../shared/speed';
 import {createHash} from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {probeMedia,renderProject,runProcess,type EngineContext} from '../electron/media';

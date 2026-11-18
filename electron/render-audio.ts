@@ -51,7 +51,7 @@ export class TimelineAudioMixer {
   private transitionPlan:TransitionPlan;
   private cursor=0;private previousEnd=0;
   peakActiveSources=0;
-  constructor(private project:Project,private ffmpeg:string,private signal:AbortSignal,private diagnostic?:(event:AudioDiagnostic)=>void,private audioStretch=path.join(path.dirname(ffmpeg),'slu-audio-stretch.exe'),transitionPlan?:TransitionPlan){
+  constructor(project:Project,private ffmpeg:string,private signal:AbortSignal,private diagnostic?:(event:AudioDiagnostic)=>void,private audioStretch=path.join(path.dirname(ffmpeg),'slu-audio-stretch.exe'),transitionPlan?:TransitionPlan){
     const tracks=new Map(project.tracks.map(t=>[t.id,t])),media=new Map(project.media.map(m=>[m.id,m]));
     this.transitionPlan=transitionPlan||compileTransitions(project);
     const audible=project.clips.filter(c=>c.text===undefined&&c.volume>0&&media.get(c.mediaId||'')?.hasAudio&&audioTrackEnabled(project,tracks.get(c.trackId)));
@@ -68,7 +68,7 @@ export class TimelineAudioMixer {
     while(this.cursor<this.clips.length&&this.clips[this.cursor].start<end){const item=this.clips[this.cursor++];if(item.end<=start)continue;this.sources.set(item.clip.id,{item,eq:new AudioEQProcessor(item.clip.audioEQ,RATE,CHANNELS),source:item.clip.speedCurve?new CurveAudioSource(this.ffmpeg,this.audioStretch,item.clip,item.media,this.signal,this.diagnostic,item.range):new AudioSource(this.ffmpeg,item.clip,item.media,this.signal,this.diagnostic,item.range)});}
     this.peakActiveSources=Math.max(this.peakActiveSources,this.sources.size);
     for(const {item,source,eq} of this.sources.values()){
-      const {clip,media}=item,begin=Math.max(start,item.start),finish=Math.min(end,item.end),count=finish-begin;
+      const {clip}=item,begin=Math.max(start,item.start),finish=Math.min(end,item.end),count=finish-begin;
       const localStart=begin-item.start;
       if(source.position>localStart)throw new Error('오디오 구간 순서가 올바르지 않습니다.');
       // Sequential exports normally require no skip. This also supports a

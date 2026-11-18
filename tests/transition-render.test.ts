@@ -5,7 +5,7 @@ import path from 'node:path';
 import {newClip,newProject,projectDuration} from '../shared/project';
 import {compileTransitions} from '../shared/transitions';
 import {probeMedia,renderProjectDirect,runProcess,type EngineContext} from '../electron/media';
-import type {ExportSettings,Transition} from '../shared/types';
+import type {ExportSettings} from '../shared/types';
 
 const root=path.resolve('.test-artifacts/transitions/render'),width=160,height=90,bytes=width*height*1.5;
 const ctx:EngineContext={ffmpeg:path.resolve('resources/bin/ffmpeg.exe'),ffprobe:path.resolve('resources/bin/ffprobe.exe'),cacheDir:path.join(root,'cache'),gpuProcessing:false};

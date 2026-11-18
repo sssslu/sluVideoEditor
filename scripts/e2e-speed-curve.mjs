@@ -32,6 +32,19 @@ try{
   // displayed point before recording the state that redo must restore.
   const displayed=await point.evaluate(circle=>({position:(circle.cx.baseVal.value-30)/222,speed:Number(document.querySelector('input[aria-label="제어점 속도"]').value)}));
   p=await snapshot(p=>Math.abs(p.clips[0].speedCurve?.[1].position-displayed.position)<1e-6&&p.clips[0].speedCurve?.[1].speed===displayed.speed);assert.notEqual(p.clips[0].speedCurve[1].position,beforeDrag.speedCurve[1].position);near(span(p.clips[0]),12);const afterDrag=structuredClone(p.clips[0]);await page.keyboard.press('Control+z');await snapshot(p=>Math.abs(p.clips[0].speedCurve?.[1].position-.7)<1e-8&&p.clips[0].speedCurve?.[1].speed===4);await page.keyboard.press('Control+Shift+z');await snapshot(p=>Math.abs(p.clips[0].duration-afterDrag.duration)<1e-8);checks.push('Pointer graph edits form one undoable operation');
+  // History or Escape while the pointer remains down must end the gesture.
+  const curveNow=()=>page.evaluate(()=>document.querySelector('.preview-gpu-stage').previewRuntime.project.clips[0].speedCurve);
+  const waitCurve=curve=>page.waitForFunction(curve=>JSON.stringify(document.querySelector('.preview-gpu-stage').previewRuntime.project.clips[0].speedCurve)===JSON.stringify(curve),curve);
+  for(const cancelKey of ['Control+z','Escape']){
+    const before=await curveNow(),handle=page.locator('[data-speed-point="1"]');await handle.scrollIntoViewIfNeeded();await handle.focus();const rect=await handle.boundingBox();
+    await page.mouse.move(rect.x+rect.width/2,rect.y+rect.height/2);await page.mouse.down();await page.mouse.move(rect.x+rect.width/2-12,rect.y+rect.height/2+10,{steps:4});
+    await page.waitForFunction(before=>JSON.stringify(document.querySelector('.preview-gpu-stage').previewRuntime.project.clips[0].speedCurve)!==JSON.stringify(before),before);
+    await page.keyboard.press(cancelKey);if(cancelKey==='Control+z')await waitCurve(before);
+    const cancelled=await curveNow();await page.mouse.move(rect.x+rect.width/2+18,rect.y+rect.height/2+24,{steps:4});await page.mouse.up();
+    assert.deepEqual(await curveNow(),cancelled,`${cancelKey} leaves no stale drag listener`);
+    if(cancelKey==='Escape'){await page.keyboard.press('Control+z');await waitCurve(before);await page.locator(`[data-clip-id="${id}"]`).click();await openSpeedCurve();}
+  }
+  checks.push('Undo and Escape cancel active speed-curve drags before later pointer movement');
   await page.locator('[data-speed-point="1"]').focus();await page.keyboard.press('Delete');p=await snapshot(p=>p.clips.length===1&&p.clips[0].speedCurve?.length===2);near(span(p.clips[0]),12);await page.keyboard.press('Control+z');await snapshot(p=>p.clips[0].speedCurve?.length===3);checks.push('Deleting a point does not delete its timeline clip');
   await page.getByTitle('속도 커브 해제',{exact:true}).click();p=await snapshot(p=>!p.clips[0].speedCurve);near(p.clips[0].duration,12);near(p.clips[0].speed,1);await page.keyboard.press('Control+z');await snapshot(p=>p.clips[0].speedCurve?.length===3);checks.push('Curve removal restores constant speed without losing source range');
   await page.getByLabel('속도 프리셋',{exact:true}).selectOption('점차 가속');p=await snapshot(p=>p.clips[0].speedCurve?.length===2&&Math.abs(p.clips[0].duration-9.6)<1e-8);await seek(2);await decoder(1.3125);checks.push('Paused preview seeks to source1.3125s at timeline2s');

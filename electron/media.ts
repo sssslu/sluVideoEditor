@@ -5,13 +5,13 @@ import {setMaxListeners} from 'node:events';
 import { createHash, randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import type { Clip, ExportSettings, Keyframe, MediaAsset, Project } from '../shared/types';
+import type { Clip, ExportSettings, MediaAsset, Project } from '../shared/types';
 import { clipEnvelope, interpolate, projectDuration } from '../shared/project';
 import {audioTrackEnabled,visualTrackEnabled,ease,clipCrop} from '../shared/effects';
 import {assertProject} from '../shared/validation';
 import {RawStreamBridge} from './render-stream';
 import {TimelineAudioMixer,AUDIO_RATE,HIGH_QUALITY_RESAMPLER} from './render-audio';
-import {planRenderWindows,type RenderWindow} from './render-plan';
+import {planRenderWindows} from './render-plan';
 import {assertOutputNotSource} from './file-policy';
 import {replaceWithRetry} from './project-store';
 import {clipSourceSpan,clipSourceTime,clipTimelineTime,MIN_SPEED,MAX_SPEED} from '../shared/speed';
@@ -31,6 +31,8 @@ import {videoHasAlpha,videoDecoderArgs} from './video-input';
 import {alphaSpatialFilters,alphaPremultiply,alphaUnpremultiply} from './alpha-filters';
 import {previewProxyPath} from '../shared/media-clock';
 import {proxyCacheKey,hasLegacyProxyTiming} from './proxy-cache';
+import {CancelledError,ProbeCache} from './probe-cache';
+export {CancelledError} from './probe-cache';
 
 /** Export audio is lossless wherever the container allows it: 24-bit PCM in MOV and WAV,
  * 24-bit FLAC in MP4. WebM can only carry Opus, so it gets Opus's highest bitrate. */
@@ -55,7 +57,6 @@ const audibleClips=(project:Project)=>project.clips.some(c=>c.text===undefined&&
 export interface EngineContext { ffmpeg:string; ffprobe:string; cacheDir:string; workDir?:string; maxWindowSeconds?:number; gpuProcessing?:boolean; audioStretch?:string; captionRasterFactory?:CaptionRasterFactory; diagnostics?:(event:Record<string,unknown>)=>void }
 export type ProgressCallback = (progress:number, message?:string) => void;
 export interface ProcessOptions { signal?:AbortSignal; cwd?:string; env?:NodeJS.ProcessEnv; timeoutMs?:number; onStdout?:(data:Buffer)=>void; onStderr?:(data:string)=>void; captureStdout?:boolean; maxOutputBytes?:number; onSpawn?:(pid:number)=>void }
-export class CancelledError extends Error { constructor(){super('작업을 취소했습니다.');this.name='AbortError';} }
 
 /** Runs binaries directly, never through a command shell. Child windows remain hidden. */
 export function runProcess(executable:string,args:string[],options:ProcessOptions={}):Promise<{stdout:Buffer;stderr:string}> {
@@ -117,10 +118,17 @@ export async function probeMedia(file:string,ctx:EngineContext,signal?:AbortSign
   const unchanged=async()=>{if(signal?.aborted)throw new CancelledError();if(await readSourceRevision(file)!==sourceRevision)throw new Error('미디어를 읽는 중 원본 파일이 변경되었습니다. 다시 가져와 주세요.');};
   const key=createHash('sha256').update(`media-source-v5|${sourceRevision}`).digest('hex').slice(0,28);
   const cache=path.join(ctx.cacheDir,`${key}.json`);
-  try{const saved=JSON.parse(await fs.readFile(cache,'utf8')) as MediaAsset;const thumbnailReady=saved.thumbnail?saved.thumbnail.endsWith(THUMBNAIL_SUFFIX)&&await exists(saved.thumbnail):options.derivatives===false||saved.kind==='audio';if(saved.path===file&&saved.sourceRevision===sourceRevision&&thumbnailReady){if(saved.kind==='video'){const range=await cachedVideoRange(file,ctx,signal);if(range)Object.assign(saved,range,{duration:Math.max(saved.duration,range.videoEnd)});}await unchanged();return saved;}}catch(error){if(isAbort(error))throw error;}
+  try{
+    const saved=JSON.parse(await fs.readFile(cache,'utf8')) as MediaAsset;
+    const selectionReady=saved.kind!=='video'||(Number.isSafeInteger(saved.videoStreamOrdinal)&&saved.videoStreamOrdinal!>=0);
+    const thumbnailReady=saved.thumbnail?saved.thumbnail.endsWith(THUMBNAIL_SUFFIX)&&await exists(saved.thumbnail):options.derivatives===false||saved.kind==='audio';
+    const waveformReady=options.derivatives===false||!saved.hasAudio||!!saved.waveform?.length;
+    if(saved.path===file&&saved.sourceRevision===sourceRevision&&selectionReady&&thumbnailReady&&waveformReady){if(saved.kind==='video'){const range=await cachedVideoRange(file,ctx,signal);if(range)Object.assign(saved,range,{duration:Math.max(saved.duration,range.videoEnd)});}await unchanged();return saved;}
+  }catch(error){if(isAbort(error))throw error;}
   const result=await runProcess(ctx.ffprobe,['-v','error','-protocol_whitelist','file,pipe','-show_format','-show_streams','-of','json',file],{signal,timeoutMs:60000});
   const info=JSON.parse(result.stdout.toString());
   const video=info.streams?.find((s:any)=>s.codec_type==='video'&&!s.disposition?.attached_pic);
+  const videoStreamOrdinal=video?info.streams.filter((s:any)=>s.codec_type==='video').indexOf(video):undefined;
   const audio=info.streams?.find((s:any)=>s.codec_type==='audio');
   if(!video&&!audio)throw new Error('지원하는 영상 또는 오디오 스트림이 없습니다.');
   const isImage=Boolean(video)&&imageExtensions.has(path.extname(file).toLowerCase());
@@ -128,19 +136,19 @@ export async function probeMedia(file:string,ctx:EngineContext,signal?:AbortSign
   const rotation=number(video?.side_data_list?.find((s:any)=>s.rotation!==undefined)?.rotation??video?.tags?.rotate);
   const swap=Math.abs(rotation)%180===90;
   const clock=mediaTimingFromProbe(info);
-  const media:MediaAsset={id:randomUUID(),path:file,sourceRevision,name:path.basename(file),kind:isImage?'image':video?'video':'audio',duration:isImage?5:clock.duration,timing:clock.timing,width:number(swap?video?.height:video?.width),height:number(swap?video?.width:video?.height),fps:isImage?0:(rate[1]?rate[0]/rate[1]:0),hasAudio:!!audio,hasAlpha:videoHasAlpha(video),codec:video?.codec_name||audio?.codec_name};
+  const media:MediaAsset={id:randomUUID(),path:file,sourceRevision,name:path.basename(file),kind:isImage?'image':video?'video':'audio',duration:isImage?5:clock.duration,timing:clock.timing,width:number(swap?video?.height:video?.width),height:number(swap?video?.width:video?.height),fps:isImage?0:(rate[1]?rate[0]/rate[1]:0),hasAudio:!!audio,hasAlpha:videoHasAlpha(video),codec:video?.codec_name||audio?.codec_name,...(video?{videoStreamOrdinal}:{})};
   if(media.kind==='video'){const range=await probeVideoRange(file,ctx,signal,{probe:info,allowScan:false});if(range)Object.assign(media,range,{duration:Math.max(media.duration,range.videoEnd)});}
   if(!isImage&&media.duration<=0)throw new Error('파일의 재생 시간을 확인할 수 없습니다.');
   if(options.derivatives===false){await unchanged();return media;}
   const derivatives:Promise<unknown>[]=[];
   if(video){
-    const thumb=path.join(ctx.cacheDir,`${key}${THUMBNAIL_SUFFIX}`);
+    const thumb=path.join(ctx.cacheDir,`${key}${videoStreamOrdinal?`-video-stream-${videoStreamOrdinal}`:''}${THUMBNAIL_SUFFIX}`);
     const color=previewVideoColor(video),conversion=!isImage&&!/^(?:gbr|rgb|bgr|argb|abgr|rgba|bgra)/.test(video.pix_fmt||'')?`${previewColorPrefix(video)}scale=iw:ih:flags=bilinear+full_chroma_int+accurate_rnd:in_color_matrix=${color.matrix}:in_range=${color.range}:out_range=pc,`:'';
     // Decode video color before resizing, then mark the resulting RGB as sRGB.
     // Copying a video's BT709 transfer tag into PNG changes its displayed gamma.
     const sizing=['scale=320:180:force_original_aspect_ratio=decrease:flags=bilinear+accurate_rnd'];
     const thumbnailFilters=media.hasAlpha?alphaSpatialFilters(sizing):['format=gbrap',...sizing,'format=rgba'];
-    derivatives.push(runProcess(ctx.ffmpeg,['-hide_banner','-loglevel','error','-nostdin','-y',...(!isImage?['-ss',dec(Math.min(.25,media.duration/4))]:[]),...videoDecoderArgs(video),'-protocol_whitelist','file,pipe','-i',file,'-map','0:v:0','-frames:v','1','-vf',`${conversion}${thumbnailFilters.join(',')},setparams=range=full:color_primaries=bt709:color_trc=iec61966-2-1:colorspace=gbr`,'-pix_fmt','rgba','-threads','1',thumb],{signal,timeoutMs:60000}).then(()=>{media.thumbnail=thumb;}));
+    derivatives.push(runProcess(ctx.ffmpeg,['-hide_banner','-loglevel','error','-nostdin','-y',...(!isImage?['-ss',dec(Math.min(.25,media.duration/4))]:[]),...videoDecoderArgs(video),'-protocol_whitelist','file,pipe','-i',file,'-map','0:V:0','-frames:v','1','-vf',`${conversion}${thumbnailFilters.join(',')},setparams=range=full:color_primaries=bt709:color_trc=iec61966-2-1:colorspace=gbr`,'-pix_fmt','rgba','-threads','1',thumb],{signal,timeoutMs:60000}).then(()=>{media.thumbnail=thumb;}));
   }
   if(audio)derivatives.push(waveform(file,media.duration,ctx,signal).then(v=>{media.waveform=v;}));
   const completed=await Promise.allSettled(derivatives);
@@ -153,14 +161,12 @@ export async function probeMedia(file:string,ctx:EngineContext,signal?:AbortSign
 }
 
 export async function enrichMedia(asset:MediaAsset,ctx:EngineContext,signal?:AbortSignal):Promise<MediaAsset>{
-  const enriched=await probeMedia(asset.path,ctx,signal),same=asset.sourceRevision===enriched.sourceRevision,proxy=hasLegacyProxyTiming(asset)?undefined:previewProxyPath({...asset,hasAlpha:enriched.hasAlpha});return {...enriched,id:asset.id,name:same?asset.name:enriched.name,...(proxy&&same?{proxyPath:proxy}:{})};
+  const enriched=await probeMedia(asset.path,ctx,signal),same=asset.sourceRevision===enriched.sourceRevision,updated={...asset,hasAlpha:enriched.hasAlpha,videoStreamOrdinal:enriched.videoStreamOrdinal},proxy=hasLegacyProxyTiming(updated)?undefined:previewProxyPath(updated);return {...enriched,id:asset.id,name:same?asset.name:enriched.name,...(proxy&&same?{proxyPath:proxy}:{})};
 }
 
-const encoderCache=new Map<string,Promise<string[]>>();
+const encoderCache=new ProbeCache<string[]>();
 export async function detectEncoders(ctx:EngineContext,signal?:AbortSignal):Promise<string[]> {
-  if(signal?.aborted)throw new CancelledError();
-  const previous=encoderCache.get(ctx.ffmpeg);if(previous)return previous;
-  const work=(async()=>{
+  return encoderCache.get(ctx.ffmpeg,async signal=>{
     const list=await runProcess(ctx.ffmpeg,['-hide_banner','-encoders'],{signal,timeoutMs:20000});
     const available=list.stdout.toString()+list.stderr;
     const software=['libx264','libx265','libsvtav1','libvpx-vp9'].filter(e=>new RegExp(`\\b${e}\\b`).test(available));
@@ -170,8 +176,7 @@ export async function detectEncoders(ctx:EngineContext,signal?:AbortSignal):Prom
       try{await runProcess(ctx.ffmpeg,['-hide_banner','-loglevel','error','-nostdin','-f','lavfi','-i','color=c=black:s=640x360:r=30','-frames:v','2','-an','-c:v',encoder,'-f','null','-'],{signal,timeoutMs:12000});software.push(encoder);}catch(error){if(isAbort(error))throw error;}
     }
     return software;
-  })();
-  encoderCache.set(ctx.ffmpeg,work);work.catch(()=>encoderCache.delete(ctx.ffmpeg));return work;
+  },signal);
 }
 
 async function ffmpegProgress(ctx:EngineContext,args:string[],duration:number,cwd:string|undefined,onProgress:ProgressCallback|undefined,signal?:AbortSignal){
@@ -195,7 +200,7 @@ export async function createProxy(asset:MediaAsset,ctx:EngineContext,onProgress?
     // The encoder's default time base follows nominal FPS and can round VFR
     // frames onto a different clock. Keep every presentation timestamp, with
     // microsecond precision until the container's own time-base conversion.
-    const video=await sourceVideoInfo(asset,ctx,signal),resize="scale=w='min(1280,iw)':h='min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2",input=[...videoDecoderArgs(video),'-protocol_whitelist','file,pipe','-i',asset.path,'-map','0:v:0','-map','0:a:0?','-fps_mode:v','passthrough','-enc_time_base:v','1:1000000'];
+    const video=await sourceVideoInfo(asset,ctx,signal),resize="scale=w='min(1280,iw)':h='min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2",input=[...videoDecoderArgs(video),'-protocol_whitelist','file,pipe','-i',asset.path,'-map','0:V:0','-map','0:a:0?','-fps_mode:v','passthrough','-enc_time_base:v','1:1000000'];
     if(alpha){
       // H264/NVENC cannot retain an alpha plane. Transparent previews use
       // VP9+Opus in WebM; normal opaque proxies retain hardware H264 encoding.
@@ -423,13 +428,13 @@ export async function canUseNativeBase(clip:Clip|undefined,media:MediaAsset|unde
   }catch(error){if(isAbort(error))throw error;return false;}
 }
 
-const cudaAssets=new Map<string,Promise<boolean>>();
-const videoInfoCache=new Map<string,Promise<VideoColorInfo|undefined>>();
+const cudaAssets=new ProbeCache<boolean>();
+const videoInfoCache=new ProbeCache<VideoColorInfo|undefined>();
 async function sourceVideoInfo(media:MediaAsset,ctx:EngineContext,signal?:AbortSignal):Promise<VideoColorInfo|undefined>{
-  const stat=await fs.stat(media.path),key=`${ctx.ffprobe}|${sourceRevisionFromStat(media.path,stat)}`,cached=videoInfoCache.get(key);if(cached)return cached;
-  const pending=(async()=>{
-    return JSON.parse((await runProcess(ctx.ffprobe,['-v','error','-protocol_whitelist','file,pipe','-select_streams','v:0','-show_entries','stream=codec_name,width,height,pix_fmt,color_space,color_primaries,color_transfer,color_range:stream_side_data=rotation:stream_tags=rotate,alpha_mode,ALPHA_MODE','-of','json',media.path],{signal,timeoutMs:20000})).stdout.toString()).streams?.[0] as VideoColorInfo|undefined;
-  })();if(videoInfoCache.size>256)videoInfoCache.delete(videoInfoCache.keys().next().value!);videoInfoCache.set(key,pending);pending.catch(()=>videoInfoCache.delete(key));return pending;
+  const stat=await fs.stat(media.path),key=`${ctx.ffprobe}|${sourceRevisionFromStat(media.path,stat)}`;
+  return videoInfoCache.get(key,async signal=>{
+    return JSON.parse((await runProcess(ctx.ffprobe,['-v','error','-protocol_whitelist','file,pipe','-select_streams','V:0','-show_entries','stream=codec_name,width,height,pix_fmt,color_space,color_primaries,color_transfer,color_range:stream_side_data=rotation:stream_tags=rotate,alpha_mode,ALPHA_MODE','-of','json',media.path],{signal,timeoutMs:20000})).stdout.toString()).streams?.[0] as VideoColorInfo|undefined;
+  },signal);
 }
 async function sourceColor(media:MediaAsset,ctx:EngineContext,signal?:AbortSignal):Promise<{matrix:string;range:'pc'|'tv';actualRange:'pc'|'tv';prefix:string}>{
     if(media.kind==='image')return {matrix:'bt709',range:'pc',actualRange:'pc',prefix:''};const stream=await sourceVideoInfo(media,ctx,signal);
@@ -439,9 +444,8 @@ async function sourceColor(media:MediaAsset,ctx:EngineContext,signal?:AbortSigna
 }
 async function canUseCudaScale(media:MediaAsset,ctx:EngineContext,signal?:AbortSignal){
   if(ctx.gpuProcessing===false||!['h264','hevc','av1','vp9','mpeg2video'].includes(media.codec||''))return false;
-  const key=`${ctx.ffmpeg}|${media.sourceRevision||await readSourceRevision(media.path)}`;let cached=cudaAssets.get(key);if(cached)return cached;
-  cached=(async()=>{try{await runProcess(ctx.ffmpeg,['-hide_banner','-loglevel','error','-nostdin','-threads','1','-hwaccel','cuda','-hwaccel_output_format','cuda','-protocol_whitelist','file,pipe','-i',media.path,'-vf','scale_cuda=320:180:format=yuv420p,hwdownload,format=yuv420p','-frames:v','1','-an','-f','null','-'],{signal,timeoutMs:30000});return true;}catch(error){if(isAbort(error))throw error;return false;}})();
-  if(cudaAssets.size>256)cudaAssets.delete(cudaAssets.keys().next().value!);cudaAssets.set(key,cached);cached.catch(()=>cudaAssets.delete(key));return cached;
+  const key=`${ctx.ffmpeg}|${media.sourceRevision||await readSourceRevision(media.path)}`;
+  return cudaAssets.get(key,async signal=>{try{await runProcess(ctx.ffmpeg,['-hide_banner','-loglevel','error','-nostdin','-threads','1','-hwaccel','cuda','-hwaccel_output_format','cuda','-protocol_whitelist','file,pipe','-i',media.path,'-map','0:V:0','-vf','scale_cuda=320:180:format=yuv420p,hwdownload,format=yuv420p','-frames:v','1','-an','-f','null','-'],{signal,timeoutMs:30000});return true;}catch(error){if(isAbort(error))throw error;return false;}},signal);
 }
 
 /** Keep eligible decoded/scaled frames on the GPU through NVENC. General
@@ -455,7 +459,7 @@ async function nativeCudaClip(project:Project,settings:ExportSettings,ctx:Engine
   // Non-frame-aligned and trimmed-in sources retain the fully tested general
   // timeline clock. This fast path cannot change their sampling semantics.
   if(!media||media.videoStart===undefined||Math.abs(media.videoStart)>1e-6||clip.in!==0||Math.abs(clip.duration*settings.fps-Math.round(clip.duration*settings.fps))>1e-7||!await canUseNativeBase(clip,media,projectDuration(project),ctx,signal))return;
-  const info=JSON.parse((await runProcess(ctx.ffprobe,['-v','error','-select_streams','v:0','-show_entries','stream=width,height,sample_aspect_ratio:stream_side_data=rotation:stream_tags=rotate','-of','json',media.path],{signal,timeoutMs:20000})).stdout.toString()).streams?.[0];
+  const info=JSON.parse((await runProcess(ctx.ffprobe,['-v','error','-select_streams','V:0','-show_entries','stream=width,height,sample_aspect_ratio:stream_side_data=rotation:stream_tags=rotate','-of','json',media.path],{signal,timeoutMs:20000})).stdout.toString()).streams?.[0];
   if(!info||!['1:1','N/A',undefined].includes(info.sample_aspect_ratio)||number(info.tags?.rotate)||info.side_data_list?.some((data:any)=>number(data.rotation)!==0)||Math.abs(info.width/info.height-settings.width/settings.height)>1e-8)return;
   const color=await sourceColor(media,ctx,signal);
   // A direct stream retains its original range. If Chromium reinterprets
@@ -583,11 +587,11 @@ export async function renderProjectDirect(project:Project,settings:ExportSetting
         chain.push((cudaBase?'':color.prefix)+resize);
         if(first.fit==='cover')chain.push(`crop=${width}:${height}`);
         else chain.push(`pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=${project.background.replace('#','0x')}`);
-        chain.push('setsar=1','format=yuv444p','setparams=range=limited:colorspace=bt709');graph.push(`[${inputIndex.get(first.id)}:v:0]${chain.join(',')}[base]`);
+        chain.push('setsar=1','format=yuv444p','setparams=range=limited:colorspace=bt709');graph.push(`[${inputIndex.get(first.id)}:V:0]${chain.join(',')}[base]`);
       }else if(settings.intermediate)graph.push(`color=c=black@0:s=${width}x${height}:r=${dec(fps)}:d=${dec(duration)},format=yuva444p,setparams=range=limited:colorspace=bt709[base]`);
       else graph.push(`color=c=${project.background.replace('#','0x')}:s=${width}x${height}:r=${dec(fps)}:d=${dec(duration)},scale=in_color_matrix=bt601:out_color_matrix=bt709,format=yuv444p,setparams=colorspace=bt709[base]`);
       for(let i=nativeBase?1:0;i<visuals.length;i++){
-        const c=visuals[i],range=exposure(c),phase=clipPhase(c),localClock=phase?`(t-${phase})`:'t',index=inputIndex.get(c.id)!;let layerInput=`${index}:v:0`;
+        const c=visuals[i],range=exposure(c),phase=clipPhase(c),localClock=phase?`(t-${phase})`:'t',index=inputIndex.get(c.id)!;let layerInput=`${index}:V:0`;
         const color=colors.get(c.mediaId!)!;
         const chain=[...timing(c),...(assets.get(c.mediaId!)!.kind==='video'?[`${color.prefix}scale=in_color_matrix=${color.matrix}:in_range=${color.range}:out_range=pc`]:[]),'format=rgba',...sourceFilters(c,assets.get(c.mediaId!)!)];
         const fitting=c.fit==='cover'?[`scale=${width}:${height}:force_original_aspect_ratio=increase:reset_sar=1:flags=bilinear`,`crop=${width}:${height}`]:[`scale=${width}:${height}:force_original_aspect_ratio=decrease:reset_sar=1:flags=bilinear`,`pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=0x00000000`];
@@ -785,7 +789,7 @@ export async function renderProject(project:Project,settings:ExportSettings,ctx:
       }
       if(video)args.push('-thread_queue_size','4','-f','rawvideo','-pixel_format',rawVideoFormat(settings),'-video_size',`${settings.width}x${settings.height}`,'-framerate',dec(settings.fps),'-color_range',settings.format==='gif'?'pc':'tv','-colorspace',settings.format==='gif'?'rgb':'bt709','-color_primaries','bt709','-color_trc',settings.format==='gif'?'iec61966-2-1':'bt709','-probesize','32','-analyzeduration','0','-i',video.consumerUrl);
       if(audio)args.push('-thread_queue_size','8','-f','f32le','-ar',String(AUDIO_RATE),'-ac','2','-probesize','32','-analyzeduration','0','-i',audio.consumerUrl);
-      if((video||directCuda)&&settings.format!=='gif')args.push('-map','0:v:0');if(audio)args.push('-map',video||directCuda?'1:a:0':'0:a:0','-af',`${settings.intermediate?'':`${exportLimiter(settings.format)},`}atrim=end_sample=${totalSamples}`);
+      if((video||directCuda)&&settings.format!=='gif')args.push('-map',directCuda?'0:V:0':'0:v:0');if(audio)args.push('-map',video||directCuda?'1:a:0':'0:a:0','-af',`${settings.intermediate?'':`${exportLimiter(settings.format)},`}atrim=end_sample=${totalSamples}`);
       if(directCuda)args.push('-vf',`settb=AVTB,settb=1/1000000000,setpts=PTS-STARTPTS-500,fps=${dec(settings.fps)}:start_time=0:round=up,trim=end_frame=${Math.round(duration*settings.fps)},scale_cuda=${settings.width}:${settings.height}:reset_sar=1:interp_algo=bilinear:format=yuv420p,setparams=colorspace=bt709:color_primaries=bt709:color_trc=bt709`,'-frames:v',String(Math.round(duration*settings.fps)));
       if(settings.format==='wav')args.push(...(settings.intermediate?[...INTERMEDIATE_AUDIO,'-rf64','auto']:exportAudioArguments('wav')));
       else if(settings.intermediate)args.push(...INTERMEDIATE_VIDEO,...INTERMEDIATE_AUDIO,'-movflags','+faststart');

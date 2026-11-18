@@ -8,7 +8,7 @@ export interface AudioPlannedMedia extends PlannedMedia {audioOnly?:boolean;supp
  * their original independent clip identities and visual effects. */
 export class PreviewAudioPlan {
   private members=new Map<string,{group:ContinuousAudioGroup;id:string}>();
-  constructor(private project:Project,transitions:TransitionPlan){
+  constructor(project:Project,transitions:TransitionPlan){
     const media=new Map(project.media.map(m=>[m.id,m])),tracks=new Map(project.tracks.map(t=>[t.id,t])),ids=new Set(project.clips.map(c=>c.id));
     const audible=project.clips.filter(c=>c.text===undefined&&c.volume>0&&media.get(c.mediaId||'')?.hasAudio&&audioEnabled(project,tracks.get(c.trackId)!));
     for(const group of continuousAudioGroups(audible,new Set(transitions.transitions.flatMap(t=>[t.from.id,t.to.id])))){

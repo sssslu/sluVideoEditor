@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {newProject,newClip,splitClip} from '../shared/project';
 import {defaultCaptionStyle} from '../shared/captions';
-import type {ExportSettings,Project,Clip} from '../shared/types';
+import type {ExportSettings,Project} from '../shared/types';
 import {createCaptionRasterWithPaths} from '../electron/caption-raster';
 import {renderProject,renderProjectDirect,runProcess,type EngineContext} from '../electron/media';
 import type {CaptionRasterFactory} from '../electron/caption-raster-types';
@@ -51,7 +51,7 @@ try{
   }
   checks.push('Fractional .1 + .2 second clip exposure has exact half-open output-frame boundaries at120 fps');
   {
-    const p=fixture(120),original=p.clips[0],halves=splitClip(original,original.start+.307)!;assert.ok(halves);const split={...p,clips:halves},s=settings(120),session=await factory(p,s),whole=await session.prepare([original]),parts=await session.prepare(halves);
+    const p=fixture(120),original=p.clips[0],halves=splitClip(original,original.start+.307)!;assert.ok(halves);const s=settings(120),session=await factory(p,s),whole=await session.prepare([original]),parts=await session.prepare(halves);
     const expanded=async(group:typeof whole,frame:number)=>{const data=await session.frame(group,frame),full=Buffer.alloc(s.width*s.height*4);for(let y=0;y<group.height;y++)Buffer.from(data.buffer,data.byteOffset+y*group.width*4,group.width*4).copy(full,((group.y+y)*s.width+group.x)*4);return full;};
     for(const frame of [1,12,36,37,38,61,180])assert.ok((await expanded(whole,frame)).equals(await expanded(parts,frame)),`Split changed original animation/word clock at ${frame}`);await session.close();
   }

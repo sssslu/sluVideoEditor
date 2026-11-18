@@ -5,6 +5,7 @@ import {probeVideoRange} from './video-range';
 import {readSourceRevision} from './source-revision';
 import {previewProxyPath} from '../shared/media-clock';
 import {hasLegacyProxyTiming} from './proxy-cache';
+import {reconcileEnhancementSources} from '../shared/processing';
 
 const abort=(signal?:AbortSignal)=>{if(signal?.aborted)throw new CancelledError();};
 /** Find changed sources and unchanged legacy assets needing current preview metadata.
@@ -15,7 +16,7 @@ export async function changedProjectSources(project:Project):Promise<Set<string>
   await Promise.all(Array.from({length:Math.min(3,paths.length)},async()=>{while(cursor<paths.length){
     const file=paths[cursor++];let revision:string;
     try{revision=await readSourceRevision(file);}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')continue;throw error;}
-    if(assets.get(file)!.some(asset=>asset.sourceRevision!==revision||(asset.kind!=='image'&&!asset.timing)||(asset.kind==='video'&&asset.hasAlpha===undefined)||(asset.proxyPath&&!previewProxyPath(asset))||hasLegacyProxyTiming(asset)))changed.add(file);
+    if(assets.get(file)!.some(asset=>asset.sourceRevision!==revision||(asset.kind!=='image'&&!asset.timing)||(asset.kind==='video'&&(asset.hasAlpha===undefined||asset.videoStreamOrdinal===undefined))||(asset.proxyPath&&!previewProxyPath(asset))||hasLegacyProxyTiming(asset)))changed.add(file);
   }}));
   return changed;
 }
@@ -23,8 +24,8 @@ export async function changedProjectSources(project:Project):Promise<Set<string>
 /** Called inside one cancellable range job. Probe changed originals only, scan
  * their transition participants when needed, then publish one complete snapshot.
  * The saved project and the input object are never modified. */
-export async function refreshProjectSources(project:Project,changed:ReadonlySet<string>,ctx:EngineContext,progress?:ProgressCallback,signal?:AbortSignal):Promise<{project:Project;changedSources:number;detachedTransitions:number}> {
-  abort(signal);if(!changed.size)return {project,changedSources:0,detachedTransitions:0};
+export async function refreshProjectSources(project:Project,changed:ReadonlySet<string>,ctx:EngineContext,progress?:ProgressCallback,signal?:AbortSignal):Promise<{project:Project;changedSources:number;detachedTransitions:number;detachedEnhancements:number}> {
+  abort(signal);if(!changed.size)return {project,changedSources:0,detachedTransitions:0,detachedEnhancements:0};
   const control=new AbortController(),combined=signal?AbortSignal.any([signal,control.signal]):control.signal;
   const paths=[...changed],fresh=new Map<string,MediaAsset>();let cursor=0,completed=0,failure:unknown;
   const workers=Array.from({length:Math.min(3,paths.length)},async()=>{
@@ -49,8 +50,10 @@ export async function refreshProjectSources(project:Project,changed:ReadonlySet<
     // Metadata migration must not discard still-valid original/proxy references
     // or user asset names. A corrected duration does invalidate waveform bins.
     const retained={...asset};if(Math.abs(asset.duration-update.duration)>.001)delete retained.waveform;
-    const result={...retained,...update,id:asset.id,name:asset.name};if(hasLegacyProxyTiming(asset)||!previewProxyPath(result))delete result.proxyPath;return result;
+    const result={...retained,...update,id:asset.id,name:asset.name};if(hasLegacyProxyTiming(result)||!previewProxyPath(result))delete result.proxyPath;
+    if((update.videoStreamOrdinal??0)>0&&update.videoStreamOrdinal!==asset.videoStreamOrdinal&&!update.thumbnail)delete result.thumbnail;
+    return result;
   });
-  const result=reconcileTransitions(project,{...project,media});abort(combined);progress?.(1,'원본 미디어 확인 완료');
-  return {project:result.project,changedSources,detachedTransitions:result.detached.length};
+  const enhancements=reconcileEnhancementSources(project,{...project,media}),result=reconcileTransitions(project,enhancements.project);abort(combined);progress?.(1,'원본 미디어 확인 완료');
+  return {project:result.project,changedSources,detachedTransitions:result.detached.length,detachedEnhancements:enhancements.detached.length};
 }

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {promises as fs} from 'node:fs';
 import path from 'node:path';
-import {parseWhisperWords,groupCaptionWords,selectOwnedWhisperWords,wavHasSamples} from '../electron/speech';
+import {parseWhisperWords,groupCaptionWords,selectOwnedWhisperWords,wavHasSamples,extractSpeechAudio} from '../electron/speech';
 import {runProcess} from '../electron/media';
 import {assertCaptionWords,captionGraphemes} from '../shared/captions';
 import actualTokens from './fixtures/whisper-word-tokens.json';
@@ -107,8 +107,28 @@ test('a chunk starting after the audio track ends is detected as a sample-free W
   const root=path.resolve('.test-artifacts/speech-chunks'),ffmpeg=path.resolve('resources/bin/ffmpeg.exe'),source=path.join(root,'short-audio.mkv');await fs.mkdir(root,{recursive:true});
   // Video continues for 4 s after a 1 s audio track, as in a long recording whose sound stops early.
   await runProcess(ffmpeg,['-hide_banner','-v','error','-nostdin','-y','-f','lavfi','-i','color=black:s=32x18:r=10:d=5','-f','lavfi','-i','sine=f=440:r=16000:d=1','-c:v','libx264','-preset','ultrafast','-c:a','pcm_s16le',source]);
-  const extract=async(name:string,start:string)=>{const wav=path.join(root,name);await runProcess(ffmpeg,['-hide_banner','-nostdin','-v','error','-y','-ss',start,'-t','1','-protocol_whitelist','file,pipe','-i',source,'-map','0:a:0','-vn','-ar','16000','-ac','1','-c:a','pcm_s16le',wav]);return wav;};
+  const extract=async(name:string,start:string)=>{const wav=path.join(root,name);await extractSpeechAudio(source,Number(start),1,wav,ffmpeg);return wav;};
   const empty=await extract('empty.wav','3'),audible=await extract('audible.wav','0.5');
   assert.ok((await fs.stat(empty)).size<128);assert.equal(await wavHasSamples(empty),false);assert.equal(await wavHasSamples(audible),true);
   const other=path.join(root,'not-wav.bin');await fs.writeFile(other,'not a wave file');assert.equal(await wavHasSamples(other),true);
+});
+
+test('speech WAV extraction preserves source-time delays and gaps through seeks',{timeout:60000},async()=>{
+  const root=path.resolve('.test-artifacts/speech-timestamps'),ffmpeg=path.resolve('resources/bin/ffmpeg.exe');await fs.mkdir(root,{recursive:true});
+  const video=['-f','lavfi','-i','color=black:s=32x18:r=10:d=2'],encode=['-map','0:v:0','-c:v','libx264','-preset','ultrafast','-c:a','pcm_s16le'];
+  const ff=(args:string[])=>runProcess(ffmpeg,['-hide_banner','-nostdin','-v','error','-y',...args]);
+  const delayed=path.join(root,'delayed.mkv'),gapped=path.join(root,'gapped.mkv');
+  await ff([...video,'-itsoffset','0.5','-f','lavfi','-i','sine=f=437:r=16000:d=1.5',...encode,'-map','1:a:0','-t','2',delayed]);
+  await ff([...video,'-f','lavfi','-i','sine=f=437:r=16000:d=1.5','-filter_complex',"[1:a]asetpts='PTS+gte(T,0.5)*0.5/TB'[a]",...encode,'-map','[a]',gapped]);
+  const pcm=async(file:string)=>{const bytes=await fs.readFile(file);for(let offset=12;offset+8<=bytes.length;){const size=bytes.readUInt32LE(offset+4);if(bytes.toString('ascii',offset,offset+4)==='data')return bytes.subarray(offset+8,offset+8+size);offset+=8+size+(size&1);}throw Error('No PCM data');};
+  const rms=(samples:Buffer,start:number,end:number)=>{const a=Math.round(start*16000),b=Math.round(end*16000);assert.ok(a>=0&&b>a&&b*2<=samples.length);let sum=0;for(let i=a;i<b;i++)sum+=(samples.readInt16LE(i*2)/32768)**2;return Math.sqrt(sum/(b-a));};
+  const reports:{source:string;start:number;silence:number;tone:number}[]=[];
+  for(const [source,name] of [[delayed,'delayed'],[gapped,'gapped']])for(const start of [0,.25,.75]){
+    const wav=path.join(root,`${name}-${start}.wav`);await extractSpeechAudio(source,start,2-start,wav,ffmpeg);const samples=await pcm(wav);
+    const silence=name==='gapped'?rms(samples,.82-start,.9-start):start<.5?rms(samples,0,.5-start-.06):0;
+    const tone=rms(samples,(name==='gapped'?1.2:Math.max(start,.5)+.1)-start,(name==='gapped'?1.3:Math.max(start,.5)+.2)-start);
+    assert.ok(silence<.001,`${name} source-in ${start}: timestamp silence collapsed (${silence})`);
+    assert.ok(tone>.03,`${name} source-in ${start}: tone missing at its source time (${tone})`);reports.push({source:name,start,silence,tone});
+  }
+  await fs.writeFile(path.join(root,'results.json'),JSON.stringify(reports,null,2));
 });

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {newClip,newProject,trimClip} from '../shared/project';
 import {clipSourceSpan,clipSourceTime} from '../shared/speed';
-import {applyEnhancement,restoreEnhancement,enhancementSource,applyCutout,restoreCutout,applyStabilization,applyReversal,clipMediaIds,clipMediaAvailable,sameSourceInterval} from '../shared/processing';
+import {applyEnhancement,restoreEnhancement,enhancementSource,applyCutout,restoreCutout,applyStabilization,applyReversal,clipMediaIds,clipMediaAvailable,sameSourceInterval,reconcileEnhancementSources} from '../shared/processing';
 import {assertProject} from '../shared/validation';
 import type {Clip,MediaAsset,JobEvent} from '../shared/types';
 import {ownEnhancementJob} from '../src/enhancement-preview';
@@ -61,6 +61,33 @@ test('a trimmed later reversal restores the opposite enhanced interval before re
   assert.equal(restored.mediaId,source.mediaId);assert.ok(Math.abs(restored.in-source.in-offset)<1e-9);
   assert.deepEqual(restored.speedCurve,trimmed.speedCurve);assert.equal(restored.cutout,undefined);assert.equal(restored.reversal,undefined);
   assertProject(project(trimmed,[reversed,alpha]));assertProject(project(restored,[reversed,alpha]));
+});
+
+test('shorter replaced originals detach only unavailable enhancement restoration, keeping derived pictures and later effects',()=>{
+  const reversed=derived('later-reverse',clipSourceSpan(source)),alpha=derived('later-alpha',clipSourceSpan(source),true);
+  const clip=applyCutout(applyReversal(applyEnhancement(source,enhanced,2),reversed),alpha,{quality:'portrait'});
+  const previous=project(clip,[reversed,alpha]),serialized=JSON.stringify(previous);assertProject(previous);
+  const replaced={...previous,media:previous.media.map(m=>m.id===original.id?{...m,duration:1,sourceRevision:'b'.repeat(64)}:m)};
+  assert.throws(()=>assertProject(replaced));
+  const repaired=reconcileEnhancementSources(previous,replaced);assertProject(repaired.project);
+  assert.deepEqual(repaired.detached,[clip.id]);assert.deepEqual(repaired.project.clips[0],{...clip,enhancement:undefined});
+  assert.equal(JSON.stringify(previous),serialized);assert.equal(repaired.project.media,replaced.media);
+  assert.equal(reconcileEnhancementSources(previous,previous).project,previous);
+  const longer={...previous,media:previous.media.map(m=>m.id===original.id?{...m,duration:100}:m)};
+  assert.equal(reconcileEnhancementSources(previous,longer).project,longer);assertProject(longer);
+  const corrupt={...previous,clips:[{...clip,enhancement:{...clip.enhancement!,sourceIn:49}}]};
+  assert.equal(reconcileEnhancementSources(previous,corrupt).project,corrupt);assert.throws(()=>assertProject(corrupt));
+});
+
+test('source refresh also preserves enhanced pictures stored inside compounds',()=>{
+  const child=applyEnhancement(source,enhanced,4),combined=derived('combined',10);
+  const outer={...newClip('video-1',combined),compound:{derivedMediaId:combined.id,start:0,clips:[child],tracks:newProject().tracks}};
+  const previous=project(outer,[combined]);assertProject(previous);
+  const replaced={...previous,media:previous.media.map(m=>m.id===original.id?{...m,hasAlpha:true}:m)};
+  const repaired=reconcileEnhancementSources(previous,replaced);assertProject(repaired.project);
+  assert.deepEqual(repaired.detached,[child.id]);assert.equal(repaired.project.clips[0].compound!.clips[0].mediaId,enhanced.id);
+  assert.equal(repaired.project.clips[0].compound!.clips[0].enhancement,undefined);
+  assert.equal(previous.clips[0].compound!.clips[0].enhancement,child.enhancement);
 });
 
 function jobFixture(){

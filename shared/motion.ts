@@ -5,6 +5,7 @@ import {interpolate} from './project';
 import {clipSourceTime} from './speed';
 import {motionLinks,resolveMotionSources,MotionSourceTimeline} from './motion-sources';
 import {assertProjectMotion} from './motion-validation';
+import {walkClips} from './clip-tree';
 
 const clamp=(v:number,a:number,b:number)=>Math.max(a,Math.min(b,v));
 export function motionSource(clip:Clip):MotionSource {
@@ -67,7 +68,7 @@ export function reconcileMotion(previous:Project,next:Project):Project {
   const clips=next.clips.map(c=>{const b=c.motionBinding;if(!b)return c;let modified=false;const links=motionLinks(b).map(link=>{if(!link.sourceClipId)return link;const live=after.get(link.sourceClipId);if(live&&live.mediaId===link.source.mediaId&&!live.motionBinding)return link;
     const old=before.get(link.sourceClipId);modified=true;return {sourceClipId:undefined,source:old&&old.mediaId===link.source.mediaId&&!old.motionBinding?motionSource(old):link.source};});
     if(!modified)return c;changed=true;return {...c,motionBinding:{...b,...links[0],segments:links.length>1?links.slice(1):undefined}};
-  });const used=new Set(clips.flatMap(c=>c.motionBinding?[c.motionBinding.analysisId]:[])),paths=next.motionPaths?.filter(a=>used.has(a.id));
+  });const used=new Set([...walkClips(clips)].flatMap(c=>c.motionBinding?[c.motionBinding.analysisId]:[])),paths=next.motionPaths?.filter(a=>used.has(a.id));
   return pruneProjectFiles(changed||paths?.length!==next.motionPaths?.length?{...next,clips,motionPaths:paths?.length?paths:undefined}:next);
 }
 export function copyMotionBindings(project:Project,clips:Clip[],ids:ReadonlyMap<string,string>,timeShift:number):Clip[]{
@@ -81,7 +82,7 @@ export function splitMotionSources(project:Project,clips:Clip[],splits:ReadonlyM
   const result={...project,clips:clips.map(c=>{const b=c.motionBinding;if(!b)return c;let changed=false;const links=motionLinks(b).flatMap(link=>{const pieces=link.sourceClipId?splits.get(link.sourceClipId):undefined;if(!pieces)return [link];changed=true;return pieces.map(piece=>({sourceClipId:piece.id,source:motionSource(piece)}));});return changed?{...c,motionBinding:{...b,...links[0],segments:links.length>1?links.slice(1):undefined}}:c;})};assertProjectMotion(result);return result;
 }
 export function restoreMotionPaths(project:Project,clips:Clip[],available:readonly MotionAnalysis[]):Project{
-  const ids=new Set(clips.flatMap(c=>c.motionBinding?[c.motionBinding.analysisId]:[])),paths=[...(project.motionPaths||[])];
+  const ids=new Set([...walkClips(clips)].flatMap(c=>c.motionBinding?[c.motionBinding.analysisId]:[])),paths=[...(project.motionPaths||[])];
   for(const id of ids)if(!paths.some(a=>a.id===id)){const a=available.find(a=>a.id===id);if(!a||!project.media.some(m=>m.id===a.mediaId&&m.sourceRevision===a.sourceRevision))throw new Error('복사한 클립의 추적 원본 또는 경로가 없습니다.');paths.push(a);}
   return {...project,motionPaths:paths.length?paths:undefined};
 }

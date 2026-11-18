@@ -25,6 +25,7 @@ export function assertMedia(value:unknown):asserts value is MediaAsset {
   if(!object(m)||!id(m.id)||!str(m.path)||!m.path||!str(m.name,1000)||!['video','audio','image'].includes(m.kind)||!finite(m.duration,0,864000)||!finite(m.width,0,32768)||!finite(m.height,0,32768)||!finite(m.fps,0,1000)||!bool(m.hasAudio)||(m.thumbnail!==undefined&&!str(m.thumbnail))||(m.proxyPath!==undefined&&!str(m.proxyPath))||(m.codec!==undefined&&!str(m.codec,100))||(m.waveform!==undefined&&(!Array.isArray(m.waveform)||m.waveform.length>10000||m.waveform.some(v=>!finite(v,0,1)))))throw new Error('잘못된 미디어 정보입니다.');
   if(m.sourceRevision!==undefined&&(typeof m.sourceRevision!=='string'||!/^[a-f0-9]{64}$/.test(m.sourceRevision)))throw new Error('잘못된 원본 파일 버전입니다.');
   if(m.hasAlpha!==undefined&&!bool(m.hasAlpha))throw new Error('잘못된 투명도 정보입니다.');
+  if(m.videoStreamOrdinal!==undefined&&(!Number.isSafeInteger(m.videoStreamOrdinal)||m.videoStreamOrdinal<0||m.videoStreamOrdinal>1024))throw new Error('잘못된 영상 스트림 정보입니다.');
   if(m.timing!==undefined&&(!object(m.timing)||m.timing.version!==1||!finite(m.timing.origin,-864000,864000)||!finite(m.timing.previewOffset,0,864000)))throw new Error('잘못된 미디어 시간 정보입니다.');
   if((m.videoStart!==undefined||m.videoEnd!==undefined)&&(m.kind!=='video'||!finite(m.videoStart,0,864000)||!finite(m.videoEnd,0,864000)||m.videoEnd!<=m.videoStart!))throw new Error('잘못된 영상 프레임 범위입니다.');
 }

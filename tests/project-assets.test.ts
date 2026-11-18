@@ -6,7 +6,7 @@ import {newProject,newClip} from '../shared/project';
 import {attachMotion,reconcileMotion} from '../shared/motion';
 import {assertProject} from '../shared/validation';
 import type {MotionAnalysis,MotionSample} from '../shared/tracking';
-import {MotionSampleWriter,assembleMotionFile,MotionFileReader} from '../electron/tracking-file';
+import {MotionSampleWriter,assembleMotionFile} from '../electron/tracking-file';
 import {TrackingRegistry} from '../electron/tracking-registry';
 import {RenderMotion} from '../electron/render-motion';
 import {readSourceRevision} from '../electron/source-revision';
@@ -80,7 +80,7 @@ test('same-header tracking record corruption is rejected by preview registry, sa
 });
 test('copy cancellation and concurrent source replacement preserve the previous project',async()=>{
   for(const mutation of ['cancel','replace']){const {dir,project}=await fixture(),file=path.join(dir,'edit.sluproj');await fs.writeFile(file,'previous complete project');const controller=new AbortController();let triggered=false;
-    await assert.rejects(saveProjectWithAssets(project,file,{collect:true,signal:controller.signal,progress:(value,message)=>{if(!triggered&&message.includes('복사 중')){triggered=true;if(mutation==='cancel')controller.abort();else writeFileSync(project.media[0].path,Buffer.alloc(5*1024*1024,41));}}}));
+    await assert.rejects(saveProjectWithAssets(project,file,{collect:true,signal:controller.signal,progress:(_value,message)=>{if(!triggered&&message.includes('복사 중')){triggered=true;if(mutation==='cancel')controller.abort();else writeFileSync(project.media[0].path,Buffer.alloc(5*1024*1024,41));}}}));
     assert.ok(triggered);assert.equal(await fs.readFile(file,'utf8'),'previous complete project');assert.ok((await fs.readdir(path.join(dir,'edit.slu-data'))).every(n=>!n.endsWith('.tmp')));
   }
 });

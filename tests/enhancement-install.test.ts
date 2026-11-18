@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {promises as fs} from 'node:fs';
+import nodeFs,{promises as fs} from 'node:fs';
+import {syncBuiltinESMExports} from 'node:module';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {gzipSync} from 'node:zlib';
 import {enhancementInstallState,installEnhancementRuntime,verifyEnhancementRuntime,enhancementInventoryDigest,type EnhancementInstallContext} from '../electron/enhancement-install';
+import {sourceRevisionFromStat} from '../electron/source-revision';
 
 const sha=(value:Buffer|string)=>createHash('sha256').update(value).digest('hex');
 function crc32(bytes:Buffer) {
@@ -191,4 +193,133 @@ test('stale staging cleanup requires exact name, matching ownership marker and a
 test('an already cancelled runtime verification stops before reading even the manifest',async()=>{
   const controller=new AbortController();controller.abort(new Error('cancel-before-io'));
   await assert.rejects(verifyEnhancementRuntime({runtimeBase:path.resolve('unused'),manifestPath:path.resolve('missing-manifest.json')},controller.signal),/cancel-before-io/);
+});
+
+function verificationGate() {
+  let resolve!:()=>void;
+  const promise=new Promise<void>(done=>{resolve=done;});
+  return {promise,resolve};
+}
+async function verificationWait(promise:Promise<unknown>,label:string) {
+  let timer:ReturnType<typeof setTimeout>|undefined;
+  try {await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`Timed out waiting for ${label}`)),10000);})]);}
+  finally {clearTimeout(timer);}
+}
+async function coldVerificationFixture() {
+  // Use the real existing installer/fixture, then copy its valid small runtime
+  // to a new pathname. This produces cache misses without exposing/resetting the
+  // implementation's private SHA cache or replacing its hashing implementation.
+  const f=await fixture(Array.from({length:12},(_,index)=>[`batch/${String(index).padStart(2,'0')}.py`,`${index}:`+'x'.repeat(32768)] as [string,string]));
+  const installed=await installEnhancementRuntime(f.context);
+  const context={...f.context,runtimeBase:path.join(f.directory,'cold-runtimes')};
+  const runtimeRoot=path.join(context.runtimeBase,installed.manifestSha256);
+  await fs.mkdir(context.runtimeBase,{recursive:true});
+  await fs.cp(installed.runtimeRoot,runtimeRoot,{recursive:true});
+  const registryPath=path.join(runtimeRoot,'.complete.json');
+  const registry=JSON.parse(await fs.readFile(registryPath,'utf8')) as {files:{path:string;bytes:number;sha256:string;revision:string}[]};
+  for(const record of registry.files){const file=path.join(runtimeRoot,record.path);record.revision=sourceRevisionFromStat(file,await fs.lstat(file));}
+  await fs.writeFile(registryPath,JSON.stringify(registry));
+  return {...f,context,runtimeRoot,records:registry.files,expected:{...installed,runtimeRoot,pythonExecutable:path.join(runtimeRoot,'python/python.exe')}};
+}
+function observeVerificationReads(runtimeRoot:string,holdClose:(file:string)=>boolean=()=>false) {
+  const original=nodeFs.createReadStream,firstFour=verificationGate(),aborted=verificationGate();
+  const root=path.resolve(runtimeRoot)+path.sep,started:string[]=[],active=new Set<nodeFs.ReadStream>();
+  const firstReadPaths=new Set<string>(),allowed=new Set<string>();
+  const reads:{file:string;run:()=>void}[]=[],closes:(()=>void)[]=[],closeWaiters:{count:number;gate:ReturnType<typeof verificationGate>}[]=[];
+  let allowAllReads=false,allowAllCloses=false,maxActive=0,bytesRead=0,nativeReads=0,maxNativeReads=0,closeRequests=0;
+  nodeFs.createReadStream=(file,options)=>{
+    const filename=typeof file==='string'?path.resolve(file):'';
+    if(!filename.startsWith(root))return original(file,options);
+    const normalized=typeof options==='string'?{encoding:options}:options||{};
+    normalized.signal?.addEventListener('abort',aborted.resolve,{once:true});
+    const stream=original(file,{...normalized,fs:{
+      open:nodeFs.open,
+      read(fd:number,buffer:Buffer,offset:number,length:number,position:number|null,callback:(error:NodeJS.ErrnoException|null,bytes:number,buffer:Buffer)=>void){
+        firstReadPaths.add(filename);if(firstReadPaths.size===4)firstFour.resolve();
+        const run=()=>{
+          nativeReads++;maxNativeReads=Math.max(maxNativeReads,nativeReads);
+          nodeFs.read(fd,buffer,offset,length,position,(error,count,readBuffer)=>{nativeReads--;bytesRead+=count;callback(error,count,readBuffer);});
+        };
+        if(allowAllReads||allowed.has(filename))run();else reads.push({file:filename,run});
+      },
+      close(fd:number,callback:(error:NodeJS.ErrnoException|null)=>void){
+        // The real descriptor is closed before delaying its callback. Holding
+        // the callback tests that verification also awaits ReadStream closure.
+        nodeFs.close(fd,error=>{
+          closeRequests++;for(const waiter of closeWaiters)if(closeRequests>=waiter.count)waiter.gate.resolve();
+          if(!allowAllCloses&&holdClose(filename))closes.push(()=>callback(error));else callback(error);
+        });
+      },
+    }});
+    started.push(filename);active.add(stream);maxActive=Math.max(maxActive,active.size);stream.once('close',()=>active.delete(stream));return stream;
+  };
+  syncBuiltinESMExports();
+  const releaseRead=(file?:string)=>{
+    if(file)allowed.add(path.resolve(file));else allowAllReads=true;
+    for(let index=reads.length-1;index>=0;index--)if(allowAllReads||allowed.has(reads[index].file)){const [entry]=reads.splice(index,1);entry.run();}
+  };
+  const releaseCloses=()=>{allowAllCloses=true;for(const close of closes.splice(0))close();};
+  return {
+    firstFour:firstFour.promise,aborted:aborted.promise,started,
+    snapshot:()=>({active:active.size,maxActive,bytesRead,nativeReads,maxNativeReads,queuedReads:reads.length,queuedCloses:closes.length,closeRequests}),
+    releaseRead,releaseCloses,
+    closedAtLeast:(count:number)=>{const gate=verificationGate();closeWaiters.push({count,gate});if(closeRequests>=count)gate.resolve();return gate.promise;},
+    restore:()=>{releaseRead();releaseCloses();nodeFs.createReadStream=original;syncBuiltinESMExports();},
+  };
+}
+
+test('runtime verification overlaps actual small-file reads with a four-stream bound and preserves warm-cache checks',{timeout:30000},async()=>{
+  const f=await coldVerificationFixture(),controller=new AbortController(),io=observeVerificationReads(f.runtimeRoot);
+  const work=verifyEnhancementRuntime(f.context,controller.signal);void work.catch(()=>{});
+  try {
+    await verificationWait(io.firstFour,'four real runtime read requests');
+    assert.equal(io.started.length,4);assert.equal(io.snapshot().active,4);
+    io.releaseRead();assert.deepEqual(await work,f.expected);
+    const after=io.snapshot();assert.equal(after.maxActive,4);assert.ok(after.maxNativeReads>1);assert.equal(after.active,0);assert.equal(after.nativeReads,0);
+    assert.equal(io.started.length,f.records.length);assert.equal(after.bytesRead,f.records.reduce((sum,record)=>sum+record.bytes,0));
+    assert.deepEqual(await verifyEnhancementRuntime(f.context),f.expected);
+    assert.equal(io.started.length,f.records.length,'Unchanged warm files should retain their verified revision cache');
+    // Warm cache must still reject an added file before starting any hash work.
+    await fs.writeFile(path.join(f.runtimeRoot,'vendor/unexpected.py'),'unexpected');
+    await assert.rejects(verifyEnhancementRuntime(f.context),/구성이 변경/);
+    assert.equal(io.started.length,f.records.length);
+  } finally {controller.abort();io.releaseRead();io.releaseCloses();await work.catch(()=>{});io.restore();}
+});
+
+test('first runtime corruption aborts sibling reads and waits for every close before rejecting',{timeout:30000},async()=>{
+  const f=await coldVerificationFixture(),first=f.records[0],bad=path.join(f.runtimeRoot,first.path);
+  const good=await fs.readFile(bad),corrupted=Buffer.from(good);assert.ok(corrupted.length>0);corrupted[0]^=0xff;await fs.writeFile(bad,corrupted);
+  const controller=new AbortController(),io=observeVerificationReads(f.runtimeRoot,file=>file!==bad);
+  let settled=false;
+  const work=verifyEnhancementRuntime(f.context,controller.signal);
+  const outcome=work.then(value=>{settled=true;return {value,error:undefined};},error=>{settled=true;return {value:undefined,error};});
+  try {
+    await verificationWait(io.firstFour,'four runtime reads before corruption');
+    io.releaseRead(bad);
+    await verificationWait(io.aborted,'first corruption aborting sibling reads');
+    assert.equal(io.started.length,4,'No queued file may start after the first corruption');assert.equal(settled,false);
+    io.releaseRead();await verificationWait(io.closedAtLeast(4),'all native file closes');
+    assert.equal(settled,false,'Verification must wait for sibling ReadStream close callbacks');assert.equal(io.snapshot().queuedCloses,3);
+    io.releaseCloses();const result=await outcome;
+    assert.ok(result.error instanceof Error);assert.match(result.error.message,/손상/);assert.ok(result.error.message.includes(first.path),'An abort error must not replace the original corrupt-file failure');
+    assert.equal(io.started.length,4);assert.equal(io.snapshot().active,0);assert.equal(io.snapshot().nativeReads,0);assert.equal(io.snapshot().queuedReads,0);
+    io.restore();await fs.writeFile(bad,good);assert.deepEqual(await verifyEnhancementRuntime(f.context),f.expected,'Retry after repairing the corrupt file must succeed');
+  } finally {controller.abort();io.releaseRead();io.releaseCloses();await work.catch(()=>{});io.restore();}
+});
+
+test('external runtime cancellation drains every real file read and close before rejection and permits retry',{timeout:30000},async()=>{
+  const f=await coldVerificationFixture(),controller=new AbortController(),reason=new Error('cancel-runtime-verification'),io=observeVerificationReads(f.runtimeRoot,()=>true);
+  let settled=false;
+  const work=verifyEnhancementRuntime(f.context,controller.signal);
+  const outcome=work.then(value=>{settled=true;return {value,error:undefined};},error=>{settled=true;return {value:undefined,error};});
+  try {
+    await verificationWait(io.firstFour,'four real reads before external cancellation');controller.abort(reason);
+    await verificationWait(io.aborted,'forwarded cancellation');assert.equal(io.started.length,4);assert.equal(settled,false);
+    io.releaseRead();await verificationWait(io.closedAtLeast(4),'cancelled file descriptors closing');
+    assert.equal(settled,false,'The caller must not see cancellation before owned stream cleanup');assert.equal(io.snapshot().queuedCloses,4);
+    io.releaseCloses();assert.equal((await outcome).error,reason);
+    assert.equal(io.started.length,4);assert.equal(io.snapshot().active,0);assert.equal(io.snapshot().nativeReads,0);assert.equal(io.snapshot().queuedReads,0);
+    io.restore();assert.deepEqual(await verifyEnhancementRuntime(f.context),f.expected);
+    assert.equal((await enhancementInstallState(f.context)).installed,true);
+  } finally {controller.abort();io.releaseRead();io.releaseCloses();await work.catch(()=>{});io.restore();}
 });

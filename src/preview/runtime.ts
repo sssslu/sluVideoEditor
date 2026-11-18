@@ -3,7 +3,7 @@ import {PreviewMotion} from './motion';
 import {projectDuration,interpolate} from '../../shared/project';
 import {clipSpeedAt,clipTimelineTime} from '../../shared/speed';
 import {compileTransitions,transitionGain,visualNodesAt,type ClipExposure,type TransitionPlan} from '../../shared/transitions';
-import {audioEnabled,clamp,clipState,fadeAt,planMedia,sourceTime,visualEnabled,type PreviewClip} from './math';
+import {audioEnabled,clamp,fadeAt,planMedia,sourceTime,visualEnabled,type PreviewClip} from './math';
 import {GLCompositor,hitTest,type Compositor,type Geometry,type HitRegion,type VisualFrame,type VisualRenderNode,type VideoFrameSource} from './renderer';
 import {HANDLE_RADIUS,ROTATE_RADIUS,pickHandle,regionCorners,rotateHandle,type Box,type Guide,type Handle,type Point} from './transform-handles';
 import {CPUCompositor} from './fallback';

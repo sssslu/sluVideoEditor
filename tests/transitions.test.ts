@@ -36,7 +36,7 @@ test('nonlinear source handles, 64-point curves and image handles stay on origin
   project.transitions=undefined;media.kind='image';delete media.videoStart;delete media.videoEnd;assert.equal(transitionBounds(project,a.id,b.id).maxFrames,240);
 });
 test('shared middle clips have one exposure and reject overlapping transitions or third clips',()=>{
-  const {project,media,a,b}=fixture();const c={...newClip('video-1',media,8),id:'c',in:5,duration:4};project.clips.push(c);
+  const {project,media}=fixture();const c={...newClip('video-1',media,8),id:'c',in:5,duration:4};project.clips.push(c);
   project.transitions=[transition(120),{...transition(120),id:'bc',fromClipId:'b',toClipId:'c'}];const plan=compileTransitions(project);
   assert.equal(plan.byClip.size,3);near(plan.byClip.get('b')!.visualFrom,-2);near(plan.byClip.get('b')!.visualTo,6);assert.equal(plan.byClip.get('b')!.transitions.length,2);
   project.transitions[1].durationFrames=121;compileTransitions(project);project.transitions[1].durationFrames=122;assert.throws(()=>compileTransitions(project),/겹칠/);

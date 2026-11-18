@@ -5,7 +5,7 @@ export type CutoutQuality = 'portrait' | 'fullbody' | 'precision';
 /** Source-relative editing/export time and the original browser decoder clock.
  * Optional for legacy projects; refreshed from the original file on opening. */
 export interface MediaTiming {version:1;origin:number;previewOffset:number}
-export interface MediaAsset { id:string; path:string; name:string; kind:MediaKind; duration:number; width:number; height:number; fps:number; hasAudio:boolean; hasAlpha?:boolean; thumbnail?:string; waveform?:number[]; proxyPath?:string; codec?:string; videoStart?:number; videoEnd?:number; sourceRevision?:string;timing?:MediaTiming }
+export interface MediaAsset { id:string; path:string; name:string; kind:MediaKind; duration:number; width:number; height:number; fps:number; hasAudio:boolean; hasAlpha?:boolean; thumbnail?:string; waveform?:number[]; proxyPath?:string; codec?:string; videoStart?:number; videoEnd?:number; sourceRevision?:string;timing?:MediaTiming;videoStreamOrdinal?:number }
 export interface Track { id:string; name:string; type:'video'|'audio'|'text'; muted:boolean; hidden:boolean; locked:boolean; solo?:boolean; height?:number }
 export type Easing = 'linear'|'ease-in'|'ease-out'|'ease-in-out'|'hold';
 /** Absolute playback rate at a normalized position in the clip's local timeline. */

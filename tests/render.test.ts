@@ -5,8 +5,8 @@ import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {probeMedia,renderProject,renderProjectDirect,runProcess,enrichMedia,keyframeExpression,buildAss,type EngineContext} from '../electron/media';
 import {planRenderWindows} from '../electron/render-plan';
-import {newClip,newProject,splitClip,interpolate} from '../shared/project';
-import type {ExportSettings,Project} from '../shared/types';
+import {newClip,newProject} from '../shared/project';
+import type {ExportSettings} from '../shared/types';
 
 const root=path.resolve('.test-artifacts/render-v2');
 const ctx:EngineContext={ffmpeg:path.resolve('resources/bin/ffmpeg.exe'),ffprobe:path.resolve('resources/bin/ffprobe.exe'),cacheDir:path.join(root,'cache')};

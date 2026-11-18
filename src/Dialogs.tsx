@@ -1,6 +1,6 @@
 import { Children, isValidElement, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowUpRight, Check, CircleAlert, Download, Film, FolderOpen, LoaderCircle, Monitor, Sparkles, WandSparkles, X } from 'lucide-react';
+import { ArrowUpRight, Check, CircleAlert, Download, Film, FolderOpen, LoaderCircle, Monitor, WandSparkles, X } from 'lucide-react';
 import type { Clip, ExportSettings, JobEvent, MediaAsset, Project, SystemInfo,SpeechOptions,SpeechModelId } from '../shared/types';
 import { projectDuration } from '../shared/project';
 import {clipSourceTime} from '../shared/speed';

@@ -32,7 +32,7 @@ import {AudioPreviewCache} from './audio-preview';
 import {freezeFrame} from './freeze-frame';
 import {combinationProject,planCombination,MAX_COMBINED_CLIPS} from '../shared/combine';
 import type {StabilizationOptions} from '../shared/types';
-import {atomicWrite,saveRecovery,listRecoveries,loadRecovery,readProject,serializeProject,ProjectSaveQueue} from './project-store';
+import {atomicWrite,saveRecovery,listRecoveries,loadRecovery,readProject,ProjectSaveQueue} from './project-store';
 import {saveProjectWithAssets,resolveProjectAssets,relocateProjectSources,reconnectTrackingFile} from './project-assets';
 import { assertProject, assertMedia } from '../shared/validation';
 import { localFilePath, pathKey, insideDirectory, parseByteRange,assertOutputNotSource } from './file-policy';
@@ -214,7 +214,9 @@ function flushAutosave():Promise<void>{
 }
 function queueAutosave(project:Project):Promise<void>{
   assertProject(project);for(const media of project.media)checkMedia(media);trackingFiles.approveProject(project);
-  const revision=++autoSaveRevision;latestAutoSaves.set(project.id,{revision,project:structuredClone(project)});
+  // IPC already deserialized an independent snapshot. Retain it immediately for
+  // close/project-switch recovery without cloning the whole project every drag.
+  const revision=++autoSaveRevision;latestAutoSaves.set(project.id,{revision,project});
   if(autoSaveTimer)clearTimeout(autoSaveTimer);
   autoSaveTimer=setTimeout(()=>{void flushAutosave().catch(()=>{});},600);
   return new Promise((resolve,reject)=>autoSaveWaiters.push({revision,resolve,reject}));
@@ -243,8 +245,8 @@ async function refreshChangedProject(project:Project,changed:ReadonlySet<string>
     startJob('range',async(signal,progress)=>{try{const result=await refreshProjectSources(project,changed,engine,progress,signal);resolve(result);return {message:'프로젝트 원본 확인 완료'};}catch(error){reject(error);throw error;}});
   });
   for(const media of result.project.media)register(media);
-  const message=`원본 미디어 ${result.changedSources}개 정보를 다시 확인했습니다.${result.detachedTransitions?` 실제 영상 구간이 부족한 전환 ${result.detachedTransitions}개를 해제했습니다.`:''} 저장된 프로젝트 파일은 변경하지 않았습니다.`;
-  if((result.changedSources||result.detachedTransitions)&&win&&!win.isDestroyed()&&!win.webContents.isDestroyed())win.webContents.send('project:warning',message);
+  const message=`원본 미디어 ${result.changedSources}개 정보를 다시 확인했습니다.${result.detachedTransitions?` 실제 영상 구간이 부족한 전환 ${result.detachedTransitions}개를 해제했습니다.`:''}${result.detachedEnhancements?` 원본 구간이 바뀐 화질 향상 ${result.detachedEnhancements}개의 원본 복원 연결을 해제했습니다. 향상된 영상은 유지됩니다.`:''} 저장된 프로젝트 파일은 변경하지 않았습니다.`;
+  if((result.changedSources||result.detachedTransitions||result.detachedEnhancements)&&win&&!win.isDestroyed()&&!win.webContents.isDestroyed())win.webContents.send('project:warning',message);
   return result.project;
 }
 function handler(name:string,fn:(...args:any[])=>unknown){ipcMain.handle(name,(event,...args)=>{

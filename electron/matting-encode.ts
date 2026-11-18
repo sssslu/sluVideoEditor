@@ -11,7 +11,7 @@ export class MattingVideoEncoder {
  private done:Promise<void>;private failure?:Error;private ended=false;private closed=false;
  private stderr='';private abort:()=>void;private idle?:ReturnType<typeof setTimeout>;
  private pendingReject?: (error:Error)=>void;private writing=false;
- constructor(width:number,height:number,target:string,private ctx:EngineContext,private signal?:AbortSignal,private options:ProcessedVideoOptions={}){
+ constructor(width:number,height:number,target:string,private ctx:EngineContext,signal?:AbortSignal,private options:ProcessedVideoOptions={}){
   if(signal?.aborted)throw new CancelledError();
   if(options.idleTimeoutMs!==undefined&&(!Number.isFinite(options.idleTimeoutMs)||options.idleTimeoutMs<100||options.idleTimeoutMs>1800000))throw new Error('영상 저장 대기 시간이 올바르지 않습니다.');
   this.mux=new NutVideoStream(width,height,options.maximumPixels);

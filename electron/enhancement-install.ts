@@ -156,10 +156,34 @@ export async function verifyEnhancementRuntime(context:EnhancementInstallContext
   aborted(signal);
   const state=await load(context),records=await registry(state.runtimeRoot,state.manifestSha256,signal);
   assertInventory(records.files,state.manifest.expectedInstalledFilesSha256);
-  for(const record of records.files) {
-    const actual=await fileHash(inside(state.runtimeRoot,record.path),signal);
-    if(actual.bytes!==record.bytes||actual.sha256!==record.sha256)throw Error(`AI 설치 파일이 손상되었습니다. 다시 설치하세요. (${record.path})`);
-  }
+  // Keep the exact validation/cache policy, overlap at most
+  // four independent file reads, and settle all work before returning errors.
+  const verification=new AbortController();
+  let cursor=0,failed=false,firstFailure:unknown;
+  const stop=(error:unknown)=>{
+    if(!failed){failed=true;firstFailure=error;}
+    verification.abort(firstFailure);
+  };
+  const abortVerification=()=>stop(signal?.reason);
+  signal?.addEventListener('abort',abortVerification,{once:true});
+  if(signal?.aborted)abortVerification();
+  const worker=async()=>{
+    try {
+      while(!failed) {
+        const index=cursor++;
+        if(index>=records.files.length)return;
+        const record=records.files[index];
+        const actual=await fileHash(inside(state.runtimeRoot,record.path),verification.signal);
+        verification.signal.throwIfAborted();
+        if(actual.bytes!==record.bytes||actual.sha256!==record.sha256)throw Error(`AI 설치 파일이 손상되었습니다. 다시 설치하세요. (${record.path})`);
+      }
+    } catch(error) {stop(error);}
+  };
+  try {
+    await Promise.allSettled(Array.from({length:Math.min(4,records.files.length)},()=>worker()));
+    if(failed)throw firstFailure;
+    aborted(signal);
+  } finally {signal?.removeEventListener('abort',abortVerification);}
   if(!records.files.some(record=>record.path===state.manifest.pythonExecutable))throw Error('AI Python 실행 파일이 없습니다.');
   return {runtimeRoot:state.runtimeRoot,pythonExecutable:state.pythonExecutable,manifestSha256:state.manifestSha256};
 }

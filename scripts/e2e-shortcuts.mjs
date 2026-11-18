@@ -97,6 +97,40 @@ try{
   check('Ctrl+I opens import',await app.evaluate(()=>globalThis.__importAsked)===1,null);
   await page.keyboard.press('Control+n');await page.waitForFunction(()=>document.querySelector('.preview-gpu-stage').previewRuntime.project.clips.length===0,null,{timeout:10000});
   check('Ctrl+N starts a new project',true,null);
+  // At overview scale, trim/fade handles must leave a short clip draggable.
+  await page.getByRole('navigation',{name:'편집 도구'}).getByRole('button',{name:'텍스트',exact:true}).click();
+  await page.getByRole('button',{name:'텍스트 추가',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('.preview-gpu-stage').previewRuntime.project.clips.length===1);
+  const tinyId=(await project()).clips[0].id;
+  await page.getByLabel('길이',{exact:true}).fill(String(1/30));await page.getByLabel('길이',{exact:true}).press('Enter');
+  await focusProgram();for(let i=0;i<5;i++)await page.keyboard.press('Control+Minus');await dismissToasts(page);
+  const tiny=page.locator(`[data-clip-id="${tinyId}"]`);await tiny.scrollIntoViewIfNeeded();
+  const tinyBefore=(await project()).clips[0],tinyBox=await tiny.boundingBox();
+  check('tiny clip body has no overlapping trim or fade targets',tinyBox.width<24&&await tiny.locator('.trim-handle,.fade-handle').count()===0,tinyBox);
+  await page.mouse.move(tinyBox.x+tinyBox.width/2,tinyBox.y+tinyBox.height/2);await page.keyboard.down('Alt');await page.mouse.down();
+  await page.mouse.move(tinyBox.x+tinyBox.width/2+60,tinyBox.y+tinyBox.height/2,{steps:8});await page.mouse.up();await page.keyboard.up('Alt');
+  await page.waitForFunction(id=>document.querySelector('.preview-gpu-stage').previewRuntime.project.clips.find(clip=>clip.id===id)?.start>0,tinyId);
+  const tinyAfter=(await project()).clips[0];
+  check('dragging a tiny clip moves it without trimming',near(tinyAfter.duration,tinyBefore.duration)&&near(tinyAfter.in,tinyBefore.in),{tinyBefore,tinyAfter});
+  // Cutting the only text clip prunes its track; paste must restore that track.
+  await tiny.focus();await page.keyboard.press('Control+x');
+  await page.waitForFunction(()=>document.querySelector('.preview-gpu-stage').previewRuntime.project.clips.length===0);
+  check('cutting the last text clip prunes its track',!(await project()).tracks.some(track=>track.id===tinyAfter.trackId),null);
+  await seekTo(0);await page.keyboard.press('Control+v');
+  await page.waitForFunction(()=>document.querySelector('.preview-gpu-stage').previewRuntime.project.clips.length===1);
+  const restored=(await project()).clips[0];
+  check('paste restores a cut-away text track',restored.trackId===tinyAfter.trackId&&near(restored.start,0)&&near(restored.duration,tinyAfter.duration),restored);
+  // Rename uses an app dialog; its typing/shortcuts cannot edit the timeline.
+  await page.getByLabel('길이',{exact:true}).fill('3');await page.getByLabel('길이',{exact:true}).press('Enter');
+  await seekTo(2);await page.keyboard.press('m');await seekTo(0);await dismissToasts(page);
+  await page.locator('.timeline-marker').dblclick();const markerDialog=page.getByRole('dialog',{name:'마커 이름',exact:true});await markerDialog.waitFor();
+  const markerName=markerDialog.getByRole('textbox',{name:'마커 이름',exact:true});await markerName.fill('첫 장면');
+  await page.keyboard.press('Control+n');await page.keyboard.press('Control+o');
+  check('marker dialog blocks global new/open shortcuts',(await project()).clips.length===1&&await app.evaluate(()=>globalThis.__importAsked)===1,null);
+  await markerName.press('Enter');await markerDialog.waitFor({state:'hidden'});
+  check('marker rename commits in Electron',(await project()).markers?.[0].label==='첫 장면',(await project()).markers);
+  await page.locator('.timeline-marker').dblclick();await page.getByRole('textbox',{name:'마커 이름',exact:true}).fill('취소할 이름');await page.keyboard.press('Escape');
+  check('Escape cancels marker rename',(await project()).markers?.[0].label==='첫 장면',(await project()).markers);
   check('no page errors',!errors.length,errors);
 }finally{
   await fs.writeFile(path.join(root,'results.json'),JSON.stringify({checks,errors},null,2));

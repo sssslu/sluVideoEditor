@@ -173,7 +173,8 @@ try {
 
   await select();
   await fs.writeFile(path.join(work,'font-faces-before.json'),JSON.stringify(await page.evaluate(()=>[...document.fonts].map(face=>({family:face.family,weight:face.weight,status:face.status}))),null,2));
-  const expectedFaces=['SLU Noto Sans KR|100 900','SLU Noto Color Emoji|100 900','SLU Gmarket Sans|400 500','SLU Gmarket Sans|600 800'].sort();
+  // The title uses a separate brand face; it is not a caption-picker option.
+  const expectedFaces=['SluCompany Sans|700','SLU Noto Sans KR|100 900','SLU Noto Color Emoji|100 900','SLU Gmarket Sans|400 500','SLU Gmarket Sans|600 800'].sort();
   await page.waitForFunction(expected=>{
     const faces=[...document.fonts].filter(face=>face.status==='loaded').map(face=>`${face.family.replace(/^(["'])(.*)\1$/,'$2')}|${face.weight}`).sort();
     return JSON.stringify(faces)===JSON.stringify(expected);

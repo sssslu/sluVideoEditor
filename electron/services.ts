@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { mkdir, open, readFile, rename, rm, stat } from 'node:fs/promises';
+import { mkdir, open, readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { MediaAsset, SubtitleCue, SpeechModelId, SpeechOptions } from '../shared/types';
 import { transcribeWithCLI } from './speech';
@@ -16,6 +16,9 @@ export interface ServiceContext {
   whisper?: string;
 }
 export type ServiceProgress = (progress: number, message: string) => void;
+/** Whisper offsets are relative to decoded samples. Keep source-time silence
+ * before delayed audio and in timestamp gaps instead of collapsing those spans. */
+export const SPEECH_AUDIO_FILTER='aresample=16000:async=1:first_pts=0';
 
 // The upstream whisper.cpp model is public and immutable by its SHA-256 digest.
 export const SPEECH_MODEL = {
@@ -145,7 +148,7 @@ export async function transcribeMedia(media: MediaAsset, language: string, ctx: 
   try {
     await requireSourceRevision(media.path,sourceRevision);checkAbort(signal);
     // Both model and output are simple relative filenames: no Windows drive/filter escaping.
-    const filter = `aresample=16000,whisper=model=${SPEECH_MODEL.filename}:language=${language}:queue=20:use_gpu=false:destination=${resultName}:format=srt`;
+    const filter = `${SPEECH_AUDIO_FILTER},whisper=model=${SPEECH_MODEL.filename}:language=${language}:queue=20:use_gpu=false:destination=${resultName}:format=srt`;
     await run(ctx.ffmpeg, ['-hide_banner', '-nostdin', '-loglevel', 'warning', '-protocol_whitelist', 'file,pipe', '-i', path.resolve(media.path), '-map', '0:a:0', '-vn', '-af', filter, '-progress', 'pipe:1', '-nostats', '-f', 'null', '-'], {
       cwd: ctx.modelDir, signal,
       onLine(line) {

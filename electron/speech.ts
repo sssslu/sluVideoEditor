@@ -1,11 +1,11 @@
 import path from 'node:path';
-import {mkdir,open,readFile,rename,rm,stat} from 'node:fs/promises';
-import {createReadStream,createWriteStream} from 'node:fs';
+import {mkdir,open,readFile,rm,stat} from 'node:fs/promises';
+import {createWriteStream} from 'node:fs';
 import {createHash,randomUUID} from 'node:crypto';
 import {pipeline} from 'node:stream/promises';
 import {availableParallelism} from 'node:os';
 import yauzl from 'yauzl';
-import {run,modelReady,SPEECH_MODELS,type ServiceContext,type ServiceProgress} from './services';
+import {run,modelReady,SPEECH_MODELS,SPEECH_AUDIO_FILTER,type ServiceContext,type ServiceProgress} from './services';
 import type {CaptionWord,MediaAsset,SpeechOptions,SubtitleCue} from '../shared/types';
 import {publishRuntimeDirectory} from './project-store';
 import {requireSourceRevision} from './source-revision';
@@ -164,6 +164,10 @@ export async function wavHasSamples(file:string):Promise<boolean>{
     return false;
   }finally{await handle.close();}
 }
+export async function extractSpeechAudio(source:string,start:number,duration:number,destination:string,ffmpeg:string,signal?:AbortSignal){
+  await run(ffmpeg,['-hide_banner','-nostdin','-v','error','-y','-ss',ffmpegSeconds(start),'-t',ffmpegSeconds(duration),'-protocol_whitelist','file,pipe','-i',source,'-map','0:a:0','-vn','-af',SPEECH_AUDIO_FILTER,'-ar','16000','-ac','1','-c:a','pcm_s16le',destination],{signal});
+}
+
 export async function transcribeWithCLI(media:MediaAsset,language:string,ctx:ServiceContext,progress:ServiceProgress,signal:AbortSignal|undefined,options:SpeechOptions):Promise<SubtitleCue[]>{
   const modelId=options.model??'base',device=options.device??'auto',start=options.start??0,duration=options.duration??(media.duration-start),maxChars=options.maxChars??28,maxDuration=options.maxDuration??4;
   if(!Object.hasOwn(SPEECH_MODELS,modelId)||!['auto','cpu','cuda'].includes(device)||![start,duration].every(Number.isFinite)||start<0||duration<=0||start+duration>media.duration+.15)throw new Error('음성 인식 구간 또는 모델 설정 오류');
@@ -178,7 +182,7 @@ export async function transcribeWithCLI(media:MediaAsset,language:string,ctx:Ser
       await requireSourceRevision(media.path,sourceRevision);abort(signal);
       // Every chunk reuses result.json. A stale file must never be read again.
       await rm(out+'.json',{force:true});
-      await run(ctx.ffmpeg,['-hide_banner','-nostdin','-v','error','-y','-ss',ffmpegSeconds(start+chunkStart),'-t',ffmpegSeconds(chunkDuration),'-protocol_whitelist','file,pipe','-i',media.path,'-map','0:a:0','-vn','-ar','16000','-ac','1','-c:a','pcm_s16le',wav],{signal});
+      await extractSpeechAudio(media.path,start+chunkStart,chunkDuration,wav,ctx.ffmpeg,signal);
       await requireSourceRevision(media.path,sourceRevision);abort(signal);
       // The audio track can end before the video; whisper-cli then exits 0
       // without writing JSON. Such a chunk has nothing to transcribe.

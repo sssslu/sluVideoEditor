@@ -7,6 +7,7 @@ import {reconcileTransitions} from '../shared/transition-edits';
 import {assertCaptionWords,trimCaptionWords,defaultCaptionStyle,defaultCaptionAnimation,resizeCaptionStyle} from '../shared/captions';
 import {previewProxyPath} from '../shared/media-clock';
 import {reconcileMotion,resizeMotionBinding} from '../shared/motion';
+import {reconcileEnhancementSources} from '../shared/processing';
 
 export function useHistory() {
   const [project, setState] = useState<Project>(startingProject);
@@ -21,7 +22,7 @@ export function useHistory() {
   // A text or color field records one undo step per focus, however many input events it sends.
   const coalesced=useRef<EventTarget|undefined>(undefined);
   useEffect(()=>{const end=(event:FocusEvent)=>{if(event.target===coalesced.current)coalesced.current=undefined;};document.addEventListener('focusout',end);return()=>document.removeEventListener('focusout',end);},[]);
-  const [transitionNotice,setTransitionNotice]=useState<{count:number}|null>(null);
+  const [transitionNotice,setTransitionNotice]=useState<{count:number;enhancements?:number}|null>(null);
   const clearTransitionNotice=useCallback(()=>setTransitionNotice(null),[]);
   const rebase=useCallback((snapshot:Project)=>{
     let changed=false;
@@ -33,9 +34,9 @@ export function useHistory() {
       const result=keys.length===Object.keys(asset).length&&keys.every(key=>asset[key]===merged[key])?asset:merged;
       rebasedAssets.current.set(asset,{source:authority,asset:result});changed ||= result!==asset;return result;
     });
-    if(!changed)return {project:snapshot,detached:[] as string[]};
-    const result=reconcileTransitions(snapshot,{...snapshot,media});
-    return {...result,project:{...result.project,updatedAt:new Date().toISOString()}};
+    if(!changed)return {project:snapshot,detached:[] as string[],enhancements:[] as string[]};
+    const enhancements=reconcileEnhancementSources(snapshot,{...snapshot,media}),result=reconcileTransitions(snapshot,enhancements.project);
+    return {...result,enhancements:enhancements.detached,project:{...result.project,updatedAt:new Date().toISOString()}};
   },[]);
   const checkpoint = useCallback(() => {
     past.current = [...past.current.slice(-79), current.current];
@@ -65,7 +66,7 @@ export function useHistory() {
       }
     }
     const before=rebase(previous),after=rebase({...next,version:10});
-    const reconciled=reconcileTransitions(previous,reconcileMotion(previous,after.project));
+    const refreshed=reconcileEnhancementSources(previous,after.project),reconciled=reconcileTransitions(previous,reconcileMotion(previous,refreshed.project));
     let onlySourceRefresh=false;
     if(sourceChanged||options?.authoritativeSources?.length){
       const contents=JSON.stringify({...reconciled.project,updatedAt:''});
@@ -76,7 +77,8 @@ export function useHistory() {
     if(record&&!onlySourceRefresh){if(!options?.coalesce||options.coalesce!==coalesced.current)checkpoint();coalesced.current=options?.coalesce;}
     current.current = {...reconciled.project, updatedAt:new Date().toISOString()};
     const detached=new Set([...before.detached,...after.detached,...reconciled.detached]);
-    if(detached.size)setTransitionNotice({count:detached.size});
+    const enhancements=new Set([...before.enhancements,...after.enhancements,...refreshed.detached]);
+    if(detached.size||enhancements.size)setTransitionNotice({count:detached.size,enhancements:enhancements.size});
     setState(current.current);
   }, [checkpoint,rebase]);
   const reset = useCallback((next:Project) => {
@@ -85,12 +87,12 @@ export function useHistory() {
   const undo = useCallback(() => {
     const next=past.current.pop();if(!next)return;const restored=rebase(next);coalesced.current=undefined;
     future.current.push(current.current);current.current=restored.project;setState(current.current);setRevision(r=>r+1);
-    if(restored.detached.length)setTransitionNotice({count:restored.detached.length});
+    if(restored.detached.length||restored.enhancements.length)setTransitionNotice({count:restored.detached.length,enhancements:restored.enhancements.length});
   }, [rebase]);
   const redo = useCallback(() => {
     const next=future.current.pop();if(!next)return;const restored=rebase(next);coalesced.current=undefined;
     past.current.push(current.current);current.current=restored.project;setState(current.current);setRevision(r=>r+1);
-    if(restored.detached.length)setTransitionNotice({count:restored.detached.length});
+    if(restored.detached.length||restored.enhancements.length)setTransitionNotice({count:restored.detached.length,enhancements:restored.enhancements.length});
   }, [rebase]);
   return {project,current,change,reset,checkpoint,undo,redo,canUndo:!!past.current.length,canRedo:!!future.current.length,revision,transitionNotice,clearTransitionNotice};
 }
@@ -200,7 +202,7 @@ export const fileUrl=(path?:string)=>path ? window.studio.mediaUrl(path) : '';
 export function mergeAsset(base:MediaAsset,update?:Partial<MediaAsset>):MediaAsset {
   const changed=update?.sourceRevision!==undefined&&update.sourceRevision!==base.sourceRevision;
   const retained={...base};
-  if(changed){delete retained.proxyPath;delete retained.thumbnail;delete retained.waveform;delete retained.videoStart;delete retained.videoEnd;delete retained.timing;delete retained.hasAlpha;}
+  if(changed){delete retained.proxyPath;delete retained.thumbnail;delete retained.waveform;delete retained.videoStart;delete retained.videoEnd;delete retained.videoStreamOrdinal;delete retained.timing;delete retained.hasAlpha;}
   const result={...retained,...Object.fromEntries(Object.entries(update||{}).filter(([,value])=>value!==undefined)),id:base.id};if(!previewProxyPath(result))delete result.proxyPath;return result;
 }
 export function resizeProject(p:Project,width:number,height:number):Project {

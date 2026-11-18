@@ -1,4 +1,4 @@
-import type {Clip,Easing,MediaAsset,Project,Transition} from './types';
+import type {Clip,MediaAsset,Project,Transition} from './types';
 import {ease,visualTrackEnabled} from './effects';
 import {clipTimelineTime} from './speed';
 

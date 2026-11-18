@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { mkdir, writeFile, readFile, readdir } from 'node:fs/promises';
+import { mkdir, writeFile, readdir } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { installSpeechModel, transcribeMedia, modelReady } from '../electron/services';
 import type { ServiceContext } from '../electron/services';
