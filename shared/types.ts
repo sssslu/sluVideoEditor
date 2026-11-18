@@ -18,7 +18,7 @@ export type TextStyle = 'minimal'|'bold'|'box'|'neon'|'title';
 /** UTF-16 text spans, with source/timeline-absolute times on cues and local times on clips. */
 export interface CaptionWord {from:number;to:number;start:number;end:number;timing:'measured'|'manual'|'estimated'}
 export interface CaptionStyle {
-  font:'noto-sans-kr'|'gmarket-sans';weight:400|500|600|700|800;lineHeight:number;letterSpacing:number;
+  font:'noto-sans-kr'|'gmarket-sans'|'reatic';weight:400|500|600|700|800;lineHeight:number;letterSpacing:number;
   outlineWidth:number;outlineColor:string;shadowBlur:number;shadowColor:string;
   background:'none'|'box'|'line';paddingX:number;paddingY:number;radius:number;maxWidth:number;
   highlight:boolean;activeColor:string;highlightEstimated?:boolean;

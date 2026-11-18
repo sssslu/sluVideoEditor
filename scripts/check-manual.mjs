@@ -50,7 +50,8 @@ try {
       projectFormat10: sectionText('save').includes('형식 10'),
       enhancementInstructions: document.querySelectorAll('#enhancement + ol > li').length===4&&['2×','4×','AI 엔진 설치','2.0초 비교','클립에 적용','화질 향상 해제'].every(label=>sectionText('enhancement').includes(label)),
       enhancementRuntime: ['SeedVR2','NVIDIA','CUDA','10.3GB','30GiB','7680','33,177,600','FFV1','media-derived','enhancement-runtime'].every(label=>sectionText('enhancement').includes(label)),
-      captionFonts: ['Noto Sans KR','Gmarket Sans','두 종류','500·700'].every(label=>sectionText('captions').includes(label)),
+      captionFonts: ['Noto Sans KR','Gmarket Sans','앱에 포함된 자막 글꼴','두 종류','500·700'].every(label=>sectionText('captions').includes(label)),
+      localReaticFont: document.querySelector('#reatic-font + ol a')?.getAttribute('href')==='https://www.reaticindustry.com/reaticfont'&&['TTF/REATIC/REATIC-Regular.ttf','TTF/REATIC/REATIC-Bold.ttf','기본 너비','Regular(400)','Bold(700)','Windows에 설치','다시 실행','자동 다운로드하지 않습니다','해당 자막의 출력을 막습니다','리틱체 파일을 복사하지 않습니다'].every(label=>sectionText('captions').includes(label))&&sectionText('save').includes('리틱체를 쓰는 프로젝트는 형식이 같아도 SLU Studio 1.15.1 이상이 필요합니다.'),
       simpleHsl: ['색상별 HSL','세 슬라이더','색조','채도','밝기'].every(label=>sectionText('color').includes(label)),
       simpleKeyframes: ['그래프의 점','한 번의 드래그','한 번의 실행 취소'].every(label=>sectionText('picture').includes(label)),
     };
@@ -59,7 +60,7 @@ try {
   assert.equal(checks.noOverflow, true);
   assert.deepEqual(checks.duplicateIds, []);
   assert.ok(checks.text?.includes(version), 'Manual version must match package.json');
-  for (const name of ['cutoutInstructions', 'cutoutControls', 'cutoutStorageAndLimits', 'cutoutQualityLimits', 'transparentStabilization', 'projectFormat10','enhancementInstructions','enhancementRuntime','captionFonts','simpleHsl','simpleKeyframes']) {
+  for (const name of ['cutoutInstructions', 'cutoutControls', 'cutoutStorageAndLimits', 'cutoutQualityLimits', 'transparentStabilization', 'projectFormat10','enhancementInstructions','enhancementRuntime','captionFonts','localReaticFont','simpleHsl','simpleKeyframes']) {
     assert.equal(checks[name], true, `Manual section is incomplete: ${name}`);
   }
 

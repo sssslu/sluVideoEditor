@@ -95,9 +95,11 @@ try {
   await select();
 
   const font=page.getByLabel('자막 글꼴',{exact:true}),weight=page.getByLabel('자막 굵기',{exact:true});
-  assert.deepEqual(await font.locator('option').evaluateAll(options=>options.map(option=>({value:option.value,label:option.textContent}))),[
+  const fontOptions=await font.locator('option').evaluateAll(options=>options.map(option=>({value:option.value,label:option.textContent})));
+  assert.deepEqual(fontOptions.slice(0,2),[
     {value:'noto-sans-kr',label:'Noto Sans KR'},{value:'gmarket-sans',label:'Gmarket Sans'},
   ]);
+  assert.equal(fontOptions.length,3);assert.equal(fontOptions[2].value,'reatic');assert.match(fontOptions[2].label,/리틱체/);
   await font.selectOption('gmarket-sans');
   await snapshot(project=>get(project).captionStyle.font==='gmarket-sans'&&get(project).captionStyle.weight===500);
   assert.deepEqual(await weight.locator('option').evaluateAll(options=>options.map(option=>option.value)),['500','700']);
@@ -108,7 +110,7 @@ try {
   await snapshot(project=>get(project).captionStyle.font==='gmarket-sans'&&get(project).captionStyle.weight===700);
   await undo();
   await snapshot(project=>get(project).captionStyle.font==='gmarket-sans'&&get(project).captionStyle.weight===500);
-  checks.push('The actual font picker has two bundled families, Gmarket offers500/700, and family/weight edits undo independently');
+  checks.push('The actual font picker retains two bundled families and one local REATIC option, Gmarket offers500/700, and family/weight edits undo independently');
 
   for(const [notoWeight,gmarketWeight] of [[400,500],[600,700],[800,700]]) {
     await font.selectOption('noto-sans-kr');
@@ -177,10 +179,15 @@ try {
   const expectedFaces=['SluCompany Sans|700','SLU Noto Sans KR|100 900','SLU Noto Color Emoji|100 900','SLU Gmarket Sans|400 500','SLU Gmarket Sans|600 800'].sort();
   await page.waitForFunction(expected=>{
     const faces=[...document.fonts].filter(face=>face.status==='loaded').map(face=>`${face.family.replace(/^(["'])(.*)\1$/,'$2')}|${face.weight}`).sort();
-    return JSON.stringify(faces)===JSON.stringify(expected);
+    return expected.every(face=>faces.includes(face));
   },expectedFaces);
   const faces=await page.evaluate(()=>[...document.fonts].map(face=>({family:face.family,weight:face.weight,status:face.status})));
-  assert.deepEqual(faces.map(face=>`${face.family.replace(/^(["'])(.*)\1$/,'$2')}|${face.weight}`).sort(),expectedFaces);
+  const faceNames=faces.map(face=>`${face.family.replace(/^(["'])(.*)\1$/,'$2')}|${face.weight}`).sort();
+  assert.ok(faces.every(face=>face.status==='loaded'));
+  assert.deepEqual(faceNames.filter(name=>!name.startsWith('SLU REATIC|')),expectedFaces);
+  const optionalFaces=faceNames.filter(name=>name.startsWith('SLU REATIC|'));
+  assert.ok(optionalFaces.every(name=>['SLU REATIC|400','SLU REATIC|700'].includes(name)));
+  assert.equal(new Set(optionalFaces).size,optionalFaces.length);
   const fontResources=await app.evaluate(()=>globalThis.captionFontRequests);
   await fs.writeFile(path.join(work,'font-requests.json'),JSON.stringify(fontResources,null,2));
   const assetNames=(await fs.readdir('dist/assets')).filter(name=>name.endsWith('.ttf'));

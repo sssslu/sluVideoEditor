@@ -36,8 +36,8 @@ test('font provenance matches distributed original bytes and original license fi
   for(const name of ['NotoSansKR','NotoEmoji']){const manifest=JSON.parse(await readFile(path.resolve(`resources/licenses/${name}-manifest.json`),'utf8')),font=await readFile(path.resolve(manifest.file)),license=await readFile(path.resolve('resources/licenses',manifest.licenseFile));assert.equal(font.length,manifest.bytes);assert.equal(createHash('sha256').update(font).digest('hex'),manifest.sha256);assert.equal(createHash('sha256').update(license).digest('hex'),manifest.licenseSha256);assert.match(license.toString(),/SIL OPEN FONT LICENSE/);assert.equal(manifest.modified,false);}
 });
 
-test('the two caption font families survive presets and splitting with format10 validation',()=>{
-  for(const font of ['noto-sans-kr','gmarket-sans'] as const) {
+test('bundled and optional local caption families survive presets and splitting with format10 validation',()=>{
+  for(const font of ['noto-sans-kr','gmarket-sans','reatic'] as const) {
     const appearance=builtInCaptionAppearance('outline');
     appearance.captionStyle.font=font;
     const clip=applyCaptionAppearance(newClip('text-1'),appearance);
@@ -48,7 +48,7 @@ test('the two caption font families survive presets and splitting with format10 
     const parts=splitClip(clip,1);
     assert.ok(parts);
     for(const part of parts)assert.equal(part.captionStyle?.font,font);
-    if(font==='gmarket-sans')assert.throws(()=>assertProject({...newProject(),version:9,clips:[clip]}),/형식 10/);
+    if(font!=='noto-sans-kr')assert.throws(()=>assertProject({...newProject(),version:9,clips:[clip]}),/형식 10/);
   }
   for(const kind of ['minimal','bold','box','neon','title'] as const) {
     const style=textCaptionStyle(kind);
@@ -56,6 +56,20 @@ test('the two caption font families survive presets and splitting with format10 
     assert.ok(['noto-sans-kr','gmarket-sans'].includes(style.font));
     assert.equal(style.highlight,false);
   }
+});
+
+test('local REATIC metadata accepts only real Regular and Bold without changing bundled defaults',()=>{
+  for(const weight of [400,700] as const){
+    const appearance=builtInCaptionAppearance('plain');appearance.captionStyle={...appearance.captionStyle,font:'reatic',weight};
+    const clip=applyCaptionAppearance(newClip('text-1'),appearance),project=JSON.parse(JSON.stringify({...newProject(),clips:[clip]}));
+    assertProject(project);const restored=project.clips[0].captionStyle;assert.ok(restored);assert.equal(restored.font,'reatic');assert.equal(restored.weight,weight);
+    const storage=store();saveCaptionPreset(`리틱 ${weight}`,captureCaptionAppearance(clip),storage);
+    assert.deepEqual(readCaptionPresets(storage)[0].appearance.captionStyle,clip.captionStyle);
+  }
+  for(const weight of [500,600,800])assert.throws(()=>assertCaptionStyle({...builtInCaptionAppearance('plain').captionStyle,font:'reatic',weight}),/자막 스타일/);
+  for(const font of ['REATIC','reatic-fixed','reatic-narrow','reatic-wide'])assert.throws(()=>assertCaptionStyle({...builtInCaptionAppearance('plain').captionStyle,font,weight:400}),/자막 스타일/);
+  assert.equal(builtInCaptionAppearance('plain').captionStyle.font,'noto-sans-kr');
+  assert.equal(textCaptionStyle('bold').font,'gmarket-sans');assert.equal(textCaptionStyle('title').font,'gmarket-sans');
 });
 
 test('Gmarket fonts and their original embedded license match the shipped provenance',async()=>{

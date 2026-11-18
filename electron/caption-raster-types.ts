@@ -1,4 +1,5 @@
 import type {Clip,ExportSettings,Project} from '../shared/types';
+import {CAPTION_FONT_MISSING,missingCaptionFont} from '../shared/caption-font-error';
 
 export interface CaptionRasterBounds {x:number;y:number;width:number;height:number}
 export interface CaptionRasterGroup extends CaptionRasterBounds {id:string}
@@ -13,4 +14,8 @@ export interface CaptionRasterSession {
 }
 export type CaptionRasterFactory=(project:Project,settings:ExportSettings,signal?:AbortSignal,diagnostics?:(event:Record<string,unknown>)=>void)=>Promise<CaptionRasterSession>;
 export type CaptionRasterRequest={id:number;op:'init';project:Project;settings:ExportSettings}|{id:number;op:'prepare';group:string;clips:Clip[]}|{id:number;op:'frame';group:string;globalFrame:number;reuse?:string}|{id:number;op:'release';group:string};
-export interface CaptionRasterResponse {id:number;error?:string;bounds?:CaptionRasterBounds;rgba?:ArrayBuffer;signature?:string;reused?:boolean}
+export interface CaptionRasterResponse {id:number;error?:string;errorCode?:typeof CAPTION_FONT_MISSING;bounds?:CaptionRasterBounds;rgba?:ArrayBuffer;signature?:string;reused?:boolean}
+export function captionRasterResponseError(response:CaptionRasterResponse):Error|undefined{
+  if(!response.error)return;
+  return response.errorCode===CAPTION_FONT_MISSING?missingCaptionFont(response.error):new Error(response.error);
+}

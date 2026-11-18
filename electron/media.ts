@@ -23,6 +23,7 @@ import {cachedVideoRange,probeVideoRange} from './video-range';
 import {readSourceRevision,sourceRevisionFromStat} from './source-revision';
 import type {CaptionRasterFactory,CaptionRasterSession} from './caption-raster-types';
 import {captionLayerGroups,CaptionWindowStreams} from './render-captions';
+import {isMissingCaptionFont} from '../shared/caption-font-error';
 import {RenderColorFiles} from './render-color';
 import {hasColorGrade} from '../shared/color';
 import {mediaTimingFromProbe} from './media-timing';
@@ -728,7 +729,7 @@ export async function renderProjectDirect(project:Project,settings:ExportSetting
       await ffmpegProgress(ctx,args,duration,work,onProgress,signal);
     };
     try{await run(encoder);}catch(error){
-      if(isAbort(error)||settings.encoder!=='auto'||!/_nvenc$|_qsv$|_amf$/.test(encoder))throw error;
+      if(isAbort(error)||isMissingCaptionFont(error)||settings.encoder!=='auto'||!/_nvenc$|_qsv$|_amf$/.test(encoder))throw error;
       onProgress?.(0,'GPU 작업 실패 — CPU 인코딩으로 다시 시도합니다.');
       await run(settings.codec==='av1'?'libsvtav1':settings.codec==='hevc'?'libx265':'libx264');
     }
@@ -821,8 +822,8 @@ export async function renderProject(project:Project,settings:ExportSettings,ctx:
   };
   try{
     try{
-      try{await attempt(encoder);}catch(error){if(signal?.aborted||!usedCuda)throw error;ctx.diagnostics?.({event:'gpu-fallback',encoder,reason:error instanceof Error?error.message:String(error)});onProgress?.(0,'GPU 영상 처리를 완료하지 못해 처음부터 CPU 처리로 다시 시도합니다.');await attempt(encoder,false);}
-    }catch(error){if(signal?.aborted||settings.encoder!=='auto'||!/_nvenc$|_qsv$|_amf$/.test(encoder))throw error;onProgress?.(0,'GPU 인코딩을 완료하지 못해 CPU로 다시 시도합니다.');await attempt(settings.codec==='av1'?'libsvtav1':settings.codec==='hevc'?'libx265':'libx264',false);}
+      try{await attempt(encoder);}catch(error){if(signal?.aborted||isMissingCaptionFont(error)||!usedCuda)throw error;ctx.diagnostics?.({event:'gpu-fallback',encoder,reason:error instanceof Error?error.message:String(error)});onProgress?.(0,'GPU 영상 처리를 완료하지 못해 처음부터 CPU 처리로 다시 시도합니다.');await attempt(encoder,false);}
+    }catch(error){if(signal?.aborted||isMissingCaptionFont(error)||settings.encoder!=='auto'||!/_nvenc$|_qsv$|_amf$/.test(encoder))throw error;onProgress?.(0,'GPU 인코딩을 완료하지 못해 CPU로 다시 시도합니다.');await attempt(settings.codec==='av1'?'libsvtav1':settings.codec==='hevc'?'libx265':'libx264',false);}
     if(signal?.aborted)throw new CancelledError();const stat=await fs.stat(temporary);if(stat.size<32)throw new Error('내보낸 파일이 비어 있습니다.');await sources.verify();if(settings.format!=='wav')await motion.verify();await replaceWithRetry(temporary,output);onProgress?.(1,'내보내기가 완료되었습니다.');return output;
   }finally{await fs.rm(temporary,{force:true}).catch(()=>{});}
 }

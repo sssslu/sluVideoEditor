@@ -1,14 +1,14 @@
 # SLU Studio 빠른 시작
 
-Windows x64용 1.15.0 기준입니다. 전체 기능 설명은 파일을 내려받아 브라우저에서 열거나 앱 왼쪽의 **도움말**에서 확인하세요. [전체 사용설명서 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.15.0/SLU-Studio-1.15.0-guide.html)
+Windows x64용 1.15.1 기준입니다. 전체 기능 설명은 파일을 내려받아 브라우저에서 열거나 앱 왼쪽의 **도움말**에서 확인하세요. [전체 사용설명서 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.15.1/SLU-Studio-1.15.1-guide.html)
 
 ## 다운로드와 실행
 
-- [설치형 EXE](https://github.com/sssslu/sluVideoEditor/releases/download/v1.15.0/SLU-Studio-Setup-1.15.0-x64.exe)를 실행해 설치합니다.
-- [포터블 EXE](https://github.com/sssslu/sluVideoEditor/releases/download/v1.15.0/SLU-Studio-1.15.0-Windows-x64.exe)는 내려받은 파일을 실행합니다. 실행 중 내부 파일을 푸는 시간이 필요합니다.
+- [설치형 EXE](https://github.com/sssslu/sluVideoEditor/releases/download/v1.15.1/SLU-Studio-Setup-1.15.1-x64.exe)를 실행해 설치합니다.
+- [포터블 EXE](https://github.com/sssslu/sluVideoEditor/releases/download/v1.15.1/SLU-Studio-1.15.1-Windows-x64.exe)는 내려받은 파일을 실행합니다. 실행 중 내부 파일을 푸는 시간이 필요합니다.
 - 이후 버전은 [최신 릴리스](https://github.com/sssslu/sluVideoEditor/releases/latest)에서 확인할 수 있습니다.
 
-앱 상단 왼쪽에 실행 버전이 표시됩니다. Windows 코드 서명은 없으며, 대화식 설치 절차와 다른 PC 호환성은 아직 검증하지 않았습니다. 내려받은 파일의 SHA256은 릴리스의 해시 목록과 대조할 수 있습니다. [파일 해시](https://github.com/sssslu/sluVideoEditor/releases/download/v1.15.0/SHA256SUMS-1.15.0.txt)
+앱 상단 왼쪽에 실행 버전이 표시됩니다. Windows 코드 서명은 없으며, 대화식 설치 절차와 다른 PC 호환성은 아직 검증하지 않았습니다. 내려받은 파일의 SHA256은 릴리스의 해시 목록과 대조할 수 있습니다. [파일 해시](https://github.com/sssslu/sluVideoEditor/releases/download/v1.15.1/SHA256SUMS-1.15.1.txt)
 
 ## 첫 영상을 타임라인에 넣기
 
@@ -35,7 +35,7 @@ Windows x64용 1.15.0 기준입니다. 전체 기능 설명은 파일을 내려�
 
 직접 문구를 넣으려면 **텍스트 → 텍스트 추가**를 누르고 속성 패널에서 내용을 입력합니다. **자막 스타일**의 삽입 버튼으로 외곽선 강조·줄 배경·간결한 자막도 넣을 수 있습니다.
 
-자막 글꼴은 **Noto Sans KR**과 **Gmarket Sans** 두 종류입니다. 앱에 포함되어 있으며 Gmarket Sans는 굵기 500·700을 지원합니다. 글자색·강조색·외곽선·배경·정렬과 등장·퇴장 효과를 조절할 수 있습니다.
+앱에 포함된 자막 글꼴은 **Noto Sans KR**과 **Gmarket Sans** 두 종류입니다. Gmarket Sans는 굵기 500·700을 지원합니다. **리틱체**는 PC에 별도로 설치해 사용할 수 있습니다. 글자색·강조색·외곽선·배경·정렬과 등장·퇴장 효과를 조절할 수 있습니다.
 
 음성을 자동으로 인식하려면 다음 순서로 진행합니다.
 
@@ -46,13 +46,23 @@ Windows x64용 1.15.0 기준입니다. 전체 기능 설명은 파일을 내려�
 
 모델 설치 후 음성 인식은 PC에서 실행됩니다. SRT/VTT를 가져올 수도 있습니다. 문구·시간은 SRT로 내보낼 수 있고, 글꼴·효과·단어 강조는 프로젝트 파일에 저장됩니다.
 
+### 리틱체 설치
+
+1. [리틱체 공식 사이트](https://www.reaticindustry.com/reaticfont)에서 사용 조건을 확인하고 글꼴을 받습니다.
+2. 압축을 풀고 `TTF/REATIC/REATIC-Regular.ttf`와 `TTF/REATIC/REATIC-Bold.ttf`(기본 너비, Regular400·Bold700)를 Windows에 설치합니다. Fixed·Narrow·Wide 파일은 이 선택지에 사용하지 않습니다.
+3. SLU Studio를 완전히 닫았다가 다시 실행하고 자막 글꼴에서 **리틱체**를 선택합니다.
+
+앱은 리틱체를 자동으로 내려받지 않으며, 설치형·포터블·소스 ZIP에 글꼴 파일을 포함하지 않습니다. 필요한 굵기의 글꼴이 없으면 경고하고 해당 자막의 출력을 막습니다. 설치 후 앱을 다시 실행하거나 다른 글꼴로 바꾸세요. 다른 PC에서도 별도로 설치해야 하며 **프로젝트 모아 저장**은 리틱체 파일을 복사하지 않습니다.
+
+PC마다 설치한 글꼴 버전이 다르면 모양·줄바꿈이 달라질 수 있으므로 같은 버전을 사용하세요.
+
 ## 프로젝트 저장과 이동
 
 `Ctrl+S`를 눌러 `.sluproj` 파일을 저장합니다. 일반 저장은 편집 정보와 미디어 경로를 기록하므로 원본 영상도 함께 보관하세요.
 
 다른 폴더나 PC로 옮길 때는 **프로젝트 → 프로젝트 모아 저장**을 사용합니다. 완성된 `.sluproj`와 그 옆 자료 폴더를 함께 옮기세요. 배경 제거·흔들림 보정·역재생·AI 화질 향상으로 만든 영상도 복사 대상입니다.
 
-1.15는 **프로젝트 형식 10**으로 저장하며 형식 1–9를 열 수 있습니다. 새로 저장한 파일은 형식 10을 지원하는 앱에서 열어야 합니다. 이전 파일을 보관하려면 **다른 이름으로 저장**을 사용하세요. 자동 저장 기록은 프로젝트 메뉴의 **복구 기록**에서 확인할 수 있습니다.
+1.15.1은 **프로젝트 형식 10**으로 저장하며 형식 1–9를 열 수 있습니다. 새로 저장한 파일은 형식 10을 지원하는 앱에서 열어야 합니다. **리틱체를 쓰는 프로젝트는 형식이 같아도 SLU Studio 1.15.1 이상이 필요합니다.** 이전 파일을 보관하려면 **다른 이름으로 저장**을 사용하세요. 자동 저장 기록은 프로젝트 메뉴의 **복구 기록**에서 확인할 수 있습니다.
 
 ## 영상으로 내보내기
 
@@ -74,7 +84,7 @@ WebM, GIF, WAV 출력도 지원합니다. GIF에는 오디오가 없고 WAV는 �
 
 ## 더 보기
 
-- [전체 사용설명서 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.15.0/SLU-Studio-1.15.0-guide.html)
+- [전체 사용설명서 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.15.1/SLU-Studio-1.15.1-guide.html)
 - [검사 조건과 제한](검증결과.md)
 - [개발·빌드 안내](DEVELOPMENT.md)
 - [다운로드로 돌아가기](../README.md#다운로드)

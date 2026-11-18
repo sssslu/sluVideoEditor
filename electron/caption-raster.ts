@@ -3,6 +3,7 @@ import {fileURLToPath} from 'node:url';
 import {randomUUID} from 'node:crypto';
 import type {BrowserWindow,MessagePortMain} from 'electron';
 import type {CaptionRasterFactory,CaptionRasterRequest,CaptionRasterResponse,CaptionRasterGroup} from './caption-raster-types';
+import {captionRasterResponseError} from './caption-raster-types';
 
 const cancelled=()=>Object.assign(new Error('작업을 취소했습니다.'),{name:'AbortError'});
 /** Electron is loaded lazily: the FFmpeg engine remains usable by Node tests. */
@@ -54,7 +55,7 @@ export const createCaptionRasterWithPaths=async(...[project,settings,signal,diag
     port.on('message',event=>{
       const response=event.data as CaptionRasterResponse,waiting=pending.get(response?.id);if(!waiting)return;
       clearTimeout(waiting.timer);pending.delete(response.id);
-      if(response.error)waiting.reject(new Error(response.error));else waiting.resolve(response);
+      const error=captionRasterResponseError(response);if(error)waiting.reject(error);else waiting.resolve(response);
     });port.start();
     await window.loadFile(html);if(closed||signal?.aborted)throw cancelled();
     window.webContents.postMessage('slu-caption:port',null,[channel.port2]);untransferredPort=undefined;

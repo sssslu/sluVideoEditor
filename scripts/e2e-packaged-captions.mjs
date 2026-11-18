@@ -18,11 +18,13 @@ const reference=await fs.readFile('.test-artifacts/rich-captions/actual.yuv'),ch
 const hash=data=>createHash('sha256').update(data).digest('hex'),run=promisify(execFile);
 const binary=(file,args)=>run(file,args,{windowsHide:true,encoding:'buffer',maxBuffer:64*1024*1024,timeout:120000});
 function assertCaptionFaces(faces) {
-  assert.equal(faces.length,4);
   assert.ok(faces.every(face=>face.status==='loaded'));
-  assert.deepEqual(faces.map(face=>`${face.family.replace(/^(["'])(.*)\1$/,'$2')}|${face.weight}`).sort(),[
+  const names=faces.map(face=>`${face.family.replace(/^(["'])(.*)\1$/,'$2')}|${face.weight}`).sort();
+  assert.deepEqual(names.filter(name=>!name.startsWith('SLU REATIC|')),[
     'SLU Noto Sans KR|100 900','SLU Noto Color Emoji|100 900','SLU Gmarket Sans|400 500','SLU Gmarket Sans|600 800',
   ].sort());
+  const optional=names.filter(name=>name.startsWith('SLU REATIC|'));
+  assert.ok(optional.every(name=>['SLU REATIC|400','SLU REATIC|700'].includes(name)));assert.equal(new Set(optional).size,optional.length);
 }
 let app,page,resources;
 async function terminal(id){await page.waitForFunction(id=>window.captionJobs.some(e=>e.id===id&&e.status!=='running'),id,{timeout:120000});return page.evaluate(id=>window.captionJobs.find(e=>e.id===id&&e.status!=='running'),id);}
@@ -42,7 +44,7 @@ try{
       window.webContents.session.webRequest.onCompleted(details=>{if(details.url.endsWith('.ttf'))entry.fontRequests.push({url:details.url,status:details.statusCode});});
       window.on('closed',()=>entry.closed=true);window.webContents.on('did-finish-load',()=>{
         entry.url=window.webContents.getURL();
-        void window.webContents.executeJavaScript(`(async()=>{for(let i=0;i<100;i++){const fonts=[...document.fonts].map(f=>({family:f.family,weight:f.weight,status:f.status}));if(fonts.length===4&&fonts.every(f=>f.status==='loaded'))return {fonts,resources:performance.getEntriesByType('resource').map(e=>e.name)};await new Promise(r=>setTimeout(r,10));}throw Error('Bundled caption fonts did not load');})()`).then(result=>entry.fonts=result).catch(error=>entry.fontObservationError=String(error));
+        void window.webContents.executeJavaScript(`(async()=>{for(let i=0;i<100;i++){const fonts=[...document.fonts].map(f=>({family:f.family,weight:f.weight,status:f.status}));if(fonts.filter(f=>!f.family.includes('SLU REATIC')).length===4&&fonts.every(f=>f.status==='loaded'))return {fonts,resources:performance.getEntriesByType('resource').map(e=>e.name)};await new Promise(r=>setTimeout(r,10));}throw Error('Bundled caption fonts did not load');})()`).then(result=>entry.fonts=result).catch(error=>entry.fontObservationError=String(error));
       });
     });
     const {createRequire,syncBuiltinESMExports}=process.getBuiltinModule('module'),cp=createRequire(process.execPath)('node:child_process');globalThis.captionOriginalSpawn=cp.spawn;
@@ -51,7 +53,7 @@ try{
   await page.evaluate(()=>{window.captionJobs=[];window.studio.onJob(e=>window.captionJobs.push(e));});
   const projectPath=path.join(root,'reference.sluproj');await fs.writeFile(projectPath,JSON.stringify(fixture.project));
   await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},projectPath);await page.keyboard.press('Control+o');await page.getByText('프로젝트를 열었습니다.',{exact:true}).waitFor();
-  await page.waitForFunction(()=>[...document.fonts].filter(f=>!f.family.includes('SluCompany')).length===4&&[...document.fonts].every(f=>f.status==='loaded'));
+  await page.waitForFunction(()=>[...document.fonts].filter(f=>!f.family.includes('SluCompany')&&!f.family.includes('SLU REATIC')).length===4&&[...document.fonts].every(f=>f.status==='loaded'));
   const ffmpeg=path.join(resources,'bin','ffmpeg.exe'),ffprobe=path.join(resources,'bin','ffprobe.exe');
   for(const encoder of ['cpu','nvenc']){
     const output=path.join(root,`${encoder}.mp4`),settings={...fixture.settings,encoder,outputPath:undefined};

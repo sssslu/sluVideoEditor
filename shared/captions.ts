@@ -46,9 +46,14 @@ export function activeCaptionWord(clip:Clip,localTime:number):number {
   const index=lo-1,word=words[index];
   return word&&sample<word.end&&(word.timing!=='estimated'||clip.captionStyle.highlightEstimated)?index:-1;
 }
+export const CAPTION_FONT_WEIGHTS:Record<CaptionStyle['font'],readonly CaptionStyle['weight'][]>={
+  'noto-sans-kr':[400,500,600,700,800],
+  'gmarket-sans':[500,700],
+  reatic:[400,700],
+};
 export function assertCaptionStyle(value:unknown):asserts value is CaptionStyle {
   const s=value as CaptionStyle;
-  if(!object(s)||!['noto-sans-kr','gmarket-sans'].includes(s.font)||(s.font==='gmarket-sans'&&![500,700].includes(s.weight))||![400,500,600,700,800].includes(s.weight)||!finite(s.lineHeight,.8,3)||!finite(s.letterSpacing,-5,40)||!finite(s.outlineWidth,0,30)||!color(s.outlineColor)||!finite(s.shadowBlur,0,60)||!color(s.shadowColor)||!['none','box','line'].includes(s.background)||!finite(s.paddingX,0,160)||!finite(s.paddingY,0,160)||!finite(s.radius,0,160)||!finite(s.maxWidth,.1,1)||typeof s.highlight!=='boolean'||!color(s.activeColor)||(s.highlightEstimated!==undefined&&typeof s.highlightEstimated!=='boolean'))throw new Error('잘못된 자막 스타일입니다.');
+  if(!object(s)||!['noto-sans-kr','gmarket-sans','reatic'].includes(s.font)||!CAPTION_FONT_WEIGHTS[s.font].includes(s.weight)||!finite(s.lineHeight,.8,3)||!finite(s.letterSpacing,-5,40)||!finite(s.outlineWidth,0,30)||!color(s.outlineColor)||!finite(s.shadowBlur,0,60)||!color(s.shadowColor)||!['none','box','line'].includes(s.background)||!finite(s.paddingX,0,160)||!finite(s.paddingY,0,160)||!finite(s.radius,0,160)||!finite(s.maxWidth,.1,1)||typeof s.highlight!=='boolean'||!color(s.activeColor)||(s.highlightEstimated!==undefined&&typeof s.highlightEstimated!=='boolean'))throw new Error('잘못된 자막 스타일입니다.');
 }
 export function assertCaptionAnimation(value:unknown):asserts value is CaptionAnimation {
   const a=value as CaptionAnimation,kinds=['none','fade','pop','slide'];

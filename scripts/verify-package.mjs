@@ -146,7 +146,8 @@ export async function verifyPackage(){
     const asarPaths=asar.listPackage(asarFile),asarEntries=new Set(asarPaths.map(archiveKey));
     check(['/package.json','/dist/index.html','/dist/caption-export.html','/dist-electron/caption-preload.cjs',`/${pkg.main}`].every(name=>asarEntries.has(archiveKey(name))),'app.asar contains the editor and isolated caption renderer entry points');
     check(!asarPaths.some(file=>/scopes\.worker|audio-meter\.worklet/i.test(file)),'Removed preview analysis workers are absent');
-    const fontEntries=asarPaths.filter(file=>archiveKey(file).startsWith('/dist/assets/')&&/\.(?:ttf|otf|woff2?)$/i.test(file));
+    const fontEntries=asarPaths.filter(file=>/\.(?:ttf|otf|woff2?)$/i.test(file));
+    check(fontEntries.every(file=>archiveKey(file).startsWith('/dist/assets/')),'Only approved bundled asset paths contain font files; local REATIC files are not distributed');
     check(fontEntries.length===5,'Exactly five font assets: four caption/fallback faces and one UI wordmark face');
     const bundledFonts=fontEntries.map(file=>{const data=asar.extractFile(asarFile,file.replace(/^[\\/]/,''));return {file,bytes:data.length,sha256:createHash('sha256').update(data).digest('hex')};});
     const wordmark=await readJson(path.join(workspace,'resources/licenses/Inter-manifest.json')),wordmarkSource=await sha256(path.join(workspace,wordmark.file));

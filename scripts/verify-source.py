@@ -164,6 +164,17 @@ def verify(archive_path, package, expected):
                     or archive.getinfo(font['file']).file_size != font['bytes']):
                 raise ValueError('Gmarket Sans face differs from pinned source')
         checks.append('All four caption font assets and their licenses match pinned source hashes')
+        wordmark = json.loads(archive.read('resources/licenses/Inter-manifest.json'))
+        if (archived_hashes.get(wordmark['file']) != wordmark['sha256']
+                or archived_hashes.get('resources/licenses/' + wordmark['licenseFile']) != wordmark['licenseSha256']):
+            raise ValueError('UI wordmark font/license provenance mismatch')
+        permitted_fonts = {wordmark['file'], *(font['file'] for font in emphasis['files'])}
+        for name in ['NotoSansKR', 'NotoEmoji']:
+            permitted_fonts.add(json.loads(archive.read(f'resources/licenses/{name}-manifest.json'))['file'])
+        included_fonts = {name for name in names if PurePosixPath(name).suffix.lower() in {'.ttf', '.otf', '.woff', '.woff2'}}
+        if included_fonts != permitted_fonts:
+            raise ValueError('Source archive includes an unapproved font file or is missing a bundled font')
+        checks.append('Only the five approved bundled font files are distributed; local REATIC files are excluded')
         enhancement = json.loads(archive.read('native/enhancement/backend-manifest.json'))
         if (enhancement['schemaVersion'] != 1 or enhancement['platform'] != 'win32'
                 or enhancement['architecture'] != 'x64'

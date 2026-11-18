@@ -1,7 +1,7 @@
 {
   "name": "slu-video-editor",
   "type": "module",
-  "version": "1.15.0",
+  "version": "1.15.1",
   "description": "Windows video editor",
   "main": "dist-electron/main.cjs",
   "author": "SLU Studio",

@@ -4,6 +4,7 @@ import {drawCaption,rasterCaption} from '../src/preview/text';
 import type {CaptionRasterBounds,CaptionRasterRequest,CaptionRasterResponse} from './caption-raster-types';
 import {clipState} from '../src/preview/math';
 import {activeCaptionWord} from '../shared/captions';
+import {CAPTION_FONT_MISSING,isMissingCaptionFont} from '../shared/caption-font-error';
 
 let project:Project,settings:ExportSettings;
 const canvas=document.createElement('canvas'),context=canvas.getContext('2d',{willReadFrequently:true})!;
@@ -59,6 +60,6 @@ window.addEventListener('message',event=>{
     // Electron MessagePortMain does not receive ArrayBuffer transfer-list
     // replies reliably. Clone one bounded frame and wait for the next request.
     try{const response=await handle(message);port.postMessage(response);}
-    catch(error){port.postMessage({id:message.id,error:error instanceof Error?error.message:String(error)} satisfies CaptionRasterResponse);}
+    catch(error){port.postMessage({id:message.id,error:error instanceof Error?error.message:String(error),...(isMissingCaptionFont(error)?{errorCode:CAPTION_FONT_MISSING}:{})} satisfies CaptionRasterResponse);}
   };port.start();
 },{once:true});

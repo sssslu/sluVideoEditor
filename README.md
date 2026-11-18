@@ -4,9 +4,9 @@ Windows x64용 타임라인 영상 편집기.
 
 ## 다운로드
 
-- **[1.15.0 설치형 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.15.0/SLU-Studio-Setup-1.15.0-x64.exe)**
-- **[1.15.0 포터블 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.15.0/SLU-Studio-1.15.0-Windows-x64.exe)**
-- [최신 릴리스](https://github.com/sssslu/sluVideoEditor/releases/latest) · [전체 사용설명서 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.15.0/SLU-Studio-1.15.0-guide.html) · [파일 해시](https://github.com/sssslu/sluVideoEditor/releases/download/v1.15.0/SHA256SUMS-1.15.0.txt)
+- **[1.15.1 설치형 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.15.1/SLU-Studio-Setup-1.15.1-x64.exe)**
+- **[1.15.1 포터블 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.15.1/SLU-Studio-1.15.1-Windows-x64.exe)**
+- [최신 릴리스](https://github.com/sssslu/sluVideoEditor/releases/latest) · [전체 사용설명서 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.15.1/SLU-Studio-1.15.1-guide.html) · [파일 해시](https://github.com/sssslu/sluVideoEditor/releases/download/v1.15.1/SHA256SUMS-1.15.1.txt)
 
 포터블은 실행할 때 내부 파일을 풀기 때문에 시작 시간이 더 걸릴 수 있습니다. 앱 상단의 이름 옆에서 실행 중인 버전을 확인할 수 있습니다.
 
@@ -27,20 +27,22 @@ Windows x64용 타임라인 영상 편집기.
 
 - 다중 트랙 편집, 분할·트리밍, 속도 커브, 역재생, 정지 프레임, 키프레임 그래프
 - 전환, 크롭·마스크·크로마키, HSL·RGB 곡선·LUT
-- Whisper 자동 자막, 단어 강조, SRT/VTT 가져오기, Noto Sans KR·Gmarket Sans 글꼴
+- Whisper 자동 자막, 단어 강조, SRT/VTT 가져오기, Noto Sans KR·Gmarket Sans와 로컬 리틱체
 - 오디오 볼륨·페이드·6밴드 EQ, 파형 표시
 - 인물 배경 제거, 객체 추적, 흔들림 보정, 선택형 2×·4× AI 화질 향상
 - GPU 미리보기, 지원되는 GPU 인코더 출력, 프로젝트 모아 저장·복구
 
 AI 화질 향상은 NVIDIA/CUDA가 필요합니다. 1.11에서 RTX 4080 SUPER 16GB·RAM 32GB로 검사한 15프레임은 52.8–100.1초가 걸렸습니다. 모델 준비를 포함한 짧은 720p·1080p 표본이며, 4K AI 출력과 장시간 처리 성능은 미검증입니다. [AI 사용 조건](docs/QUICKSTART.md#ai-화질-향상)
 
+리틱체를 쓰려면 [공식 사이트](https://www.reaticindustry.com/reaticfont)에서 받아 `TTF/REATIC/REATIC-Regular.ttf`와 `TTF/REATIC/REATIC-Bold.ttf`(기본 너비, 400·700)를 Windows에 설치한 뒤 앱을 다시 실행하세요. 글꼴 파일은 앱에 포함하지 않으며 자동으로 내려받지 않습니다. 필요한 리틱체가 없으면 경고하고 해당 자막의 출력을 막습니다. 리틱체를 쓴 프로젝트는 SLU Studio 1.15.1 이상이 필요합니다. [설치 안내](docs/QUICKSTART.md#리틱체-설치)
+
 ## 문서와 검증 범위
 
 Windows 코드 서명이 없습니다. 대화식 설치 절차와 다른 PC의 호환성은 아직 검증하지 않았습니다. 1.15에서는 기존 편집 조작·실행 취소·저장·미디어 처리 오류를 수정하고 출력 성능을 측정했습니다. 자연 영상의 AI 품질·속도 수치는 1.11 기록입니다.
 
 - [빠른 시작](docs/QUICKSTART.md)
-- [전체 사용설명서 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.15.0/SLU-Studio-1.15.0-guide.html)
-- [검사 조건과 제한](docs/검증결과.md) · [1.15 변경 사항](https://github.com/sssslu/sluVideoEditor/releases/tag/v1.15.0)
+- [전체 사용설명서 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.15.1/SLU-Studio-1.15.1-guide.html)
+- [검사 조건과 제한](docs/검증결과.md) · [1.15.1 변경 사항](https://github.com/sssslu/sluVideoEditor/releases/tag/v1.15.1) · [1.15 변경 사항](https://github.com/sssslu/sluVideoEditor/releases/tag/v1.15.0)
 - [개발·빌드 안내](docs/DEVELOPMENT.md)
 
 앱 코드 라이선스는 GPL-3.0-or-later입니다. [라이선스](LICENSE) · [의존성 고지](resources/licenses)

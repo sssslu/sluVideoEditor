@@ -58,7 +58,7 @@ export function assertProject(value:unknown):asserts value is Project {
     if(c.captionWords!==undefined||c.captionStyle!==undefined||c.captionAnimation!==undefined){
       if(p.version<4||c.text===undefined)throw new Error('단어 자막은 텍스트 클립과 프로젝트 형식 4가 필요합니다.');
       if(c.captionWords!==undefined){assertCaptionWords(c.text,c.captionWords,0,c.duration);captionWords+=c.captionWords.length;if(captionWords>MAX_PROJECT_CAPTION_WORDS)throw new Error('프로젝트의 자막 단어가 너무 많습니다.');}
-      if(c.captionStyle!==undefined){assertCaptionStyle(c.captionStyle);if(c.captionStyle.font==='gmarket-sans'&&p.version<10)throw new Error('Gmarket Sans 자막은 프로젝트 형식 10 이상이 필요합니다.');}
+      if(c.captionStyle!==undefined){assertCaptionStyle(c.captionStyle);if(c.captionStyle.font!=='noto-sans-kr'&&p.version<10)throw new Error(`${c.captionStyle.font==='reatic'?'리틱체':'Gmarket Sans'} 자막은 프로젝트 형식 10 이상이 필요합니다.`);}
       if(c.captionAnimation!==undefined){if(c.captionStyle===undefined)throw new Error('새 자막 애니메이션에는 자막 스타일이 필요합니다.');assertCaptionAnimation(c.captionAnimation);}
     }
     if(c.stabilization!==undefined){if(p.version<2)throw new Error('흔들림 보정에는 프로젝트 형식 2 이상이 필요합니다.');assertStabilization(c.stabilization,ids);}

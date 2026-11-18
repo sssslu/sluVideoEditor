@@ -41,8 +41,8 @@ function measureWordRects(clip:Clip,lines:CaptionLine[],font:string,spacing:stri
   }}finally{host.remove();}return rects;
 }
 export function captionLayout(clip:Clip,project:Project):CaptionLayout{
-  requireCaptionFonts();assertCaptionGlyphs(clip.text||'');const signature=captionLayoutSignature(clip,project),cached=layouts.get(signature);if(cached){layouts.delete(signature);layouts.set(signature,cached);return cached;}
   const style=clip.captionStyle!;if(!style)throw new Error('자막 스타일이 없습니다.');
+  requireCaptionFonts(style.font,style.weight);assertCaptionGlyphs(clip.text||'');const signature=captionLayoutSignature(clip,project),cached=layouts.get(signature);if(cached){layouts.delete(signature);layouts.set(signature,cached);return cached;}
   const font=`${style.weight} ${clip.fontSize}px ${captionFontStack(style.font)}`,letterSpacing=`${style.letterSpacing}px`,ctx=measureContext(font,letterSpacing),lineHeight=clip.fontSize*style.lineHeight;
   const effectPad=Math.max(style.outlineWidth,style.shadowBlur*3),raw=wrap(clip.text||'',Math.max(1,project.width*style.maxWidth-2*(style.paddingX+effectPad+2)),ctx);
   const metrics=[ctx.measureText('한글Ag'),...raw.map(line=>ctx.measureText(line.text))],ascent=Math.max(clip.fontSize*.8,...metrics.map(m=>m.actualBoundingBoxAscent)),descent=Math.max(clip.fontSize*.2,...metrics.map(m=>m.actualBoundingBoxDescent)),overhang=Math.max(0,...metrics.map(m=>Math.max(m.actualBoundingBoxLeft,m.actualBoundingBoxRight-Math.max(0,m.width))));
