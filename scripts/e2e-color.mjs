@@ -16,7 +16,12 @@ const executable=process.env.SLU_TEST_EXE?path.resolve(process.env.SLU_TEST_EXE)
 const page=await app.firstWindow();page.on('pageerror',e=>errors.push(String(e)));page.on('dialog',d=>d.accept());
 const snapshot=async predicate=>{let latest;for(const start=Date.now();Date.now()-start<20000;){try{latest=JSON.parse(await fs.readFile(recovery,'utf8'));if(predicate(latest))return latest;}catch{}await new Promise(r=>setTimeout(r,75));}throw Error('Color snapshot: '+JSON.stringify(latest)?.slice(0,1700));};
 const clip=p=>p.clips.find(c=>c.id==='color-main');
-const select=async(id,modifiers=[])=>page.locator(`[data-clip-id="${id}"]`).click({position:{x:14,y:5},modifiers});
+const select=async(id,modifiers=[])=>{
+ const target=page.locator(`[data-clip-id="${id}"]`),additive=modifiers.includes('Shift'),wasSelected=await target.getAttribute('aria-pressed')==='true';
+ await target.scrollIntoViewIfNeeded();await target.press(additive?'Shift+Enter':'Enter');
+ assert.equal(await target.getAttribute('aria-pressed'),String(additive?!wasSelected:true));
+ if(!additive)assert.equal(await page.locator('.selection-count').textContent(),'1개 선택');
+};
 const color=async()=>{await page.locator('.inspector-tabs').getByRole('button',{name:'색상',exact:true}).click();};
 const number=async(label,value)=>{const field=page.getByLabel(label,{exact:true});await field.fill(String(value));await field.press('Enter');};
 const undo=async()=>{await page.getByRole('button',{name:'프로그램',exact:true}).click();await page.keyboard.press('Control+z');};
@@ -37,8 +42,18 @@ try{
  await page.getByTitle('색상 제어점 추가',{exact:true}).click();p=await snapshot(p=>clip(p).colorGrade.curves?.master?.length===3);await number('곡선 출력',64);await snapshot(p=>Math.abs(clip(p).colorGrade.curves.master[1].y-64/255)<1e-8);await undo();await snapshot(p=>clip(p).colorGrade.curves.master[1].y===.5);await color();checks.push('Curve insertion, exact numeric editing and undo preserve the control points');
  const handle=page.getByLabel('색상 제어점 2',{exact:true});await handle.scrollIntoViewIfNeeded();const box=await handle.boundingBox();await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.mouse.move(box.x+box.width/2+20,box.y+box.height/2-25,{steps:10});await page.mouse.up();p=await snapshot(p=>clip(p).colorGrade.curves.master[1].x>.55&&clip(p).colorGrade.curves.master[1].y>.6);await undo();await snapshot(p=>clip(p).colorGrade.curves.master[1].x===.5&&clip(p).colorGrade.curves.master[1].y===.5);await color();checks.push('Real pointer curve drag updates live and undoes the whole gesture');
  await page.getByRole('button',{name:'빨강',exact:true}).click();await number('곡선 출력',20);await snapshot(p=>Math.abs(clip(p).colorGrade.curves.red[0].y-20/255)<1e-8);await page.getByRole('button',{name:'RGB',exact:true}).click();assert.equal(await page.getByLabel('색상 제어점 선택',{exact:true}).locator('option').count(),3);checks.push('Independent RGB channel editing retains the master curve');
+ const expectedGrade=structuredClone(clip(await snapshot(p=>!!clip(p).colorGrade?.curves?.red)).colorGrade);
+ await page.getByRole('button',{name:'색 보정 복사',exact:true}).click();
+ await select(second.id);await select(locked.id,['Shift']);await color();
+ await page.getByRole('button',{name:'색 보정 붙여넣기',exact:true}).click();
+ p=await snapshot(p=>p.clips.find(c=>c.id===second.id)?.colorGrade?.lutId===lutId);
+ assert.deepEqual(p.clips.find(c=>c.id===second.id).colorGrade,expectedGrade);
+ assert.equal(p.clips.find(c=>c.id===locked.id).colorGrade,undefined);
+ await undo();await snapshot(p=>p.clips.find(c=>c.id===second.id).colorGrade===undefined);
+ await select(base.id);await color();
+ checks.push('Color-only paste transfers a complete grade across selections, skips a locked clip and undoes once');
  await page.locator(`[data-clip-id="${locked.id}"]`).press('Enter');await color();assert.equal(await page.getByRole('button',{name:'LUT 가져오기',exact:true}).isDisabled(),true);assert.equal(await page.getByLabel('HSL·곡선·LUT 사용',{exact:true}).isDisabled(),true);assert.equal(await page.getByLabel('HSL 색조',{exact:true}).isDisabled(),true);checks.push('Locked track disables color and HSL edits');
- await select(base.id);await select(second.id,['Control']);await color();await page.getByLabel('색상 LUT',{exact:true}).selectOption(lutId);await snapshot(p=>p.clips.filter(c=>c.id!==locked.id).every(c=>c.colorGrade?.lutId===lutId)&&!p.clips.find(c=>c.id===locked.id).colorGrade);checks.push('Multi-selection applies LUT to unlocked visual clips only');
+ await select(base.id);await select(second.id,['Shift']);await color();await page.getByLabel('색상 LUT',{exact:true}).selectOption(lutId);await snapshot(p=>p.clips.filter(c=>c.id!==locked.id).every(c=>c.colorGrade?.lutId===lutId)&&!p.clips.find(c=>c.id===locked.id).colorGrade);checks.push('Multi-selection applies LUT to unlocked visual clips only');
  await select(base.id);await color();await page.getByRole('button',{name:'프로그램',exact:true}).click();await page.keyboard.press('Control+c');await color();await page.getByTitle('색 보정 전체 초기화',{exact:true}).click();await select(second.id);await color();await page.getByTitle('색 보정 전체 초기화',{exact:true}).click();await page.getByRole('button',{name:'사용하지 않는 LUT 정리',exact:true}).click();await snapshot(p=>p.colorLuts.length===0);
  await page.getByRole('button',{name:'프로그램',exact:true}).click();await page.keyboard.press('Control+v');p=await snapshot(p=>p.clips.length===4&&p.colorLuts.length===1);const pasted=p.clips.find(c=>![base.id,second.id,locked.id].includes(c.id));assert.equal(pasted.colorGrade.lutId,lutId);assert.ok(pasted.colorGrade.curves.red);await undo();await snapshot(p=>p.clips.length===3&&p.colorLuts.length===0);await page.keyboard.press('Control+Shift+z');await snapshot(p=>p.clips.length===4&&p.colorLuts.length===1);checks.push('Clipboard restores LUT after cleanup; undo/redo keep clip and asset atomic');
  await select(pasted.id);await color();await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1100,720));await dismissToasts(page);

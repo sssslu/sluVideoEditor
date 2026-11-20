@@ -27,6 +27,8 @@ import {TrackingRegistry} from './tracking-registry';
 import type {TrackingOptions} from '../shared/tracking';
 import {probeVideoRange} from './video-range';
 import {readSourceRevision,requireSourceRevision} from './source-revision';
+import {measureSelectionLoudness} from './loudness';
+import {loudnessSelection,loudnessSummary} from '../shared/loudness';
 import {changedProjectSources,refreshProjectSources} from './project-sources';
 import {AudioPreviewCache} from './audio-preview';
 import {freezeFrame} from './freeze-frame';
@@ -133,6 +135,7 @@ function startJob(type:JobType,task:(signal:AbortSignal,progress:(p:number,messa
   if(jobs.size>=4)throw new Error('최대 4개 작업까지 동시에 실행할 수 있습니다. 진행 중인 작업을 기다려 주세요.');
   if(type==='export'&&[...jobs.values()].some(j=>j.type==='export'))throw new Error('내보내기가 진행 중입니다. 완료 후 다시 시도하세요.');
   if(type==='model'&&[...jobs.values()].some(j=>j.type==='model'))throw new Error('음성 모델을 설치 중입니다.');
+  if(type==='loudness'&&[...jobs.values()].some(j=>j.type==='loudness'))throw new Error('음량 분석이 진행 중입니다. 완료하거나 취소한 뒤 다시 실행하세요.');
   if((type==='enhance'||type==='enhancement-install')&&[...jobs.values()].some(j=>j.type==='enhance'||j.type==='enhancement-install'))throw new Error('AI 화질 향상 작업이 진행 중입니다. 완료하거나 취소한 뒤 다시 시도하세요.');
   const id=randomUUID(),controller=new AbortController();let finish!:()=>void;const done=new Promise<void>(resolve=>{finish=resolve;});jobs.set(id,{controller,type,done});
   setTimeout(async()=>{
@@ -363,6 +366,13 @@ function setupIPC(){
     const jobId=startJob('export',async(signal,progress)=>{const result=await renderProject(project,{...settings,outputPath:finalPath},engine,progress,signal);allow(result);return {path:result,message:'내보내기가 완료되었습니다.'};});return {jobId,path:finalPath};
   });
   handler('job:cancel',async(id:string)=>{jobs.get(id)?.controller.abort();});
+  handler('audio:match-loudness',async(project:Project,ids:string[])=>{
+    assertProject(project);
+    const selection=loudnessSelection(project,ids),media=new Map(project.media.map(asset=>[asset.id,asset]));
+    for(const {clip,skip} of selection)if(!skip)checkMedia(media.get(clip.mediaId!)!);
+    if(!selection.some(item=>!item.skip))throw new Error('잠기거나 음소거되지 않은, 소리가 있는 클립을 선택하세요.');
+    return {jobId:startJob('loudness',async(signal,progress)=>{const loudness=await measureSelectionLoudness(project,ids,engine,progress,signal);return {loudness,message:loudnessSummary(loudness,false)};})};
+  });
   handler('media:proxy',async(media:MediaAsset)=>{
     checkMedia(media);
     return {jobId:startJob('proxy',async(signal,progress)=>{

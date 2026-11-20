@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parseCube,sampleLut,lutValues,encodeLutData,curveEvaluator,curveTable,sampleCurve,applyColorPixels,assertColorGrade,assertColorLut,hasColorGrade} from '../shared/color';
-import {addColorLut,patchColorGrades,restoreColorLuts} from '../shared/color-edits';
+import {addColorLut,patchColorGrades,restoreColorLuts,copyClipColor,pasteClipColor} from '../shared/color-edits';
 import {newProject,newClip,splitClip} from '../shared/project';
 import {assertProject} from '../shared/validation';
 import {serializeProject,readProject,atomicWrite} from '../electron/project-store';
@@ -68,4 +68,17 @@ test('multi-selection applies only unlocked visual clips, retaining distinct exi
 test('embedded LUT and curve settings survive splitting and actual atomic save/reopen without external LUT path',async()=>{
   let p=addColorLut({...newProject(),media:[asset],clips:[newClip('video-1',asset)]},identity());p=patchColorGrades(p,new Set([p.clips[0].id]),{lutId:'lut',curves:{master:[{x:0,y:.1},{x:1,y:.9}]}});
   const pieces=splitClip(p.clips[0],2);assert.ok(pieces);p={...p,clips:pieces!};assertProject(p);const root=await mkdtemp(path.join(os.tmpdir(),'slu-color-')),file=path.join(root,'embedded.sluproj');await atomicWrite(file,serializeProject(p,true));const read=await readProject(file);assert.deepEqual(read,JSON.parse(JSON.stringify(p)));assert.equal(read.version,10);read.clips.forEach(c=>assert.equal(c.colorGrade?.lutId,'lut'));
+});
+
+test('color-only paste snapshots the grade and LUT, skips locked or audio targets, and restores neutral values',()=>{
+  const lut=identity(),base=newProject(),a={...newClip('video-1',asset),brightness:.2,colorGrade:{enabled:true,lutId:lut.id,intensity:.45}};
+  const b={...newClip('video-1',asset),start:5,volume:.33},locked={...b,id:'locked',trackId:'locked'},audio={...b,id:'audio',trackId:'audio-1'};
+  const p={...base,media:[asset],clips:[b,locked,audio],tracks:[...base.tracks,{...base.tracks[0],id:'locked',locked:true}]};
+  const ids=new Set(p.clips.map(c=>c.id)),copy=copyClipColor(addColorLut(p,lut),a);
+  a.colorGrade.intensity=.91;
+  const result=pasteClipColor(p,ids,copy);
+  assert.deepEqual(result.clips[0],{...b,brightness:.2,colorGrade:{enabled:true,lutId:lut.id,intensity:.45}});
+  assert.equal(result.clips[1],locked);assert.equal(result.clips[2],audio);assert.deepEqual(result.colorLuts,[lut]);
+  assert.equal(pasteClipColor(result,ids,copy),result);
+  assert.equal(pasteClipColor(result,ids,copyClipColor(p,b)).clips[0].colorGrade,undefined);
 });

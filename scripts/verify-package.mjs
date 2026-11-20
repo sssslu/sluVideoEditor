@@ -231,7 +231,7 @@ export async function verifyPackage(){
       check(list.length>0,`Source ${name} directory is nonempty`);
       const shipped=await filesBelow(path.join(unpackedDirectory,'resources',name));
       check(shipped.length===list.length&&shipped.every(file=>list.includes(file)),`Only current ${name} files are bundled`);
-      if(name==='docs')check(list.includes('사용설명서.html')&&list.includes('검증결과.md'),'User manual and verification report are present');
+      if(name==='docs')check(list.includes('사용설명서.html')&&list.includes('AI_GUIDE.md')&&list.includes('검증결과.md'),'User manual, computer-use guide and verification report are present');
       else check(['THIRD-PARTY-NOTICES.md','FFmpeg-GPL.txt','Whisper-cli-LICENSE.txt','Electron-LICENSE.txt','RubberBand-LICENSE.txt','RubberBand-SLU-patch.mjs','rubberband-4.0.0-source.tar.bz2','audio-stretch-manifest.json','audio-stretch-toolchain-LICENSES.txt','audio-stretch-toolchain-manifest.json','NotoSansKR-OFL.txt','NotoSansKR-manifest.json','NotoEmoji-OFL.txt','NotoEmoji-manifest.json'].every(file=>list.includes(file)),'Core runtime licenses, audio helper source/patch, toolchain and bundled font notices are present');
       if (name === 'licenses') check(['RVM-LICENSE.txt', 'RVM-provenance.json'].every(file => list.includes(file)),
         'RVM license and original/adapter model provenance are bundled');

@@ -79,8 +79,8 @@ export interface ReverseOptions {start?:number;duration?:number}
 export interface ExportSettings { width:number; height:number; fps:number; format:'mov'|'mp4'|'webm'|'gif'|'wav'; codec:'h264'|'hevc'|'av1'; encoder:'auto'|'cpu'|'nvenc'|'qsv'|'amf'; quality:'draft'|'standard'|'high'; outputPath?:string; transitionProcessing?:'auto'|'cpu';
   /** Internal render of combined clips: transparent FFV1 video and 32-bit float PCM, no limiter. */
   intermediate?:boolean }
-export type JobType = 'export'|'combine'|'proxy'|'transcribe'|'model'|'stabilize'|'range'|'freeze'|'reverse'|'track'|'collect'|'relink'|'cutout'|'enhance'|'enhancement-install';
-export interface JobEvent { id:string; type:JobType; status:'running'|'complete'|'error'|'cancelled'; progress:number; message:string; path?:string; media?:MediaAsset; cues?:SubtitleCue[];tracking?:MotionAnalysis;trackingReconnect?:import('./tracking-reconnect').TrackingReconnectResult;preview?:boolean }
+export type JobType = 'export'|'combine'|'proxy'|'transcribe'|'model'|'stabilize'|'range'|'freeze'|'reverse'|'track'|'collect'|'relink'|'cutout'|'enhance'|'enhancement-install'|'loudness';
+export interface JobEvent { id:string; type:JobType; status:'running'|'complete'|'error'|'cancelled'; progress:number; message:string; path?:string; media?:MediaAsset; cues?:SubtitleCue[];tracking?:MotionAnalysis;trackingReconnect?:import('./tracking-reconnect').TrackingReconnectResult;preview?:boolean;loudness?:import('./loudness').LoudnessResult }
 export interface SystemInfo { version:string; ffmpegVersion:string; gpu:string; encoders:string[]; hardwareAcceleration:boolean; modelReady:boolean; modelDirectory:string; cacheDirectory:string; speechModels?:{id:SpeechModelId;name:string;bytes:number;installed:boolean}[];speechCuda?:boolean }
 export type PreviewStatusEvent = {media:Pick<MediaAsset,'id'|'path'|'sourceRevision'>;attemptId:string}&(
   {status:'preparing'}|{status:'failed';message:string}
@@ -104,6 +104,7 @@ export interface StudioAPI {
   freezeFrame(media:MediaAsset,time:number):Promise<{jobId:string}>;
   reverseMedia(media:MediaAsset,options:ReverseOptions):Promise<{jobId:string}>;
   combineClips(project:Project,clipIds:string[]):Promise<{jobId:string}>;
+  matchLoudness(project:Project,clipIds:string[]):Promise<{jobId:string}>;
   removePersonBackground(media:MediaAsset,options:PersonCutoutOptions):Promise<{jobId:string}>;
   enhancementInfo(request?:EnhancementRequest):Promise<EnhancementInfo>;
   installEnhancementEngine():Promise<{jobId:string}>;

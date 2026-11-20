@@ -1,0 +1,6 @@
+.caption-replace{margin:0 10px 10px;border:1px solid var(--slu-line);border-radius:5px;background:var(--slu-surface);flex-shrink:0}
+.caption-replace summary{padding:8px 10px;color:var(--slu-muted);font-size:11px;cursor:pointer}
+.caption-replace>div{padding:0 10px 10px;display:flex;flex-direction:column;gap:7px}
+.caption-replace label{display:flex;flex-direction:column;gap:4px;font-size:10px;color:var(--slu-muted)}
+.caption-replace input{min-width:0;width:100%;padding:7px;border:1px solid var(--slu-line);border-radius:4px;background:var(--slu-input);color:var(--slu-ink);font-size:12px}
+.caption-replace .field-note,.caption-replace .inline-warning{margin:0;font-size:10px;line-height:1.6}

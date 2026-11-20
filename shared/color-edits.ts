@@ -23,3 +23,28 @@ export function restoreColorLuts(project:Project,clips:Clip[],available:ColorLut
   for(const id of required){const lut=available.find(l=>l.id===id);if(lut)next=addColorLut(next,lut);else if(!next.colorLuts?.some(l=>l.id===id))throw new Error('복사한 클립의 LUT 데이터가 없습니다.');}
   return next;
 }
+
+type ClipColor = Pick<Clip,'brightness'|'contrast'|'saturation'|'blur'|'preset'|'colorGrade'>;
+export interface ColorSelection {values:ClipColor;lut?:ColorLut}
+export function copyClipColor(project:Project,clip:Clip):ColorSelection {
+  const {brightness,contrast,saturation,blur,preset,colorGrade}=clip;
+  return {values:{brightness,contrast,saturation,blur,preset,colorGrade:colorGrade&&structuredClone(colorGrade)},
+    lut:colorGrade?.lutId?project.colorLuts?.find(item=>item.id===colorGrade.lutId):undefined};
+}
+
+export function pasteClipColor(project:Project,ids:ReadonlySet<string>,source:ColorSelection):Project {
+  const tracks=new Set(project.tracks.filter(track=>track.type==='video'&&!track.locked).map(track=>track.id));
+  const media=new Set(project.media.filter(asset=>asset.kind!=='audio').map(asset=>asset.id));
+  const values=source.values;
+  let changed=false;
+  const clips=project.clips.map(clip=>{
+    if(!ids.has(clip.id)||!tracks.has(clip.trackId)||!clip.mediaId||!media.has(clip.mediaId)||clip.text!==undefined)return clip;
+    if(clip.brightness===values.brightness&&clip.contrast===values.contrast&&clip.saturation===values.saturation&&clip.blur===values.blur&&clip.preset===values.preset&&JSON.stringify(clip.colorGrade)===JSON.stringify(values.colorGrade))return clip;
+    changed=true;
+    return {...clip,...values,colorGrade:values.colorGrade&&structuredClone(values.colorGrade)};
+  });
+  if(!changed)return project;
+  const restored=source.lut?addColorLut(project,source.lut):project;
+  if(values.colorGrade)assertColorGrade(values.colorGrade,new Set(restored.colorLuts?.map(lut=>lut.id)));
+  return {...restored,version:10,clips};
+}

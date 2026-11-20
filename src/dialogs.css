@@ -17,3 +17,5 @@
 @media(max-height:750px){.modal{max-height:calc(100vh - 30px);padding:20px}.modal-backdrop{padding:15px}}
 /* Keep the timeline visible while dragging files: dropping on a track places the files there. */
 .app-shell>.drop-overlay{bottom:calc(var(--timeline-height,0px) + 14px)}
+
+.job-output-path{display:block;width:100%;min-width:0;margin:.4rem 0;padding:.3rem .45rem;font:inherit;color:inherit;background:transparent;border:1px solid var(--border,#43505c);border-radius:4px}
