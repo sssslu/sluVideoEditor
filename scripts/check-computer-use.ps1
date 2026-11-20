@@ -211,7 +211,10 @@ try {
   $proof['scope']=if($Source){'development Windows UI'}else{'installed Windows UI'}
   if(-not $Source){
     $asar=Join-Path (Split-Path $start.FileName) 'resources/app.asar'
-    $proof['appAsarSha256']=(Get-FileHash -Algorithm SHA256 -LiteralPath $asar).Hash.ToLowerInvariant()
+    $stream=[IO.File]::OpenRead($asar)
+    $sha=[Security.Cryptography.SHA256]::Create()
+    try {$proof['appAsarSha256']=[BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-','').ToLowerInvariant()}
+    finally {$sha.Dispose();$stream.Dispose()}
     $proof['buildReceiptId']=(Get-Content -Raw -Encoding UTF8 'dist-electron/build-receipt.json' | ConvertFrom-Json).contentId
   }
   $json=$proof | ConvertTo-Json
