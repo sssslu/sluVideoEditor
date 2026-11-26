@@ -14,6 +14,18 @@ export function interpolate(c:Clip,time:number):Keyframe {const base={time,x:c.x
 /** Fade and text-animation time, independent of locally rebased motion keyframes. */
 /** Values for replacing the keyframe at a time; keeps the easing of a keyframe already within the tolerance. */
 export function keyframeBase(clip:Clip,time:number,tolerance:number):Keyframe{const existing=clip.keyframes.find(k=>Math.abs(k.time-time)<=tolerance);return {...existing,...interpolate(clip,time),time};}
+export type TransformValues=Partial<Pick<Keyframe,'x'|'y'|'scale'|'opacity'|'rotation'>>;
+const TRANSFORM_RANGE={x:[-16384,16384],y:[-16384,16384],scale:[.01,8],opacity:[0,1],rotation:[-3600,3600]} as const;
+/** Gives a clip the transform `values` at `localTime` without adding keyframes. A clip with keyframes
+ * moves its whole animation (offset; scale by ratio) so its motion keeps its shape. */
+export function shiftTransform(clip:Clip,values:TransformValues,localTime:number):Partial<Clip>{
+  const now=interpolate(clip,localTime),entries=Object.entries(values).filter(([,v])=>v!==undefined) as [keyof TransformValues,number][];
+  const move=(key:keyof TransformValues,value:number,target:number)=>{const [low,high]=TRANSFORM_RANGE[key],next=key==='scale'?value*target/Math.max(.01,now.scale):value+target-now[key];return Math.min(high,Math.max(low,next));};
+  const out:Partial<Clip>={};
+  for(const [key,target] of entries)out[key]=clip.keyframes.length?move(key,clip[key],target):target;
+  if(clip.keyframes.length)out.keyframes=clip.keyframes.map(k=>{const next={...k};for(const [key,target] of entries)next[key]=move(key,k[key],target);return next;});
+  return out;
+}
 export function clipEnvelope(clip:Clip,localTime=0){return {time:localTime+(clip.sourceClipOffset??0),duration:clip.sourceClipDuration??clip.duration};}
 /** Rebases fades and caption animation onto the clip's own bounds while keeping what is visible now,
  * so editing one fade on a split piece does not add a fade or animation at its cut. */
