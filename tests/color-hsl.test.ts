@@ -91,3 +91,16 @@ test('HSL band values survive split and actual project save/reopen; older projec
   for(const clip of reopened.clips)assert.equal(clip.colorGrade?.hsl?.magenta?.hue,-18);
   assertProject({...newProject(),version:9});
 });
+test('editing several clips changes only the touched curve channel and HSL value',()=>{
+  const media:MediaAsset={id:'image',path:'C:/fixture.png',name:'Image',kind:'image',duration:0,width:320,height:180,fps:0,hasAudio:false};
+  const redA=[{x:0,y:0},{x:.5,y:.6},{x:1,y:1}],redB=[{x:0,y:.1},{x:1,y:.9}],master=[{x:0,y:0},{x:.5,y:.4},{x:1,y:1}];
+  const a={...newClip('video-1',media),colorGrade:{enabled:true,intensity:1,curves:{red:redA},hsl:{red:{hue:10,saturation:.2,lightness:0}}}};
+  const b={...newClip('video-1',media),colorGrade:{enabled:true,intensity:1,curves:{red:redB},hsl:{red:{hue:-5,saturation:0,lightness:.1}}}};
+  const project={...newProject(),media:[media],clips:[a,b]},ids=new Set([a.id,b.id]);
+  const curved=patchColorGrades(project,ids,{curves:{master}});
+  assert.deepEqual(curved.clips[0].colorGrade?.curves,{red:redA,master});assert.deepEqual(curved.clips[1].colorGrade?.curves,{red:redB,master});
+  const tinted=patchColorGrades(project,ids,{hsl:{red:{saturation:.5} as never}});
+  assert.deepEqual(tinted.clips[0].colorGrade?.hsl?.red,{hue:10,saturation:.5,lightness:0});assert.deepEqual(tinted.clips[1].colorGrade?.hsl?.red,{hue:-5,saturation:.5,lightness:.1});
+  const first=patchColorGrades({...project,clips:[{...newClip('video-1',media),id:'plain'}]},new Set(['plain']),{hsl:{blue:{hue:30} as never}});
+  assert.deepEqual(first.clips[0].colorGrade?.hsl?.blue,{hue:30,saturation:0,lightness:0},'A band set for the first time starts from neutral');
+});

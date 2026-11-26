@@ -1,11 +1,14 @@
-import type {Clip,ColorGrade,ColorLut,Project} from './types';
+import type {Clip,ColorGrade,ColorLut,HslAdjustment,HslBand,Project} from './types';
 import {assertColorGrade,assertColorLut,MAX_PROJECT_LUT_VALUES} from './color';
 import {walkClips} from './clip-tree';
 export function patchColorGrades(project:Project,ids:ReadonlySet<string>,patch:Partial<ColorGrade>|null):Project {
   const clips=project.clips.map(clip=>{
     if(!ids.has(clip.id)||clip.text!==undefined||project.tracks.find(t=>t.id===clip.trackId)?.locked||project.tracks.find(t=>t.id===clip.trackId)?.type!=='video'||project.media.find(m=>m.id===clip.mediaId)?.kind==='audio')return clip;
     const grade=patch===null?undefined:{enabled:true,intensity:1,...clip.colorGrade,...patch};
-    if(grade&&patch?.hsl)grade.hsl={...clip.colorGrade?.hsl,...patch.hsl};
+    // Curves and HSL merge per channel and per value, so editing several clips changes only what was
+    // touched and keeps each clip's other channels and bands.
+    if(grade&&patch?.hsl){const hsl={...clip.colorGrade?.hsl};for(const [band,values] of Object.entries(patch.hsl) as [HslBand,Partial<HslAdjustment>][])hsl[band]={hue:0,saturation:0,lightness:0,...hsl[band],...values};grade.hsl=hsl;}
+    if(grade&&patch?.curves)grade.curves={...clip.colorGrade?.curves,...patch.curves};
     if(grade)assertColorGrade(grade,new Set(project.colorLuts?.map(l=>l.id)));
     return {...clip,colorGrade:grade};
   });

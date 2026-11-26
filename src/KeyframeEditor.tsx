@@ -50,7 +50,9 @@ export default function KeyframeEditor(props:Props){
     cleanup.current?.();
     if(onChange(keys.filter((_,index)=>index!==at)))setSelected(Math.max(0,at-1));
   };
-  const toggle=()=>{if(!disabled)onChange(toggleKeyframe(clip,local,fps));};
+  // A keyframe goes at the playhead, so the playhead has to be on the clip.
+  const away=time<clip.start-.5/fps||time>clip.start+clip.duration+.5/fps;
+  const toggle=()=>{if(!disabled&&!away)onChange(toggleKeyframe(clip,local,fps));};
   const update=(at:number,values:{time?:number;value?:number})=>{
     if(disabled)return;
     const next=editKeyframe(clip,at,property,values,fps);
@@ -89,7 +91,7 @@ export default function KeyframeEditor(props:Props){
   };
   return <Section title="키프레임" action={<div className="toolbar-group">
     <button className="icon-button small" title="이전 키프레임" disabled={!keys.some(key=>key.time<local-.5/fps)} onClick={()=>{const previous=[...keys].reverse().find(key=>key.time<local-.5/fps);if(previous)select(keys.indexOf(previous));}}><ChevronLeft size={13}/></button>
-    <button className={`icon-button small ${atKey>=0?'active':''}`} title={atKey>=0?'현재 키프레임 삭제':'현재 위치에 키프레임 추가'} disabled={disabled||(atKey<0&&keys.length>=1000)} onClick={toggle}><Diamond size={12} fill={atKey>=0?'currentColor':'none'}/></button>
+    <button className={`icon-button small ${atKey>=0?'active':''}`} title={away?'플레이헤드를 클립 위에 놓으세요':atKey>=0?'현재 키프레임 삭제':'현재 위치에 키프레임 추가'} disabled={disabled||away||(atKey<0&&keys.length>=1000)} onClick={toggle}><Diamond size={12} fill={atKey>=0?'currentColor':'none'}/></button>
     <button className="icon-button small" title="다음 키프레임" disabled={!keys.some(key=>key.time>local+.5/fps)} onClick={()=>{const next=keys.findIndex(key=>key.time>local+.5/fps);if(next>=0)select(next);}}><ChevronRight size={13}/></button>
   </div>}>
     <div className="keyframe-editor">
@@ -115,7 +117,7 @@ export default function KeyframeEditor(props:Props){
         <select aria-label={`키프레임 ${at+1} 보간`} disabled={disabled} value={key.easing||'linear'} onChange={e=>onChange(keys.map((value,index)=>index===at?{...value,easing:e.target.value as Keyframe['easing'],easingStart:undefined,easingEnd:undefined}:value))}>{easings.map(([id,label])=><option key={id} value={id}>{label}</option>)}</select>
         <button title={`키프레임 ${at+1} 삭제`} disabled={disabled} onClick={()=>remove(at)}><Trash2 size={11}/></button>
       </div>)}</div>}
-      {!keys.length&&<button className="button secondary full" disabled={disabled} onClick={toggle}><Plus size={13}/>현재 위치에 키프레임</button>}
+      {!keys.length&&<button className="button secondary full" disabled={disabled||away} title={away?'플레이헤드를 클립 위에 놓으세요':undefined} onClick={toggle}><Plus size={13}/>현재 위치에 키프레임</button>}
     </div>
   </Section>;
 }

@@ -39,7 +39,8 @@ export function useHistory() {
     return {...result,enhancements:enhancements.detached,project:{...result.project,updatedAt:new Date().toISOString()}};
   },[]);
   const checkpoint = useCallback(() => {
-    past.current = [...past.current.slice(-79), current.current];
+    // A press that ends up changing nothing (a click on a slider) must not leave an empty undo step.
+    if(past.current[past.current.length-1]!==current.current)past.current = [...past.current.slice(-79), current.current];
     future.current = [];
     coalesced.current = undefined;
     setRevision(r => r + 1);
@@ -85,7 +86,7 @@ export function useHistory() {
     const migrated=unifyTextClips({...next,version:10 as const});past.current=[]; future.current=[];coalesced.current=undefined;sources.current.clear();for(const asset of migrated.media)sources.current.set(asset.path,{asset,seen:new Set([asset.sourceRevision])});rebasedAssets.current=new WeakMap();current.current=migrated;setState(migrated);setRevision(r=>r+1);setTransitionNotice(null);
   }, []);
   const undo = useCallback(() => {
-    const next=past.current.pop();if(!next)return;const restored=rebase(next);coalesced.current=undefined;
+    let next=past.current.pop();while(next&&next===current.current)next=past.current.pop();if(!next)return;const restored=rebase(next);coalesced.current=undefined;
     future.current.push(current.current);current.current=restored.project;setState(current.current);setRevision(r=>r+1);
     if(restored.detached.length||restored.enhancements.length)setTransitionNotice({count:restored.detached.length,enhancements:restored.enhancements.length});
   }, [rebase]);
@@ -94,7 +95,7 @@ export function useHistory() {
     past.current.push(current.current);current.current=restored.project;setState(current.current);setRevision(r=>r+1);
     if(restored.detached.length||restored.enhancements.length)setTransitionNotice({count:restored.detached.length,enhancements:restored.enhancements.length});
   }, [rebase]);
-  return {project,current,change,reset,checkpoint,undo,redo,canUndo:!!past.current.length,canRedo:!!future.current.length,revision,transitionNotice,clearTransitionNotice};
+  return {project,current,change,reset,checkpoint,undo,redo,canUndo:past.current.some(p=>p!==current.current),canRedo:!!future.current.length,revision,transitionNotice,clearTransitionNotice};
 }
 
 export interface ChangeOptions {authoritativeSources?:readonly MediaAsset[];/** Consecutive recorded changes from this field while it keeps focus share one undo step. */coalesce?:EventTarget}
@@ -197,7 +198,21 @@ export function scaleSelectionSpeed(p:Project,ids:readonly string[],factor:numbe
 }
 export const toCues = (project:Project):SubtitleCue[] => project.clips.filter(c=>c.text!==undefined).sort((a,b)=>a.start-b.start).map(c=>({start:c.start,end:c.start+c.duration,text:c.text!,...(c.captionWords?{words:c.captionWords.map(word=>({...word,start:c.start+word.start,end:c.start+word.end}))}:{})}));
 export const clamp=(n:number,min:number,max:number)=>Math.min(max,Math.max(min,n));
-export const inputTarget=(target:EventTarget|null)=>target instanceof HTMLElement && !!target.closest('input,textarea,select,[contenteditable="true"]');
+const TYPING_INPUTS=new Set(['','text','number','search','email','url','password','tel','date','time','datetime-local','month','week']);
+const SLIDER_KEYS=new Set(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','PageUp','PageDown']);
+/** Whether a key press belongs to the focused field rather than to the editor's shortcuts. Typing
+ * fields keep every key; a slider, checkbox or menu keeps only the keys it uses itself, so Space,
+ * Ctrl+Z or Delete still work after the mouse has touched one. */
+export function keyBelongsToField(e:KeyboardEvent):boolean{
+  const target=e.target;if(!(target instanceof HTMLElement))return false;
+  if(target.closest('textarea,[contenteditable="true"]'))return true;
+  const field=target.closest('input,select');if(!field)return false;
+  if(field instanceof HTMLInputElement&&TYPING_INPUTS.has(field.type))return true;
+  if(e.ctrlKey||e.metaKey||e.altKey)return false;
+  if(field instanceof HTMLSelectElement)return true;
+  if((field as HTMLInputElement).type==='range')return SLIDER_KEYS.has(e.key);
+  return e.key===' '||e.key==='Enter';
+}
 export const fileUrl=(path?:string)=>path ? window.studio.mediaUrl(path) : '';
 export function mergeAsset(base:MediaAsset,update?:Partial<MediaAsset>):MediaAsset {
   const changed=update?.sourceRevision!==undefined&&update.sourceRevision!==base.sourceRevision;

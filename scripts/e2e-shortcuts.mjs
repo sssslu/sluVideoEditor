@@ -87,6 +87,10 @@ try{
   check('Alt+G combines and Alt+Shift+G restores',JSON.stringify(await waitLayout([[2,2,6],[4,2,0]]))==='[[2,2,6],[4,2,0]]',await layout());
   await dismissToasts(page);
 
+  // A slider keeps keyboard focus after the mouse; Ctrl+Z still belongs to the editor.
+  {const target=await clipAt(3),scaleOf=()=>page.evaluate(id=>document.querySelector('.preview-gpu-stage').previewRuntime.project.clips.find(c=>c.id===id).scale,target.id);await page.locator(`[data-clip-id="${target.id}"]`).click();await page.getByLabel('크기',{exact:true}).click();await page.waitForFunction(id=>document.querySelector('.preview-gpu-stage').previewRuntime.project.clips.find(c=>c.id===id).scale!==1,target.id);
+  const focused=await page.evaluate(()=>document.activeElement?.getAttribute('type'));await page.keyboard.press('Control+z');await page.waitForFunction(id=>document.querySelector('.preview-gpu-stage').previewRuntime.project.clips.find(c=>c.id===id).scale===1,target.id,{timeout:5000}).catch(()=>{});
+  check('Ctrl+Z undoes a slider change while the slider has focus',focused==='range'&&await scaleOf()===1,{focused,scale:await scaleOf()});await dismissToasts(page);}
   // Ctrl+E, ?, Ctrl+I, Ctrl+N.
   await focusProgram();await page.keyboard.press('Control+e');
   check('Ctrl+E opens export',await page.getByRole('dialog').getByText('내보내기',{exact:false}).first().isVisible(),null);await page.keyboard.press('Escape');

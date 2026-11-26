@@ -197,7 +197,7 @@ try{
     const operation=operations.find(o=>o.action==='detach'),p=fixture(operation,100,true,assets);p.id='locked-detach';p.tracks[2].locked=true;
     await openProject(p,p.id);await selectClip('detach-source');const before=await current();
     await page.locator('[data-clip-id="detach-source"]').click({button:'right'});
-    await page.getByRole('menuitem',{name:'오디오 분리',exact:true}).click();
+    assert.ok(await page.getByRole('menuitem',{name:'오디오 분리',exact:true}).isDisabled(),'Detach is disabled on a locked track');await page.keyboard.press('Escape');
     const after=await current();assert.deepEqual(editState(after),editState(before));assert.ok(!(await saveSnapshot(after,p.id)).error);
     checks.push('locked-detach: original source volume and all edits remain unchanged');
   }

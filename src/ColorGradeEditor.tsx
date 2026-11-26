@@ -14,14 +14,15 @@ export default function ColorGradeEditor({grade,luts,disabled,onPatch,onStart,on
   const [channel,setChannel]=useState<ColorChannel>('master'),[selected,setSelected]=useState(0),[busy,setBusy]=useState(false),[error,setError]=useState('');
   const [band,setBand]=useState<HslBand>('red');
   const adjustment=grade?.hsl?.[band]??neutralHsl;
-  const patchHsl=(patch:Partial<HslAdjustment>,record=false)=>{if(!disabled)onPatch({hsl:{[band]:{...adjustment,...patch}}},record);};
+  // Only the touched value is sent: with several clips selected each keeps its own other values.
+  const patchHsl=(patch:Partial<HslAdjustment>,record=false)=>{if(!disabled)onPatch({hsl:{[band]:patch as HslAdjustment}},record);};
   const svg=useRef<SVGSVGElement>(null),cleanup=useRef<(()=>void)|null>(null),dragState=useRef<{committed:string;pending:string[]}|null>(null);
   useEffect(()=>()=>cleanup.current?.(),[]);useEffect(()=>{cleanup.current?.();},[disabled]);
   const points=grade?.curves?.[channel]||IDENTITY_CURVE,index=Math.min(selected,points.length-1),point=points[index],evaluate=curveEvaluator(points);
   useLayoutEffect(()=>{const state=dragState.current;if(!state)return;const rendered=JSON.stringify(points);if(rendered===state.committed)return;const at=state.pending.indexOf(rendered);if(at<0){cleanup.current?.();return;}state.committed=rendered;state.pending.splice(0,at+1);},[points]);
   const x=(v:number)=>P+v*(W-2*P),y=(v:number)=>H-P-v*(H-2*P);
   const coords=(cx:number,cy:number)=>{const rect=svg.current!.getBoundingClientRect();return {x:clampColor(((cx-rect.left)/rect.width*W-P)/(W-2*P)),y:clampColor(1-((cy-rect.top)/rect.height*H-P)/(H-2*P))};};
-  const commit=(next:ColorPoint[],record=true)=>{if(!disabled){dragState.current?.pending.push(JSON.stringify(next));onPatch({curves:{...grade?.curves,[channel]:next}},record);}};
+  const commit=(next:ColorPoint[],record=true)=>{if(!disabled){dragState.current?.pending.push(JSON.stringify(next));onPatch({curves:{[channel]:next}},record);}};
   const update=(at:number,p:Partial<ColorPoint>,record=true,base=points)=>{if(disabled)return;const next=base.map(v=>({...v}));next[at]={...next[at],...p};next[at].x=at===0?0:at===next.length-1?1:Math.max(base[at-1].x+.0001,Math.min(base[at+1].x-.0001,next[at].x));next[at].y=clampColor(next[at].y);commit(next,record);};
   const add=(p?:ColorPoint)=>{if(disabled||points.length>=16)return;let value=p;if(!value){let left=points[0],right=points[1];for(let i=1;i<points.length;i++)if(points[i].x-points[i-1].x>right.x-left.x){left=points[i-1];right=points[i];}const at=(left.x+right.x)/2;value={x:at,y:evaluate(at)};}if(points.some(v=>Math.abs(v.x-value!.x)<.0001))return;const next=[...points.map(v=>({...v})),value].sort((a,b)=>a.x-b.x);commit(next);setSelected(next.indexOf(value));};
   const remove=(at=index)=>{if(disabled||at===0||at===points.length-1)return;commit(points.filter((_,i)=>i!==at));setSelected(Math.max(0,at-1));};

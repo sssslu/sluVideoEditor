@@ -19,7 +19,7 @@ import type {StabilizationOptions,PersonCutoutOptions} from '../shared/types';
 import type {Transition} from '../shared/types';
 import {compileTransitions,transitionBounds} from '../shared/transitions';
 import {copyTransitions} from '../shared/transition-edits';
-import { clamp, cuesToClips, inputTarget, toCues, useHistory,mergeAsset,minClipDuration,placeDroppedMedia } from './editor';
+import { clamp, cuesToClips, keyBelongsToField, toCues, useHistory,mergeAsset,minClipDuration,placeDroppedMedia } from './editor';
 import {planCombination,applyCombination,uncombineClip,type CombinePlan} from '../shared/combine';
 import Preview,{type TransformPatch} from './Preview';
 import SourceMonitor from './SourceMonitor';
@@ -223,7 +223,7 @@ export default function App() {
     const p=current.current,at=frameTime(timeRef.current,p.fps);if(p.clips.length>=10000||at+3>86400){notify('클립 수 또는 타임라인 길이 제한에 도달했습니다.','error');return;}
     let track=p.tracks.find(t=>t.type==='text'&&!t.locked);if(!track){if(p.tracks.length>=100){notify('트랙은 최대 100개입니다.','error');return;}track={id:uid(),type:'text',name:'자막 · 텍스트',muted:false,hidden:false,locked:false};}
     const clip=applyCaptionAppearance({...newClip(track.id),start:at,y:p.height*.32},appearance);
-    change({...p,tracks:p.tracks.some(t=>t.id===track!.id)?p.tracks:[...p.tracks,track],clips:[...p.clips,clip]});setSelected([clip.id]);setTab('text');
+    try{change(settleOverlaps({...p,tracks:p.tracks.some(t=>t.id===track!.id)?p.tracks:[...p.tracks,track],clips:[...p.clips,clip]},[clip.id]));}catch(error){fail(error);return;}setSelected([clip.id]);setTab('text');
   };
   const applyCaptionAppearanceToSelected=(appearance:CaptionAppearance)=>{const p=current.current,ids=new Set(selected),locked=new Set(p.tracks.filter(t=>t.locked).map(t=>t.id));if(!p.clips.some(c=>ids.has(c.id)&&c.text!==undefined&&!locked.has(c.trackId)))return;change({...p,clips:p.clips.map(c=>ids.has(c.id)&&c.text!==undefined&&!locked.has(c.trackId)?applyCaptionAppearance(c,appearance):c)});};
   const replaceCaptions=(find:string,replacement:string)=>{const result=replaceCaptionText(current.current,find,replacement);if(result.changedClips)change(result.project);return {changedClips:result.changedClips,occurrences:result.occurrences,lockedMatches:result.lockedMatches};};
@@ -247,13 +247,18 @@ export default function App() {
   const copyClips=(verb='복사했습니다',onlyUnlocked=false):boolean=>{const captured=captureClipClipboard(current.current,selected,onlyUnlocked);if(!captured)return false;clipboard.current=captured;notify(`${captured.clips.length}개 클립을 ${verb}.`);return true;};
   const copy=()=>{copyClips();};
   const cutClips=()=>{if(copyClips('잘라냈습니다',true))remove(ripple);};
-  const paste=()=>{try{const pasted=pasteClipClipboard(current.current,clipboard.current,timeRef.current);if(pasted){change(pasted.project);setSelected(pasted.selected);}}catch(error){fail(error);}};
-  const detachAudio=()=>{if(current.current.clips.length>=10000){notify('프로젝트당 최대 10,000개 클립을 지원합니다.','error');return;}const p=current.current,c=p.clips.find(v=>v.id===selected[0]),m=p.media.find(v=>v.id===c?.mediaId);if(!c||!m?.hasAudio||p.tracks.find(t=>t.id===c.trackId)?.locked)return;let track=p.tracks.find(t=>t.type==='audio'&&!t.locked);
+  const paste=()=>{try{const pasted=pasteClipClipboard(current.current,clipboard.current,timeRef.current);if(pasted){change(pasted.project);setSelected(pasted.selected);}else if(clipboard.current)notify('붙여넣을 수 있는 클립이 없습니다. 복사한 클립의 트랙이 잠겼거나 이 프로젝트에 없습니다.');}catch(error){fail(error);}};
+  // Every selected unlocked video clip with sound; the copies go where the audio tracks have room.
+  const detachAudio=()=>{const p=current.current,sources=p.clips.filter(c=>selected.includes(c.id)&&!p.tracks.find(t=>t.id===c.trackId)?.locked&&p.tracks.find(t=>t.id===c.trackId)?.type==='video'&&p.media.find(m=>m.id===c.mediaId)?.hasAudio),playing=sources.filter(c=>c.volume>0);
+    if(!playing.length){notify(sources.length?'소리가 꺼진 클립입니다. 이미 분리했다면 오디오 트랙의 클립을 쓰세요.':'먼저 소리가 있는 영상 클립을 선택하세요.');return;}
+    if(p.clips.length+playing.length>10000){notify('프로젝트당 최대 10,000개 클립을 지원합니다.','error');return;}let track=p.tracks.find(t=>t.type==='audio'&&!t.locked);
     if(!track){
       if(p.tracks.length>=100){notify('프로젝트당 최대 100개 트랙을 지원합니다.','error');return;}
       track={id:uid(),type:'audio',name:'분리한 오디오',muted:false,hidden:false,locked:false};
     }
-    const audio={...c,id:uid(),trackId:track.id,name:`${c.name} · 오디오`};change({...p,tracks:p.tracks.some(t=>t.id===track!.id)?p.tracks:[...p.tracks,track],clips:[...p.clips.map(v=>v.id===c.id?{...v,volume:0}:v),audio]});setSelected([audio.id]);notify('오디오를 독립 트랙으로 분리했습니다.');};
+    const audio=playing.map(c=>({...c,id:uid(),trackId:track!.id,name:`${c.name} · 오디오`})),ids=new Set(playing.map(c=>c.id));
+    try{change(settleOverlaps({...p,tracks:p.tracks.some(t=>t.id===track!.id)?p.tracks:[...p.tracks,track],clips:[...p.clips.map(v=>ids.has(v.id)?{...v,volume:0}:v),...audio]},audio.map(a=>a.id)));}catch(error){fail(error);return;}
+    setSelected(audio.map(a=>a.id));notify(audio.length>1?`오디오 ${audio.length}개를 독립 트랙으로 분리했습니다.`:'오디오를 독립 트랙으로 분리했습니다.');};
   const applyEffect=(preset:Clip['preset'])=>{const p=current.current,targets=p.clips.filter(c=>selected.includes(c.id)&&c.text===undefined&&p.media.find(m=>m.id===c.mediaId)?.kind!=='audio'&&!p.tracks.find(t=>t.id===c.trackId)?.locked);if(!targets.length){notify('먼저 타임라인의 영상 클립을 선택하세요.');return;}change({...p,clips:p.clips.map(c=>targets.includes(c)?{...c,preset}:c)});};
   const transformClip=(id:string,values:TransformPatch,time=timeRef.current)=>{const p=current.current,c=p.clips.find(v=>v.id===id);if(!c||p.tracks.find(t=>t.id===c.trackId)?.locked)return;const limits:Record<string,[number,number]>={x:[-16384,16384],y:[-16384,16384],scale:[.01,8],rotation:[-3600,3600]},next=Object.fromEntries(Object.entries(values).filter(([key,v])=>limits[key]&&Number.isFinite(v)).map(([key,v])=>[key,clamp(v as number,limits[key][0],limits[key][1])])) as TransformPatch;if(!Object.keys(next).length)return;const local=clamp(frameTime(time-c.start,p.fps),0,c.duration),patch=c.keyframes.length?{keyframes:[...c.keyframes.filter(k=>Math.abs(k.time-local)>.5/p.fps),{...keyframeBase(c,local,.5/p.fps),...next}].sort((a,b)=>a.time-b.time)}:next;change({...p,clips:p.clips.map(v=>v.id===id?{...v,...patch}:v)},false);};
   /** CapCut Q / W: delete the part of the selected clips (or of every clip under the playhead)
@@ -272,7 +277,7 @@ export default function App() {
   };
   /** ↑ / ↓: the previous or next clip boundary. */
   const editPoint=(direction:-1|1)=>{const p=current.current,t=timeRef.current,points=[0,projectDuration(p),...p.clips.flatMap(c=>[c.start,c.start+c.duration])];const target=direction<0?Math.max(...points.filter(x=>x<t-1e-6)):Math.min(...points.filter(x=>x>t+1e-6));if(Number.isFinite(target))seek(target);};
-  const nudge=(frames:number)=>{const p=current.current,movable=p.clips.filter(c=>selected.includes(c.id)&&!p.tracks.find(t=>t.id===c.trackId)?.locked);if(!movable.length)return;const delta=boundedNudgeDelta(movable,frames,p.fps);if(!delta)return;change({...p,clips:p.clips.map(c=>movable.includes(c)?{...c,start:c.start+delta}:c)});};
+  const nudge=(frames:number)=>{const p=current.current,movable=p.clips.filter(c=>selected.includes(c.id)&&!p.tracks.find(t=>t.id===c.trackId)?.locked);if(!movable.length)return;const delta=boundedNudgeDelta(movable,frames,p.fps,p.clips.filter(c=>!movable.includes(c)));if(!delta)return;change({...p,clips:p.clips.map(c=>movable.includes(c)?{...c,start:c.start+delta}:c)});};
 
   const save=async(saveAs=false)=>{const session=projectSession.current,intent=++saveIntent.current;try{if(document.activeElement instanceof HTMLElement)document.activeElement.blur();const snapshot=current.current;const path=await window.studio.saveProject(snapshot,projectPath,saveAs);if(path&&session===projectSession.current&&intent===saveIntent.current){setProjectPath(path);setSavedStamp(snapshot.updatedAt);notify('프로젝트를 저장했습니다.');}}catch(e){if(session===projectSession.current&&intent===saveIntent.current)fail(e);}};
   const collect=async()=>{try{if(document.activeElement instanceof HTMLElement)document.activeElement.blur();const result=await window.studio.collectProject(current.current);if(result)setJobsOpen(true);}catch(error){fail(error);}};
@@ -285,7 +290,8 @@ export default function App() {
   const exportSubtitles=async()=>{try{const path=await window.studio.exportSubtitles(toCues(current.current));if(path)notify('SRT 자막을 저장했습니다.');}catch(e){fail(e);}};
   const captureJob=(source?:MediaAsset,clip?:Clip):EditorJobContext=>{const p=current.current;if(!matchesMediaSource(p,source))throw new Error('원본이 변경되었습니다. 클립을 다시 선택해 실행하세요.');return {projectId:p.id,session:projectSession.current,source:source?structuredClone(source):undefined,clip:clip?structuredClone(clip):undefined,clipMedia:clip?structuredClone(p.media.find(m=>m.id===clip.mediaId)):undefined};};
   const startProxy=async(media?:MediaAsset)=>{const p=current.current,m=media?p.media.find(m=>m.id===media.id):p.media.find(m=>m.id===p.clips.find(c=>c.id===selected[0])?.mediaId);if(!m||m.kind!=='video')return;try{const context=captureJob(m),result=await window.studio.generateProxy(m);jobContexts.current.set(result.jobId,context);setJobsOpen(true);}catch(e){fail(e);}};
-  const showTranscribe=()=>{const p=current.current,c=p.clips.find(c=>selected.includes(c.id)),media=p.media.find(m=>m.id===c?.mediaId);if(!c||!media||(!media.hasAudio&&media.kind!=='audio')){notify('먼저 음성이 있는 영상 또는 오디오 클립을 선택하세요.');return;}setTranscribeTarget({clip:c,media});setModal('transcribe');};
+  // The clip the properties panel shows comes first; then any other selected clip with sound.
+  const showTranscribe=()=>{const p=current.current,c=selected.map(id=>p.clips.find(v=>v.id===id)).find(v=>{const m=p.media.find(m=>m.id===v?.mediaId);return !!m&&(m.hasAudio||m.kind==='audio');}),media=p.media.find(m=>m.id===c?.mediaId);if(!c||!media||(!media.hasAudio&&media.kind!=='audio')){notify('먼저 음성이 있는 영상 또는 오디오 클립을 선택하세요.');return;}setTranscribeTarget({clip:c,media});setModal('transcribe');};
   const showStabilize=()=>{try{const p=current.current,clip=p.clips.find(c=>c.id===selected[0]);if(!clip||p.tracks.find(t=>t.id===clip.trackId)?.locked)return;setStabilizeTarget({clip:structuredClone(clip),...stabilizationSource(p,clip)});setModal('stabilize');}catch(error){fail(error);}};
   const showCutout=()=>{try{const p=current.current,clip=p.clips.find(c=>c.id===selected[0]);if(!clip||p.tracks.find(t=>t.id===clip.trackId)?.locked)return;setPlaying(false);setCutoutTarget({clip:structuredClone(clip),session:projectSession.current,...cutoutSource(p,clip)});setModal('cutout');}catch(error){fail(error);}};
   const startCutout=async(options:Pick<PersonCutoutOptions,'device'|'quality'>)=>{
@@ -442,7 +448,8 @@ export default function App() {
       }
       if(event.cues&&context?.clip){try{
         const p=current.current,source=p.clips.find(c=>c.id===context.clip!.id);
-        if(!source||!sameSourceInterval(source,context.clip)||p.tracks.find(t=>t.id===source.trackId)?.locked){notify('인식 중 클립 구간이 변경되었거나 잠겨 자막을 적용하지 않았습니다. 다시 실행해 주세요.');return;}
+        // Captions go on a new track, so a locked source clip is fine; only a changed one is not.
+        if(!source||!sameSourceInterval(source,context.clip)){notify('인식 중 클립 구간이 변경되어 자막을 적용하지 않았습니다. 다시 실행해 주세요.');return;}
         const filtered=sourceCuesToTimeline(source,event.cues),track:Track={id:uid(),name:'자동 자막',type:'text',muted:false,hidden:false,locked:false},clips=cuesToClips(filtered,track.id,p,0,{start:source.start,end:Math.min(86400,source.start+source.duration)});
         if(clips.length){if(p.clips.length+clips.length>10000||p.tracks.length>=100){notify('자막을 추가하면 최대 클립 수(10,000개) 또는 트랙 수(100개)를 넘습니다.','error');return;}change({...p,tracks:[...p.tracks,track],clips:[...p.clips,...clips]});setTab('captions');setSelected([clips[0].id]);}else notify('선택한 구간에서 인식된 음성이 없습니다.');
       }catch(error){notify(humanError(error),'error');return;}}
@@ -456,7 +463,7 @@ export default function App() {
       if(e.defaultPrevented||modal||recovery||document.querySelector('.modal-backdrop'))return;
       if(ctrl&&key==='s'){e.preventDefault();void save(e.shiftKey);return;}
       if(ctrl&&key==='o'){e.preventDefault();void open();return;}
-      if(inputTarget(e.target))return;
+      if(keyBelongsToField(e))return;
       if(ctrl&&key==='n'){e.preventDefault();create();return;}
       if(ctrl&&key==='i'){e.preventDefault();void importAssets();return;}
       if(ctrl&&key==='e'){e.preventDefault();if(project.clips.length){setPlaying(false);setModal('export');}return;}

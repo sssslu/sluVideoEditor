@@ -82,3 +82,11 @@ test('Inspector boundary clamp remains valid for every supported frame rate and 
     near(start*fps,Math.round(start*fps));
   }
 });
+test('Alt+arrow nudging stops at a neighbour on the same track but not at clips elsewhere',()=>{
+  const moving=[{trackId:'t1',start:2,duration:1}],before={trackId:'t1',start:0,duration:1.5},after={trackId:'t1',start:3.2,duration:1},elsewhere={trackId:'t2',start:3,duration:5};
+  near(boundedNudgeDelta(moving,30,30,[before,after,elsewhere]),.2);
+  near(boundedNudgeDelta(moving,-30,30,[before,after,elsewhere]),-.5);
+  near(boundedNudgeDelta(moving,30,30,[elsewhere]),1);
+  // A clip that already overlaps does not freeze the move.
+  near(boundedNudgeDelta(moving,3,30,[{trackId:'t1',start:2.5,duration:1}]),.1);
+});

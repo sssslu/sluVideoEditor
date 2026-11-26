@@ -3,10 +3,16 @@ import {trimClip,uid} from '../shared/project';
 import {minClipDuration} from './editor';
 export const frameTime=(time:number,fps:number)=>Math.round(time*fps)/fps;
 /** A group nudge moves by whole frames without changing any clip's fractional-frame phase. */
-export function boundedNudgeDelta(clips:readonly {start:number;duration:number}[],frames:number,fps:number):number {
+/** How far whole frames can move `clips`: not before 0 or past 24 h, and, given `others`, not into
+ * a clip they don't already overlap on the same track. */
+export function boundedNudgeDelta(clips:readonly {start:number;duration:number;trackId?:string}[],frames:number,fps:number,others:readonly {start:number;duration:number;trackId?:string}[]=[]):number {
   if(!clips.length)return 0;
   let lower=-Infinity,upper=Infinity;
-  for(const clip of clips){lower=Math.max(lower,-clip.start);upper=Math.min(upper,86400-(clip.start+clip.duration));}
+  for(const clip of clips){lower=Math.max(lower,-clip.start);upper=Math.min(upper,86400-(clip.start+clip.duration));
+    const end=clip.start+clip.duration;
+    for(const other of others){if(other.trackId!==clip.trackId)continue;const otherEnd=other.start+other.duration;
+      if(otherEnd<=clip.start+1e-9)lower=Math.max(lower,otherEnd-clip.start);else if(other.start>=end-1e-9)upper=Math.min(upper,other.start-end);}
+  }
   const firstFrame=Math.ceil(lower*fps),lastFrame=Math.floor(upper*fps);
   if(firstFrame>lastFrame)return 0;
   return Math.max(firstFrame,Math.min(lastFrame,Math.trunc(frames)))/fps||0;
