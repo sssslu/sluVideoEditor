@@ -1,14 +1,14 @@
 # SLU Studio 빠른 시작
 
-Windows x64용 1.16.0 기준입니다. 전체 기능 설명은 파일을 내려받아 브라우저에서 열거나 앱 왼쪽의 **도움말**에서 확인하세요. [전체 사용설명서 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.16.0/SLU-Studio-1.16.0-guide.html)
+Windows x64용 1.17.0 기준입니다. 전체 기능 설명은 파일을 내려받아 브라우저에서 열거나 앱 왼쪽의 **도움말**에서 확인하세요. [전체 사용설명서 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.17.0/SLU-Studio-1.17.0-guide.html)
 
 ## 다운로드와 실행
 
-- [설치형 EXE](https://github.com/sssslu/sluVideoEditor/releases/download/v1.16.0/SLU-Studio-Setup-1.16.0-x64.exe)를 실행해 설치합니다.
-- [포터블 EXE](https://github.com/sssslu/sluVideoEditor/releases/download/v1.16.0/SLU-Studio-1.16.0-Windows-x64.exe)는 내려받은 파일을 실행합니다. 실행 중 내부 파일을 푸는 시간이 필요합니다.
+- [설치형 EXE](https://github.com/sssslu/sluVideoEditor/releases/download/v1.17.0/SLU-Studio-Setup-1.17.0-x64.exe)를 실행해 설치합니다.
+- [포터블 EXE](https://github.com/sssslu/sluVideoEditor/releases/download/v1.17.0/SLU-Studio-1.17.0-Windows-x64.exe)는 내려받은 파일을 실행합니다. 실행 중 내부 파일을 푸는 시간이 필요합니다.
 - 이후 버전은 [최신 릴리스](https://github.com/sssslu/sluVideoEditor/releases/latest)에서 확인할 수 있습니다.
 
-앱 상단 왼쪽에 실행 버전이 표시됩니다. Windows 코드 서명은 없으며, 대화식 설치 절차와 다른 PC 호환성은 아직 검증하지 않았습니다. 내려받은 파일의 SHA256은 릴리스의 해시 목록과 대조할 수 있습니다. [파일 해시](https://github.com/sssslu/sluVideoEditor/releases/download/v1.16.0/SHA256SUMS-1.16.0.txt)
+앱 상단 왼쪽에 실행 버전이 표시됩니다. Windows 코드 서명은 없으며, 대화식 설치 절차와 다른 PC 호환성은 아직 검증하지 않았습니다. 내려받은 파일의 SHA256은 릴리스의 해시 목록과 대조할 수 있습니다. [파일 해시](https://github.com/sssslu/sluVideoEditor/releases/download/v1.17.0/SHA256SUMS-1.17.0.txt)
 
 화면을 조작하는 AI 도구를 이용한다면 [AI·Computer Use 안내](AI_GUIDE.md)의 실행 경로와 작업 순서를 함께 전달하세요.
 
@@ -81,7 +81,7 @@ PC마다 설치한 글꼴 버전이 다르면 모양·줄바꿈이 달라질 수
 
 다른 폴더나 PC로 옮길 때는 **프로젝트 → 프로젝트 모아 저장**을 사용합니다. 완성된 `.sluproj`와 그 옆 자료 폴더를 함께 옮기세요. 배경 제거·흔들림 보정·역재생·AI 화질 향상으로 만든 영상도 복사 대상입니다.
 
-1.16.0은 **프로젝트 형식 10**으로 저장하며 형식 1–9를 열 수 있습니다. 새로 저장한 파일은 형식 10을 지원하는 앱에서 열어야 합니다. **리틱체를 쓰는 프로젝트는 형식이 같아도 SLU Studio 1.15.1 이상이 필요합니다.** 이전 파일을 보관하려면 **다른 이름으로 저장**을 사용하세요. 자동 저장 기록은 프로젝트 메뉴의 **복구 기록**에서 확인할 수 있습니다.
+1.17.0은 **프로젝트 형식 10**으로 저장하며 형식 1–9를 열 수 있습니다. 새로 저장한 파일은 형식 10을 지원하는 앱에서 열어야 합니다. **리틱체를 쓰는 프로젝트는 형식이 같아도 SLU Studio 1.15.1 이상이 필요합니다.** 이전 파일을 보관하려면 **다른 이름으로 저장**을 사용하세요. 자동 저장 기록은 프로젝트 메뉴의 **복구 기록**에서 확인할 수 있습니다.
 
 ## 영상으로 내보내기
 
@@ -104,7 +104,7 @@ WebM, GIF, WAV 출력도 지원합니다. GIF에는 오디오가 없고 WAV는 �
 ## 더 보기
 
 - [AI·Computer Use 안내](AI_GUIDE.md)
-- [전체 사용설명서 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.16.0/SLU-Studio-1.16.0-guide.html)
+- [전체 사용설명서 다운로드](https://github.com/sssslu/sluVideoEditor/releases/download/v1.17.0/SLU-Studio-1.17.0-guide.html)
 - [검사 조건과 제한](검증결과.md)
 - [개발·빌드 안내](DEVELOPMENT.md)
 - [다운로드로 돌아가기](../README.md#다운로드)

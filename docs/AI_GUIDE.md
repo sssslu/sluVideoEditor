@@ -1,10 +1,10 @@
 # AI·Computer Use로 편집하기
 
-SLU Studio 1.16.0 기준입니다. 화면을 조작하는 외부 AI 도구에 이 문서와 편집 지시를 함께 전달하세요. 앱의 버튼·입력란·단축키와 Windows 파일 대화상자로 작업하는 안내입니다.
+SLU Studio 1.17.0 기준입니다. 화면을 조작하는 외부 AI 도구에 이 문서와 편집 지시를 함께 전달하세요. 앱의 버튼·입력란·단축키와 Windows 파일 대화상자로 작업하는 안내입니다.
 
 ## 실행과 작업 경로
 
-설치형의 기본 실행 파일은 `%LOCALAPPDATA%\Programs\SLU Studio\SLU Studio.exe`입니다. 설치 위치를 바꿨다면 실제 바로가기의 대상 경로를 사용하세요. 포터블은 내려받은 `SLU-Studio-1.16.0-Windows-x64.exe`를 실행합니다. 소스에서 배포 빌드를 마쳤다면 저장소 안의 `release\win-unpacked\SLU Studio.exe`가 실행 파일입니다. 앱 상단에서 버전을 확인할 수 있습니다.
+설치형의 기본 실행 파일은 `%LOCALAPPDATA%\Programs\SLU Studio\SLU Studio.exe`입니다. 설치 위치를 바꿨다면 실제 바로가기의 대상 경로를 사용하세요. 포터블은 내려받은 `SLU-Studio-1.17.0-Windows-x64.exe`를 실행합니다. 소스에서 배포 빌드를 마쳤다면 저장소 안의 `release\win-unpacked\SLU Studio.exe`가 실행 파일입니다. 앱 상단에서 버전을 확인할 수 있습니다.
 
 AI에 원본 파일, 저장할 `.sluproj`, 출력 영상의 **절대 경로**를 알려주세요. 원하는 구간·자막·해상도·프레임 속도도 지정하면 편집 결과를 확인하기 쉽습니다. 프로젝트와 출력 영상은 서로 다른 파일입니다.
 
@@ -44,4 +44,4 @@ AI에 원본 파일, 저장할 `.sluproj`, 출력 영상의 **절대 경로**를
 
 > SLU Studio에서 `D:\영상\원본.mp4`를 열어 원본 2초부터 12초까지 사용해 줘. 1920×1080, 30fps로 만들고, 타임라인 0초부터 3초까지 “오늘의 기록”을 간결한 자막으로 넣어 줘. 프로젝트는 `D:\영상\결과.sluproj`, 출력은 `D:\영상\결과.mov`로 저장해 줘. 출력 완료 후 파일을 재생해 길이와 자막을 확인해 줘.
 
-[빠른 시작](https://github.com/sssslu/sluVideoEditor/blob/v1.16.0/docs/QUICKSTART.md) · [전체 사용설명서](사용설명서.html) · [다운로드](https://github.com/sssslu/sluVideoEditor/releases/tag/v1.16.0)
+[빠른 시작](https://github.com/sssslu/sluVideoEditor/blob/v1.17.0/docs/QUICKSTART.md) · [전체 사용설명서](사용설명서.html) · [다운로드](https://github.com/sssslu/sluVideoEditor/releases/tag/v1.17.0)
