@@ -6,12 +6,13 @@ import './caption-tools.css';
 
 /** 자막 정리 in the captions tab: sync captions to the speech, and re-break them shorter or longer.
  * Each acts on the selected captions, or on every caption on unlocked tracks. */
-export default function CaptionTools({scope,count,syncBusy,onSync,onSplit,onMerge}:{scope:'selected'|'all';count:number;syncBusy:boolean;onSync:()=>void;onSplit:(maxChars:number)=>void;onMerge:(maxChars:number)=>void}){
+export default function CaptionTools({scope,count,syncBusy,onSync,onSplit,onMerge,onSelectAll}:{scope:'selected'|'all';count:number;syncBusy:boolean;onSync:()=>void;onSplit:(maxChars:number)=>void;onMerge:(maxChars:number)=>void;onSelectAll?:()=>void}){
   const [short,setShort]=useState(()=>Number(localStorage.getItem('slu-caption-split'))||14),[long,setLong]=useState(()=>Number(localStorage.getItem('slu-caption-merge'))||30);
   const remember=(key:string,value:number)=>{try{localStorage.setItem(key,String(value));}catch{/* optional */}};
   const valid=(v:number)=>Number.isFinite(v)&&v>=4&&v<=120;
   return <section className="caption-tools" aria-label="자막 정리">
     <div className="section-label">자막 정리 · {scope==='selected'?`선택한 자막 ${count}개`:`전체 자막 ${count}개`}</div>
+    {onSelectAll&&<button type="button" className="button secondary full" onClick={onSelectAll}>자막 전체 선택</button>}
     <button type="button" className="button secondary full" disabled={!count||syncBusy} onClick={onSync}>{syncBusy?<LoaderCircle size={14} className="spin"/>:<AudioWaveform size={14}/>}음성에 싱크 맞추기</button>
     <div className="caption-tools-row"><label><span>최대</span><input type="number" aria-label="나눌 때 자막당 최대 글자" min={4} max={120} value={short} onChange={e=>{const v=Math.round(+e.target.value);setShort(v);if(valid(v))remember('slu-caption-split',v);}}/><span>자</span></label><button type="button" className="button secondary" disabled={!count||!valid(short)} onClick={()=>onSplit(short)}><Split size={13}/>짧게 나누기</button></div>
     <div className="caption-tools-row"><label><span>최대</span><input type="number" aria-label="합칠 때 자막당 최대 글자" min={4} max={120} value={long} onChange={e=>{const v=Math.round(+e.target.value);setLong(v);if(valid(v))remember('slu-caption-merge',v);}}/><span>자</span></label><button type="button" className="button secondary" disabled={count<2||!valid(long)} onClick={()=>onMerge(long)}><Combine size={13}/>길게 합치기</button></div>

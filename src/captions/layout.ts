@@ -1,5 +1,5 @@
 import type {CaptionStyle,Clip,Project} from '../../shared/types';
-import {captionGraphemes} from '../../shared/captions';
+import {captionEffectPad,captionGraphemes} from '../../shared/captions';
 import {resolveRunStyle,textRunAt} from '../../shared/text-runs';
 import {captionFontStack,CAPTION_FONT_HASH,CAPTION_DISPLAY_HASH,requireCaptionFonts} from './font';
 import {assertCaptionGlyphs} from './glyphs';
@@ -50,7 +50,7 @@ export function captionLayout(clip:Clip,project:Project):CaptionLayout{
 function plainLayout(clip:Clip,project:Project,style:CaptionStyle,signature:string):CaptionLayout{
   const text=clip.text||'',font=`${style.weight} ${clip.fontSize}px ${captionFontStack(style.font)}`,letterSpacing=`${style.letterSpacing}px`,ctx=measureContext(font,letterSpacing),lineHeight=clip.fontSize*style.lineHeight;
   const widthOf=(from:number,to:number)=>{const m=ctx.measureText(text.slice(from,to));return Math.max(Math.abs(m.width),m.actualBoundingBoxLeft+m.actualBoundingBoxRight,0);};
-  const effectPad=Math.max(style.outlineWidth,style.shadowBlur*3),raw=wrapText(text,Math.max(1,project.width*style.maxWidth-2*(style.paddingX+effectPad+2)),style.letterSpacing<0,widthOf);
+  const effectPad=captionEffectPad(style),raw=wrapText(text,Math.max(1,project.width*style.maxWidth-2*(style.paddingX+effectPad+2)),style.letterSpacing<0,widthOf);
   const metrics=[ctx.measureText('한글Ag'),...raw.map(line=>ctx.measureText(line.text))],ascent=Math.max(clip.fontSize*.8,...metrics.map(m=>m.actualBoundingBoxAscent)),descent=Math.max(clip.fontSize*.2,...metrics.map(m=>m.actualBoundingBoxDescent)),overhang=Math.max(0,...metrics.map(m=>Math.max(m.actualBoundingBoxLeft,m.actualBoundingBoxRight-Math.max(0,m.width))));
   const inkPad=Math.ceil(effectPad+Math.max(overhang,(ascent+descent-lineHeight)/2,0)+2),padding=inkPad+style.paddingX,contentWidth=Math.max(1,...raw.map(l=>l.width)),width=contentWidth+padding*2,height=Math.max(1,raw.length)*lineHeight+2*(inkPad+style.paddingY);
   const lines:CaptionLine[]=raw.map((line,index)=>({...line,x:padding+(clip.align==='center'?(contentWidth-line.width)/2:clip.align==='right'?contentWidth-line.width:0),top:inkPad+style.paddingY+index*lineHeight,height:lineHeight,baseline:inkPad+style.paddingY+index*lineHeight+(lineHeight+ascent-descent)/2}));
@@ -77,7 +77,7 @@ function richLayout(clip:Clip,project:Project,style:CaptionStyle,signature:strin
   const advance=(m:TextMetrics)=>Math.max(Math.abs(m.width),0);
   const piecesOf=(from:number,to:number)=>spans.flatMap(span=>{const a=Math.max(from,span.from),b=Math.min(to,span.to);return b>a?[{span,from:a,to:b,text:text.slice(a,b)}]:[];});
   const widthOf=(from:number,to:number)=>{const parts=piecesOf(from,to);let total=0;parts.forEach((part,i)=>{const m=measure(part.span.font,part.text);total+=i===parts.length-1?Math.max(advance(m),m.actualBoundingBoxLeft+m.actualBoundingBoxRight):advance(m);});return total;};
-  const maxSize=Math.max(clip.fontSize,...spans.map(s=>s.size)),effectPad=Math.max(style.outlineWidth,style.shadowBlur*3);
+  const maxSize=Math.max(clip.fontSize,...spans.map(s=>s.size)),effectPad=captionEffectPad(style);
   const raw=wrapText(text,Math.max(1,project.width*style.maxWidth-2*(style.paddingX+effectPad+2)),style.letterSpacing<0,widthOf);
   let overhang=0,extra=0;
   const rows=raw.map(line=>{

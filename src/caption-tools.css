@@ -1,5 +1,6 @@
 .caption-tools{display:flex;flex-direction:column;gap:7px;padding:10px 0 4px;border-top:1px solid #2b333c;margin-top:8px}
 .caption-tools .section-label{margin:0}
+.caption-tools .button{white-space:normal;min-width:0}
 .caption-tools-row{display:flex;align-items:center;gap:8px}
 .caption-tools-row label{display:flex;align-items:center;gap:5px;flex:1;min-width:0;font-size:12px;color:#aab4bf;white-space:nowrap}
 .caption-tools-row input{width:52px;min-width:0}

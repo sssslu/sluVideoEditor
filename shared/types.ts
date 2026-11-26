@@ -20,6 +20,9 @@ export interface CaptionWord {from:number;to:number;start:number;end:number;timi
 export interface CaptionStyle {
   font:'noto-sans-kr'|'gmarket-sans'|'reatic';weight:400|500|600|700|800;lineHeight:number;letterSpacing:number;
   outlineWidth:number;outlineColor:string;shadowBlur:number;shadowColor:string;
+  /** Drop shadow: offset in px along shadowAngle (degrees; 45 = down-right) and its opacity (0–1).
+   * With no distance the shadow is the older glow around the outline. */
+  shadowDistance?:number;shadowAngle?:number;shadowOpacity?:number;
   background:'none'|'box'|'line';paddingX:number;paddingY:number;radius:number;maxWidth:number;
   highlight:boolean;activeColor:string;highlightEstimated?:boolean;
 }

@@ -1,4 +1,4 @@
-import type {CaptionAnimation,CaptionStyle,CaptionWord,Clip} from './types';
+import type {CaptionAnimation,CaptionStyle,CaptionWord,Clip,Project} from './types';
 import {ease} from './effects';
 import {remapTextRuns} from './text-runs';
 
@@ -55,7 +55,7 @@ export const CAPTION_FONT_WEIGHTS:Record<CaptionStyle['font'],readonly CaptionSt
 };
 export function assertCaptionStyle(value:unknown):asserts value is CaptionStyle {
   const s=value as CaptionStyle;
-  if(!object(s)||!['noto-sans-kr','gmarket-sans','reatic'].includes(s.font)||!CAPTION_FONT_WEIGHTS[s.font].includes(s.weight)||!finite(s.lineHeight,.8,3)||!finite(s.letterSpacing,-5,40)||!finite(s.outlineWidth,0,30)||!color(s.outlineColor)||!finite(s.shadowBlur,0,60)||!color(s.shadowColor)||!['none','box','line'].includes(s.background)||!finite(s.paddingX,0,160)||!finite(s.paddingY,0,160)||!finite(s.radius,0,160)||!finite(s.maxWidth,.1,1)||typeof s.highlight!=='boolean'||!color(s.activeColor)||(s.highlightEstimated!==undefined&&typeof s.highlightEstimated!=='boolean'))throw new Error('잘못된 자막 스타일입니다.');
+  if(!object(s)||!['noto-sans-kr','gmarket-sans','reatic'].includes(s.font)||!CAPTION_FONT_WEIGHTS[s.font].includes(s.weight)||!finite(s.lineHeight,.8,3)||!finite(s.letterSpacing,-5,40)||!finite(s.outlineWidth,0,30)||!color(s.outlineColor)||!finite(s.shadowBlur,0,60)||!color(s.shadowColor)||!['none','box','line'].includes(s.background)||!finite(s.paddingX,0,160)||!finite(s.paddingY,0,160)||!finite(s.radius,0,160)||!finite(s.maxWidth,.1,1)||typeof s.highlight!=='boolean'||!color(s.activeColor)||(s.highlightEstimated!==undefined&&typeof s.highlightEstimated!=='boolean')||(s.shadowDistance!==undefined&&!finite(s.shadowDistance,0,100))||(s.shadowAngle!==undefined&&!finite(s.shadowAngle,-360,360))||(s.shadowOpacity!==undefined&&!finite(s.shadowOpacity,0,1)))throw new Error('잘못된 자막 스타일입니다.');
 }
 export function assertCaptionAnimation(value:unknown):asserts value is CaptionAnimation {
   const a=value as CaptionAnimation,kinds=['none','fade','pop','slide'];
@@ -74,9 +74,28 @@ export function textCaptionStyle(kind:Clip['textStyle']):CaptionStyle {
 export function resizeCaptionStyle(style:CaptionStyle|undefined,factor:number):CaptionStyle|undefined {
   if(!style)return undefined;
   const bounded=(v:number,max:number,min=0)=>Math.max(min,Math.min(max,v*factor));
-  return {...style,letterSpacing:bounded(style.letterSpacing,40,-5),outlineWidth:bounded(style.outlineWidth,30),shadowBlur:bounded(style.shadowBlur,60),paddingX:bounded(style.paddingX,160),paddingY:bounded(style.paddingY,160),radius:bounded(style.radius,160)};
+  return {...style,letterSpacing:bounded(style.letterSpacing,40,-5),outlineWidth:bounded(style.outlineWidth,30),shadowBlur:bounded(style.shadowBlur,60),...(style.shadowDistance!==undefined?{shadowDistance:bounded(style.shadowDistance,100)}:{}),paddingX:bounded(style.paddingX,160),paddingY:bounded(style.paddingY,160),radius:bounded(style.radius,160)};
 }
 
+/** Drop-shadow offset in px (zero when the style has none). */
+export function captionShadowOffset(style:CaptionStyle){const d=style.shadowDistance??0,a=(style.shadowAngle??45)*Math.PI/180;return d>0?{x:Math.cos(a)*d,y:Math.sin(a)*d}:{x:0,y:0};}
+/** How far a caption's ink can reach past its glyphs: outline, glow and drop shadow. */
+export function captionEffectPad(style:CaptionStyle){const d=style.shadowDistance??0;return Math.max(style.outlineWidth,style.shadowBlur*3,d>0?style.outlineWidth+d+style.shadowBlur*1.5:0);}
+const joins=new WeakMap<Project,Map<string,{start:boolean;end:boolean}>>();
+/** Captions that touch on one track (within a frame) don't animate between each other: the
+ * earlier one's exit and the later one's entry are skipped, so back-to-back captions don't blink. */
+export function captionJoins(project:Project){
+  let map=joins.get(project);if(map)return map;map=new Map();
+  const byTrack=new Map<string,Clip[]>();for(const c of project.clips)if(c.text!==undefined)byTrack.set(c.trackId,[...(byTrack.get(c.trackId)||[]),c]);
+  const gap=1/project.fps+1e-6,mark=(id:string,edge:'start'|'end')=>{const v=map!.get(id)||{start:false,end:false};v[edge]=true;map!.set(id,v);};
+  for(const list of byTrack.values()){list.sort((a,b)=>a.start-b.start);for(let i=1;i<list.length;i++){const a=list[i-1],b=list[i];if(Math.abs(b.start-(a.start+a.duration))<=gap){mark(a.id,'end');mark(b.id,'start');}}}
+  joins.set(project,map);return map;
+}
+/** The caption as drawn: its entry/exit animation dropped where it touches a neighbour. */
+export function joinedCaption(project:Project,clip:Clip):Clip{
+  const a=clip.captionAnimation,j=a&&captionJoins(project).get(clip.id);if(!a||!j)return clip;
+  return {...clip,captionAnimation:{...a,...(j.start?{entry:'none' as const}:{}),...(j.end?{exit:'none' as const}:{})}};
+}
 /** Shared text animation clock. Rich effects preserve phase across trimming/splitting. */
 export function captionAnimationState(clip:Clip,localTime:number){
   if(clip.text===undefined)return {opacity:1,scale:1,y:0};

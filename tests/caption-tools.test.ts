@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {newClip,newProject} from '../shared/project';
-import {defaultCaptionStyle,editCaptionText} from '../shared/captions';
+import {assertCaptionStyle,captionAnimationState,captionEffectPad,captionJoins,captionShadowOffset,defaultCaptionAnimation,defaultCaptionStyle,editCaptionText,joinedCaption,resizeCaptionStyle} from '../shared/captions';
+import {builtInCaptionAppearance,readCaptionPresets,saveCaptionPreset} from '../src/captions/presets';
 import {assertProject} from '../shared/validation';
 import {assertTextRuns,clearTextRunProperties,joinTextRuns,normalizeTextRuns,remapTextRuns,setTextRunStyle,sliceTextRuns,textRunAt,textRunFonts} from '../shared/text-runs';
 import {refineWordTimes,applyCaptionSync,captionBreaks,captionTargets,mergeCaptions,mergeProjectCaptions,speechAudioProject,splitCaption,splitProjectCaptions,syncCaptionTimes} from '../shared/caption-timing';
@@ -133,4 +134,30 @@ test('recognized word times are tightened to the audible speech',()=>{
   assert.deepEqual(words[3],{start:10,end:11,text:'음'},'no speech nearby: unchanged');
   // Constant level (no contrast): nothing to learn from.
   assert.deepEqual(refineWordTimes([{start:0,end:1,text:'x'}],new Float32Array(500).fill(-30)),[{start:0,end:1,text:'x'}]);
+});
+
+test('drop shadow: 45 degrees is down-right, padded, validated, scaled and kept by presets',()=>{
+  const style={...defaultCaptionStyle(),outlineWidth:3,shadowBlur:0,shadowDistance:6,shadowAngle:45,shadowOpacity:.8};
+  const o=captionShadowOffset(style);assert.ok(Math.abs(o.x-6/Math.SQRT2)<1e-9&&Math.abs(o.y-6/Math.SQRT2)<1e-9);
+  assert.deepEqual(captionShadowOffset(defaultCaptionStyle()),{x:0,y:0});
+  assert.equal(captionEffectPad(style),9);assert.equal(captionEffectPad(defaultCaptionStyle()),3);
+  assertCaptionStyle(style);
+  for(const bad of [{shadowDistance:-1},{shadowDistance:101},{shadowOpacity:1.5},{shadowAngle:Number.NaN}])assert.throws(()=>assertCaptionStyle({...style,...bad}));
+  assert.equal(resizeCaptionStyle(style,2)!.shadowDistance,12);
+  const values=new Map<string,string>(),storage={getItem:(k:string)=>values.get(k)??null,setItem:(k:string,v:string)=>{values.set(k,v);}};
+  const appearance={...builtInCaptionAppearance('outline',48),captionStyle:style};saveCaptionPreset('그림자',appearance,storage);
+  const saved=readCaptionPresets(storage)[0].appearance.captionStyle;assert.equal(saved.shadowDistance,6);assert.equal(saved.shadowOpacity,.8);
+});
+
+test('back-to-back captions on one track do not fade between each other',()=>{
+  const fade={captionAnimation:defaultCaptionAnimation()};
+  const a=caption('a','하나',0,2,fade),b=caption('b','둘',2,2,fade),c=caption('c','셋',5,2,fade),other={...caption('o','다른 트랙',2,2,fade),trackId:'text-2'};
+  const p={...project([a,b,c,other]),tracks:[...project([]).tracks,{id:'text-2',name:'자막 2',type:'text' as const,muted:false,hidden:false,locked:false}]};
+  const joins=captionJoins(p);
+  assert.deepEqual(joins.get('a'),{start:false,end:true});assert.deepEqual(joins.get('b'),{start:true,end:false});
+  assert.equal(joins.get('c'),undefined);assert.equal(joins.get('o'),undefined);
+  // a keeps its fade-in, loses its fade-out; b the other way round; c fades as before.
+  assert.ok(captionAnimationState(joinedCaption(p,a),.01).opacity<1);assert.equal(captionAnimationState(joinedCaption(p,a),1.99).opacity,1);
+  assert.equal(captionAnimationState(joinedCaption(p,b),.01).opacity,1);assert.ok(captionAnimationState(joinedCaption(p,b),1.99).opacity<1);
+  assert.equal(joinedCaption(p,c),c);
 });

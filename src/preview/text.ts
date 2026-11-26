@@ -1,5 +1,6 @@
 import type {Clip,Project} from '../../shared/types';
 import {captionLayout,captionLayoutSignature} from '../captions/layout';
+import {captionShadowOffset} from '../../shared/captions';
 import {clipState} from './math';
 export {ensureCaptionFonts,captionFontsReady} from '../captions/font';
 export interface TextFrame {canvas:HTMLCanvasElement;width:number;height:number;padding:number;signature:string;version?:number}
@@ -54,12 +55,22 @@ export function rasterCaption(clip:Clip,project:Project,ratio:number,_localTime=
   const box=(x:number,y:number,w:number,h:number)=>{context.beginPath();context.roundRect(x,y,w,h,Math.min(style.radius,w/2,h/2));context.fill();};
   if(style.background==='box')box(layout.inkPad,layout.inkPad,width-layout.inkPad*2,height-layout.inkPad*2);
   if(style.background==='line')for(const line of layout.lines)if(line.text.trim())box(line.x-style.paddingX,line.top-style.paddingY,line.width+style.paddingX*2,line.height+style.paddingY*2);
-  context.strokeStyle=style.outlineColor;context.lineWidth=style.outlineWidth*2;context.shadowColor=style.shadowColor;context.shadowBlur=style.shadowBlur*boundedRatio;
+  const offset=captionShadowOffset(style),drop=offset.x!==0||offset.y!==0;
+  if(drop){
+    // Drop shadow: the whole text shape (fills and outlines) drawn once in the shadow color, then
+    // offset, softened and faded as one layer so overlapping glyphs never darken each other.
+    const layer=document.createElement('canvas');layer.width=canvas.width;layer.height=canvas.height;const shape=layer.getContext('2d')!;
+    shape.scale(boundedRatio,boundedRatio);shape.fontKerning='normal';shape.letterSpacing=layout.letterSpacing;shape.textAlign='left';shape.textBaseline='alphabetic';shape.lineJoin='round';shape.fillStyle=style.shadowColor;shape.strokeStyle=style.shadowColor;shape.lineWidth=style.outlineWidth*2;
+    for(const line of layout.lines)for(const piece of line.pieces??[{text:line.text,x:line.x,font:layout.font}]){shape.font=piece.font;shape.fillText(piece.text,piece.x,line.baseline);if(style.outlineWidth)shape.strokeText(piece.text,piece.x,line.baseline);}
+    context.save();context.setTransform(1,0,0,1,0,0);context.globalAlpha=style.shadowOpacity??1;if(style.shadowBlur)context.filter=`blur(${style.shadowBlur*boundedRatio/2}px)`;context.drawImage(layer,offset.x*boundedRatio,offset.y*boundedRatio);context.restore();
+    layer.width=0;layer.height=0;
+  }
+  context.strokeStyle=style.outlineColor;context.lineWidth=style.outlineWidth*2;context.shadowColor=drop?'transparent':style.shadowColor;context.shadowBlur=drop?0:style.shadowBlur*boundedRatio;
   for(const line of layout.lines){
     for(const piece of line.pieces??[{text:line.text,x:line.x,font:layout.font,color:undefined}]){
       if(context.font!==piece.font)context.font=piece.font;if(ink.font!==piece.font)ink.font=piece.font;
       const color=piece.color??clip.color;
-      if(style.outlineWidth)context.strokeText(piece.text,piece.x,line.baseline);else if(style.shadowBlur){context.fillStyle=color;context.fillText(piece.text,piece.x,line.baseline);}
+      if(style.outlineWidth)context.strokeText(piece.text,piece.x,line.baseline);else if(style.shadowBlur&&!drop){context.fillStyle=color;context.fillText(piece.text,piece.x,line.baseline);}
       ink.fillStyle=color;ink.fillText(piece.text,piece.x,line.baseline);
     }
   }
