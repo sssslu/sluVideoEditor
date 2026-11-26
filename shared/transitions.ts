@@ -113,9 +113,6 @@ export function transitionAudioWeight(item:CompiledTransition,side:'from'|'to',t
 export function transitionGain(plan:TransitionPlan,clipId:string,time:number):number {
   return (plan.byClip.get(clipId)?.transitions||[]).reduce((gain,item)=>gain*transitionAudioWeight(item,item.from.id===clipId?'from':'to',time),1);
 }
-export function exposureForClip(input:Project|TransitionPlan,clip:Clip):ClipExposure {
-  const plan='byClip' in input?input:compileTransitions(input);return plan.byClip.get(clip.id)||{clip,visualFrom:0,visualTo:clip.duration,audioFrom:0,audioTo:clip.duration,transitions:[]};
-}
 export function visualNodesAt(plan:TransitionPlan,time:number):TransitionVisualNode[] {
   const {project}=plan,tracks=new Map(project.tracks.map((track,index)=>[track.id,{track,index}])),assets=new Map(project.media.map(m=>[m.id,m]));
   const active=plan.transitions.filter(item=>time>=item.start&&time<item.end&&visualTrackEnabled(project,tracks.get(item.trackId)?.track)),suppressed=new Set(active.flatMap(t=>[t.from.id,t.to.id]));
@@ -124,7 +121,6 @@ export function visualNodesAt(plan:TransitionPlan,time:number):TransitionVisualN
   const clip=(node:TransitionVisualNode)=>node.type==='clip'?node.clip:node.from;
   return nodes.sort((a,b)=>(tracks.get(clip(a).trackId)?.index??0)-(tracks.get(clip(b).trackId)?.index??0)||clip(a).start-clip(b).start);
 }
-export const buildTransitionPlan=(project:Project,time:number)=>visualNodesAt(compileTransitions(project),time);
 export function transitionDirection(direction:Transition['direction']='left'):[number,number] {return direction==='right'?[1,0]:direction==='up'?[0,-1]:direction==='down'?[0,1]:[-1,0];}
 /** Reference sampler for premultiplied full-canvas RGBA. Coordinates are top-left
  * normalized; callers return transparent samples outside [0,1]. */

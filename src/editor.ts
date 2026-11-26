@@ -224,7 +224,3 @@ export function resizeProject(p:Project,width:number,height:number):Project {
   const sx=width/p.width,sy=height/p.height;
   return {...p,width,height,clips:p.clips.map(c=>({...c,x:clamp(c.x*sx,-16384,16384),y:clamp(c.y*sy,-16384,16384),fontSize:clamp(c.fontSize*sy,4,1000),captionStyle:resizeCaptionStyle(c.captionStyle,sy),...(c.motionBinding?{motionBinding:resizeMotionBinding(c.motionBinding,p,width,height)}:{}),keyframes:c.keyframes.map(k=>({...k,x:clamp(k.x*sx,-16384,16384),y:clamp(k.y*sy,-16384,16384)}))}))};
 }
-export function effectFilter(c:Clip):string {
-  const preset={none:'',cinematic:'contrast(1.15) saturate(0.8)',warm:'sepia(0.18) saturate(1.15)',cool:'hue-rotate(12deg) saturate(0.9)',mono:'saturate(0)',vivid:'saturate(1.4) contrast(1.1)'}[c.preset];
-  return `brightness(${1+c.brightness}) contrast(${c.contrast}) saturate(${c.saturation}) blur(${c.blur}px) ${preset}`;
-}

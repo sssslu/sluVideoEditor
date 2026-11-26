@@ -1,4 +1,4 @@
-import type {Clip, Project, MediaAsset, Track, Keyframe} from './types';
+import type {Clip, Project, MediaAsset, Keyframe} from './types';
 import {keyframeProgress} from './effects';
 import {clipSourceTime,trimSpeedCurve} from './speed';
 import {trimCaptionWords} from './captions';
@@ -55,4 +55,3 @@ export function trimClip(clip:Clip,from:number,to:number):Clip {
   return {...clip,start:clip.start+from,in:Math.max(0,clipSourceTime(clip,from)),duration,keyframes,sourceClipOffset,sourceClipDuration,captionWords:trimCaptionWords(clip.captionWords,from,to),...(clip.speedCurve?{speedCurve:trimSpeedCurve(clip.speedCurve,from/clip.duration,to/clip.duration)}:{})};
 }
 export function splitClip(clip:Clip,time:number):[Clip,Clip]|null {const local=time-clip.start;if(local<0.02||local>clip.duration-0.02)return null;return [trimClip(clip,0,local),{...trimClip(clip,local,clip.duration),id:uid()}];}
-export function trackFor(p:Project,c:Clip):Track|undefined{return p.tracks.find(t=>t.id===c.trackId);}

@@ -95,4 +95,3 @@ function richLayout(clip:Clip,project:Project,style:CaptionStyle,signature:strin
   return {width,height,padding,lines,signature,font:baseFont,letterSpacing,style,inkPad,lineHeight:clip.fontSize*style.lineHeight,textLength:text.length};
 }
 export function captionLayoutCacheStats(){return {entries:layouts.size,characters:cachedChars};}
-export function clearCaptionLayouts(){layouts.clear();cachedChars=0;}
