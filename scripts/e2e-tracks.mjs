@@ -70,11 +70,15 @@ try{
   await page.getByRole('button',{name:'미디어',exact:true}).first().click();
   await page.locator(`[data-clip-id="${(await clipOf('blue')).id}"]`).click();await page.getByRole('button',{name:'프로그램',exact:true}).first().click();await page.keyboard.press('Home');await page.keyboard.press('Shift+ArrowRight');await page.keyboard.press('Control+b');
   await page.waitForFunction(()=>document.querySelector('.preview-gpu-stage').previewRuntime.project.clips.filter(c=>c.name==='blue.mp4').length===2);
-  const left=(await project()).clips.find(c=>c.name==='blue.mp4'&&c.start===0),handle=page.locator(`[data-clip-id="${left.id}"]`).getByTitle('끝점 트리밍',{exact:true});
-  await page.locator(`[data-clip-id="${left.id}"]`).click();const edge=await handle.boundingBox();
-  await page.mouse.move(edge.x+edge.width/2,edge.y+edge.height/2);await page.mouse.down();await page.mouse.move(edge.x+60,edge.y+edge.height/2,{steps:6});await page.mouse.up();await page.waitForTimeout(200);
-  const trimmed=(await project()).clips.find(c=>c.id===left.id);
-  check('trimming stops at the next clip',Math.abs(trimmed.duration-1)<1e-6,trimmed.duration);
+  // Packed pieces behave like CapCut's magnetic track: a trim moves whatever follows on the track.
+  const pieces=async()=>(await project()).clips.filter(c=>c.name==='blue.mp4').sort((a,b)=>a.start-b.start),packed=([a,b])=>Math.abs(a.start+a.duration-b.start)<1e-6,summary=list=>list.map(c=>[c.start,c.duration,c.in]);
+  const dragHandle=async(id,title,dx)=>{const piece=page.locator(`[data-clip-id="${id}"]`);await piece.click();const edge=await piece.getByTitle(title,{exact:true}).boundingBox();await page.mouse.move(edge.x+edge.width/2,edge.y+edge.height/2);await page.mouse.down();await page.mouse.move(edge.x+edge.width/2+dx,edge.y+edge.height/2,{steps:6});await page.mouse.up();await page.waitForTimeout(200);};
+  const [left,right]=await pieces();await dragHandle(left.id,'끝점 트리밍',60);const longer=await pieces();
+  check('lengthening a packed piece pushes the next one back',longer[0].duration>1.2&&packed(longer)&&longer[1].in===right.in,summary(longer));
+  await dragHandle(right.id,'시작점 트리밍',-30);const headed=await pieces();
+  check('lengthening a packed piece at its head keeps its start and grows it',Math.abs(headed[1].start-longer[1].start)<1e-6&&headed[1].duration>longer[1].duration+.1&&headed[1].in<longer[1].in&&packed(headed),summary(headed));
+  await dragHandle(left.id,'끝점 트리밍',-30);const shorter=await pieces();
+  check('shortening a piece leaves the next one where it is',shorter[0].duration<headed[0].duration-.1&&Math.abs(shorter[1].start-headed[1].start)<1e-6,summary(shorter));
   check('no page errors',!errors.length,errors);
 }finally{
   await fs.writeFile(path.join(root,'results.json'),JSON.stringify({checks,errors},null,2));

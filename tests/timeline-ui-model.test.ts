@@ -17,6 +17,12 @@ test('group dragging snaps any selected edge while preserving relative offsets a
   const a={...newClip('video-1'),id:'a',start:1,duration:2},b={...a,id:'b',start:5,duration:1};const move=moveDelta([a,b],['a','b'],1.05,[7.1],.1,30,true);
   assert.equal(move.delta,1.1);assert.equal(move.guide,7.1);assert.equal(moveDelta([a,b],['a','b'],-100,[],0,30).delta,-1);assert.equal(moveDelta([a,b],['a','b'],1.05,[7.1],.1,30,false).guide,null);
 });
+test('a snapped edge lands exactly on a point that is off the frame grid',()=>{
+  // A sped-up clip can end between frames; rounding the move would leave the dragged clip overlapping it.
+  const a={...newClip('video-1'),id:'a',start:0,duration:2.0213},b={...a,id:'b',start:5,duration:1};
+  const move=moveDelta([a,b],['b'],-2.97,[a.start+a.duration],.1,30,true);
+  assert.equal(b.start+move.delta,a.start+a.duration);assert.equal(move.guide,2.0213);
+});
 test('fit zoom supports a full-day project with bounded ruler ticks',()=>{
   const zoom=900/86400,spacing=tickSpacing(zoom);assert.ok(86400/spacing<20);assert.equal(tickSpacing(48),2);assert.ok(Math.abs(frameTime(1.04,30)-31/30)<1e-12);
 });

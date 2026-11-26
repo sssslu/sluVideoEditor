@@ -19,7 +19,10 @@ export function moveDelta(clips:Clip[],selected:string[],delta:number,points:num
   const ids=new Set(selected),chosen=clips.filter(c=>ids.has(c.id));if(!chosen.length)return {delta:0,guide:null};
   let result=frameTime(delta,fps),guide:number|null=null,best=tolerance;
   if(snap){const sorted=[...points].sort((a,b)=>a-b);for(const clip of chosen)for(const edge of [clip.start,clip.start+clip.duration]){const target=edge+result;let low=0,high=sorted.length;while(low<high){const mid=(low+high)>>>1;if(sorted[mid]<target)low=mid+1;else high=mid;}for(const index of [low-1,low]){if(index<0||index>=sorted.length)continue;const point=sorted[index],distance=Math.abs(target-point);if(distance<best){best=distance;delta=point-edge;guide=point;}}}}
-  if(guide!==null)result=frameTime(delta,fps);
+  // A snapped edge lands exactly on its point. Rounding the move to a whole frame would leave an
+  // edge that is off the frame grid (a sped-up clip's end, say) a fraction of a frame into its
+  // neighbour, and the overlap would then send the clip to another track.
+  if(guide!==null){const framed=frameTime(delta,fps);result=Math.abs(framed-delta)<1e-9?framed:delta;}
   result=Math.max(-Math.min(...chosen.map(c=>c.start)),Math.min(result,86400-Math.max(...chosen.map(c=>c.start+c.duration))));
   return {delta:result,guide};
 }
