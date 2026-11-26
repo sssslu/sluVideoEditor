@@ -4,7 +4,7 @@ import { newClip, startingProject, uid } from '../shared/project';
 import {settleOverlaps} from './timeline-model';
 import {assertSpeedCurve,clipSourceSpan,speedCurveMean,MIN_SPEED,MAX_SPEED,MAX_CURVE_SPEED} from '../shared/speed';
 import {reconcileTransitions} from '../shared/transition-edits';
-import {assertCaptionWords,trimCaptionWords,defaultCaptionStyle,defaultCaptionAnimation,resizeCaptionStyle} from '../shared/captions';
+import {assertCaptionWords,trimCaptionWords,defaultCaptionStyle,defaultCaptionAnimation,resizeCaptionStyle,unifyTextClips} from '../shared/captions';
 import {previewProxyPath} from '../shared/media-clock';
 import {reconcileMotion,resizeMotionBinding} from '../shared/motion';
 import {reconcileEnhancementSources} from '../shared/processing';
@@ -82,7 +82,7 @@ export function useHistory() {
     setState(current.current);
   }, [checkpoint,rebase]);
   const reset = useCallback((next:Project) => {
-    const migrated={...next,version:10 as const};past.current=[]; future.current=[];coalesced.current=undefined;sources.current.clear();for(const asset of migrated.media)sources.current.set(asset.path,{asset,seen:new Set([asset.sourceRevision])});rebasedAssets.current=new WeakMap();current.current=migrated;setState(migrated);setRevision(r=>r+1);setTransitionNotice(null);
+    const migrated=unifyTextClips({...next,version:10 as const});past.current=[]; future.current=[];coalesced.current=undefined;sources.current.clear();for(const asset of migrated.media)sources.current.set(asset.path,{asset,seen:new Set([asset.sourceRevision])});rebasedAssets.current=new WeakMap();current.current=migrated;setState(migrated);setRevision(r=>r+1);setTransitionNotice(null);
   }, []);
   const undo = useCallback(() => {
     const next=past.current.pop();if(!next)return;const restored=rebase(next);coalesced.current=undefined;

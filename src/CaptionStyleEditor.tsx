@@ -1,7 +1,7 @@
 import {useEffect,useState} from 'react';
 import {AlignCenter,AlignLeft,AlignRight,Trash2} from 'lucide-react';
 import type {CaptionAnimation,CaptionStyle,Clip} from '../shared/types';
-import {CAPTION_FONT_WEIGHTS,defaultCaptionAnimation,defaultCaptionStyle} from '../shared/captions';
+import {CAPTION_FONT_WEIGHTS,legacyCaptionAnimation,legacyTextCaptionStyle} from '../shared/captions';
 import {NumberField,Section} from './InspectorFields';
 import {applyCaptionAppearance,builtInCaptionAppearance,captureCaptionAppearance,deleteCaptionPreset,readCaptionPresets,saveCaptionPreset,type CaptionAppearance} from './captions/presets';
 import {captionGlyphError} from './captions/glyphs';
@@ -19,15 +19,16 @@ export default function CaptionStyleEditor({clip,disabled,onChange,onApplyMany,s
   const [presets,setPresets]=useState(readCaptionPresets),[name,setName]=useState(''),[selectedPreset,setSelectedPreset]=useState(''),[error,setError]=useState('');
   const [fontsReady,setFontsReady]=useState(captionFontsReady);
   useEffect(()=>{const refresh=()=>setPresets(readCaptionPresets());window.addEventListener('slu-caption-presets',refresh);return()=>window.removeEventListener('slu-caption-presets',refresh);},[]);
-  const style=clip.captionStyle,animation=clip.captionAnimation||defaultCaptionAnimation(),glyphError=style?captionGlyphError(clip.text||''):undefined;
-  const styled=!!style;
-  useEffect(()=>{if(!styled)return;let active=true;void ensureCaptionFonts().then(()=>{if(active)setFontsReady(true);},cause=>{if(active)setError(cause instanceof Error?cause.message:String(cause));});return()=>{active=false;};},[styled]);
-  const reaticAvailable=fontsReady&&CAPTION_FONT_WEIGHTS.reatic.some(weight=>captionFontAvailable('reatic',weight)),fontError=style&&fontsReady?textRunFonts(clip).map(f=>captionFontError(f.font,f.weight)).find(Boolean):undefined;
-  // With several captions selected every control applies to all of them (captions without the
-  // caption style are left alone by style-only settings); character ranges need a single caption.
+  // Every text clip has a style (older projects are converted when opened); the fallbacks only keep
+  // a clip that somehow arrives without one editable.
+  const style=clip.captionStyle??legacyTextCaptionStyle(clip),animation=clip.captionAnimation??legacyCaptionAnimation(clip.animation),glyphError=captionGlyphError(clip.text||'');
+  useEffect(()=>{let active=true;void ensureCaptionFonts().then(()=>{if(active)setFontsReady(true);},cause=>{if(active)setError(cause instanceof Error?cause.message:String(cause));});return()=>{active=false;};},[]);
+  const reaticAvailable=fontsReady&&CAPTION_FONT_WEIGHTS.reatic.some(weight=>captionFontAvailable('reatic',weight)),fontError=fontsReady?textRunFonts(clip).map(f=>captionFontError(f.font,f.weight)).find(Boolean):undefined;
+  // With several text clips selected every control applies to all of them; character ranges need a
+  // single clip.
   const many=selectedTextCount>1&&!!onPatchMany;
   const all=(update:(target:Clip)=>Partial<Clip>,coalesce?:EventTarget)=>many?onPatchMany!(update,coalesce):onChange(update(clip),coalesce);
-  const patch=(values:Partial<CaptionStyle>,coalesce?:EventTarget)=>many?onPatchMany!(c=>c.captionStyle?{captionStyle:{...c.captionStyle,...values}}:{},coalesce):onChange({captionStyle:{...(style||defaultCaptionStyle()),...values}},coalesce);
+  const patch=(values:Partial<CaptionStyle>,coalesce?:EventTarget)=>many?onPatchMany!(c=>({captionStyle:{...(c.captionStyle??legacyTextCaptionStyle(c)),...values}}),coalesce):onChange({captionStyle:{...style,...values}},coalesce);
   const text=clip.text||'',range=!many&&selection&&selection.to>selection.from&&selection.to<=text.length?selection:undefined;
   const look=resolveRunStyle(clip,range?textRunAt(clip.textRuns,range.from):{}),styledRange=!!range&&!!clip.textRuns?.some(run=>run.from<range.to&&run.to>range.from);
   // With a selection the look applies to those characters; otherwise to the whole text, dropping
@@ -35,22 +36,21 @@ export default function CaptionStyleEditor({clip,disabled,onChange,onApplyMany,s
   const setLook=(values:Partial<RunStyle>,coalesce?:EventTarget)=>{
     if(range){onChange({textRuns:setTextRunStyle(text,clip.textRuns,range.from,range.to,values)},coalesce);return;}
     all(target=>{
-      // Size and color are plain clip values (older-style text too); font and weight need the caption style.
+      // Size and color are plain clip values; font and weight live in the style.
       const next:Partial<Clip>={textRuns:clearTextRunProperties(target.text||'',target.textRuns,Object.keys(values) as (keyof RunStyle)[])};
       if(values.size!==undefined)next.fontSize=values.size;if(values.color!==undefined)next.color=values.color;
-      if((values.font!==undefined||values.weight!==undefined)&&target.captionStyle)next.captionStyle={...target.captionStyle,...(values.font!==undefined?{font:values.font}:{}),...(values.weight!==undefined?{weight:values.weight}:{})};
+      if(values.font!==undefined||values.weight!==undefined)next.captionStyle={...(target.captionStyle??legacyTextCaptionStyle(target)),...(values.font!==undefined?{font:values.font}:{}),...(values.weight!==undefined?{weight:values.weight}:{})};
       return next;
     },coalesce);
   };
-  const selectFont=(font:CaptionStyle['font'])=>{if(!style)return;const preferred=font==='reatic'?(look.weight<=500?400:700):font==='gmarket-sans'?(look.weight<=500?500:700):look.weight;const available=CAPTION_FONT_WEIGHTS[font].filter(weight=>captionFontAvailable(font,weight));setLook({font,weight:available.includes(preferred)?preferred:available[0]??preferred});};
-  const animateClip=(target:Clip,values:Partial<CaptionAnimation>):Partial<Clip>=>({captionAnimation:{...(target.captionAnimation||defaultCaptionAnimation()),...values},sourceClipOffset:undefined,sourceClipDuration:undefined});
-  const animate=(values:Partial<CaptionAnimation>)=>many?onPatchMany!(c=>c.captionStyle?animateClip(c,values):{}):onChange(animateClip(clip,values));
-  const drop=!!style&&(style.shadowDistance??0)>0;
+  const selectFont=(font:CaptionStyle['font'])=>{const preferred=font==='reatic'?(look.weight<=500?400:700):font==='gmarket-sans'?(look.weight<=500?500:700):look.weight;const available=CAPTION_FONT_WEIGHTS[font].filter(weight=>captionFontAvailable(font,weight));setLook({font,weight:available.includes(preferred)?preferred:available[0]??preferred});};
+  const animateClip=(target:Clip,values:Partial<CaptionAnimation>):Partial<Clip>=>({...(target.captionStyle?{}:{captionStyle:legacyTextCaptionStyle(target)}),captionAnimation:{...(target.captionAnimation??legacyCaptionAnimation(target.animation)),...values},sourceClipOffset:undefined,sourceClipDuration:undefined});
+  const animate=(values:Partial<CaptionAnimation>)=>many?onPatchMany!(c=>animateClip(c,values)):onChange(animateClip(clip,values));
+  const drop=(style.shadowDistance??0)>0;
   const apply=(id:'outline'|'line'|'plain')=>{setError('');all(target=>applyCaptionAppearance(target,builtInCaptionAppearance(id,target.fontSize)));};
   return <fieldset className="caption-style-editor" disabled={disabled}>
     {many&&<p className="field-note caption-many-note" role="status">선택한 자막 {selectedTextCount}개에 함께 적용합니다. 글자별 스타일과 문구는 자막을 하나만 선택해 바꾸세요.</p>}
-    <label className="inline-field"><span>자막 스타일</span><input type="checkbox" aria-label="새 자막 스타일 사용" checked={!!style} onChange={e=>{const on=e.target.checked;all(()=>on?{captionStyle:defaultCaptionStyle(),captionAnimation:defaultCaptionAnimation(),sourceClipOffset:undefined,sourceClipDuration:undefined}:{captionStyle:undefined,captionAnimation:undefined});}}/></label>
-    {style&&<>
+    <>
       <div className="caption-style-presets">{([['outline','외곽선 강조'],['line','줄 배경'],['plain','간결한 자막']] as const).map(([id,label])=><button key={id} type="button" className={`caption-style-tile ${id}`} onClick={()=>apply(id)}><span aria-hidden="true">가나다</span><small>{label}</small></button>)}</div>
       {!many&&<p className={`field-note text-run-scope ${range?'active':''}`} role="status">{range?`선택한 ${[...new Intl.Segmenter('und',{granularity:'grapheme'}).segment(text.slice(range.from,range.to))].length}글자에만 글꼴·크기·색상을 적용합니다.`:'텍스트 상자에서 일부를 드래그해 선택하면 그 글자만 글꼴·크기·색상을 바꿉니다.'}{range&&<button type="button" className="text-button tiny" onClick={clearTextSelection}>선택 해제 · 전체에 적용</button>}{styledRange&&<button type="button" className="text-button tiny" onClick={()=>setLook({font:undefined,weight:undefined,size:undefined,color:undefined})}>선택 글자 스타일 지우기</button>}</p>}
       <label className="inline-field"><span>글꼴</span><select aria-label="자막 글꼴" value={look.font} onChange={e=>selectFont(e.target.value as CaptionStyle['font'])}><option value="noto-sans-kr">Noto Sans KR</option><option value="gmarket-sans">Gmarket Sans</option><option value="reatic" disabled={!reaticAvailable}>{!fontsReady?'리틱체 (확인 중)':reaticAvailable?'리틱체':'리틱체 (설치 필요)'}</option></select></label>
@@ -78,9 +78,8 @@ export default function CaptionStyleEditor({clip,disabled,onChange,onApplyMany,s
       <Section title="자막 애니메이션">
         <div className="preset-buttons" role="group" aria-label="등장·퇴장 빠른 선택"><button type="button" className={clip.captionAnimation?.entry==='none'&&clip.captionAnimation.exit==='none'?'active':''} onClick={()=>animate({entry:'none',exit:'none'})}>효과 없음</button><button type="button" onClick={()=>animate({entry:'fade',exit:'fade',entrySeconds:.1,exitSeconds:.1,easing:'ease-out'})}>짧은 페이드</button></div>
         <p className="field-note">바로 이어 붙은 자막 사이에는 등장·퇴장 효과를 넣지 않아 깜빡이지 않습니다.</p>
-        {!clip.captionAnimation?<><p className="field-note">기존 효과: {animations.find(([id])=>id===clip.animation)?.[1]}</p><button type="button" className="button secondary full" onClick={()=>animate(defaultCaptionAnimation())}>등장·퇴장 따로 설정</button></>:<><div className="field-grid">{(['entry','exit'] as const).map(key=><label key={key} className="number-field"><span>{key==='entry'?'등장':'퇴장'}</span><select aria-label={key==='entry'?'자막 등장 효과':'자막 퇴장 효과'} value={animation[key]} onChange={e=>animate({[key]:e.target.value})}>{animations.map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>)}<NumberField label="자막 등장 시간" value={animation.entrySeconds} min={0} max={Math.max(10,animation.entrySeconds)} step={.01} unit="초" onChange={entrySeconds=>animate({entrySeconds})}/><NumberField label="자막 퇴장 시간" value={animation.exitSeconds} min={0} max={Math.max(10,animation.exitSeconds)} step={.01} unit="초" onChange={exitSeconds=>animate({exitSeconds})}/></div>
+        <div className="field-grid">{(['entry','exit'] as const).map(key=><label key={key} className="number-field"><span>{key==='entry'?'등장':'퇴장'}</span><select aria-label={key==='entry'?'자막 등장 효과':'자막 퇴장 효과'} value={animation[key]} onChange={e=>animate({[key]:e.target.value})}>{animations.map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>)}<NumberField label="자막 등장 시간" value={animation.entrySeconds} min={0} max={Math.max(10,animation.entrySeconds)} step={.01} unit="초" onChange={entrySeconds=>animate({entrySeconds})}/><NumberField label="자막 퇴장 시간" value={animation.exitSeconds} min={0} max={Math.max(10,animation.exitSeconds)} step={.01} unit="초" onChange={exitSeconds=>animate({exitSeconds})}/></div>
         <label className="inline-field"><span>진행</span><select aria-label="자막 애니메이션 진행" value={animation.easing} onChange={e=>animate({easing:e.target.value as CaptionAnimation['easing']})}><option value="linear">일정하게</option><option value="ease-in">서서히 시작</option><option value="ease-out">서서히 멈춤</option><option value="ease-in-out">부드럽게</option><option value="hold">유지</option></select></label>
-        </>}
       </Section>
       <Section title="스타일 저장 및 적용">
         <div className="caption-preset-save"><input aria-label="자막 스타일 이름" placeholder="스타일 이름" value={name} maxLength={40} onChange={e=>setName(e.target.value)}/><button type="button" className="button secondary" onClick={()=>{try{const preset=saveCaptionPreset(name,captureCaptionAppearance(clip));setPresets(readCaptionPresets());setSelectedPreset(preset.id);setName('');setError('');}catch(e){setError(e instanceof Error?e.message:String(e));}}}>스타일 저장</button></div>
@@ -88,7 +87,7 @@ export default function CaptionStyleEditor({clip,disabled,onChange,onApplyMany,s
         <button type="button" className="button secondary full" disabled={!selectedTextCount} onClick={()=>{try{const preset=presets.find(preset=>preset.id===selectedPreset);onApplyMany(structuredClone(preset?.appearance||captureCaptionAppearance(clip)));setError('');}catch(e){setError(e instanceof Error?e.message:String(e));}}}>선택 자막에 스타일 적용</button>
         {error&&<p className="inline-warning" role="alert">{error}</p>}
       </Section>
-    </>}
+    </>
   </fieldset>;
 }
 function Color({label,value,onChange}:{label:string;value:string;onChange:(value:string,field:EventTarget)=>void}){return <label className="number-field caption-color"><span>{label}</span><input type="color" aria-label={label} value={value} onChange={e=>onChange(e.target.value,e.currentTarget)}/></label>;}

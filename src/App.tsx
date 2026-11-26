@@ -4,7 +4,7 @@ import {captureClipClipboard,pasteClipClipboard,type ClipClipboard} from './clip
 import {combinationSignature} from './combine-snapshot';
 import {loudnessSelection,loudnessSignature,applyLoudnessResult,loudnessSummary} from '../shared/loudness';
 import {applyCaptionAppearance,type CaptionAppearance} from './captions/presets';
-import {editCaptionText,textCaptionStyle} from '../shared/captions';
+import {editCaptionText,textCaptionStyle,unifiedText} from '../shared/captions';
 import {applyCaptionSync,captionTargets,mergeProjectCaptions,splitProjectCaptions} from '../shared/caption-timing';
 import {CaptionSyncDialog} from './CaptionTools';
 import {replaceCaptionText} from './captions/replace';
@@ -216,7 +216,7 @@ export default function App() {
       if(p.tracks.length>=100){notify('프로젝트당 최대 100개 트랙을 지원합니다.','error');return;}
       track={id:uid(),type:'text',name:'자막 · 텍스트',muted:false,hidden:false,locked:false};
     }
-    const clip={...newClip(track.id),start:frameTime(timeRef.current,p.fps),textStyle:style,captionStyle:textCaptionStyle(style),y:style==='title'||style==='neon'?0:p.height*.32,fontSize:clamp(Math.round(p.height*(style==='title'?.08:.052)),4,1000),text:'텍스트',animation:'none',color:style==='neon'?'#76fbe0':'#ffffff'} as Clip;
+    const clip=unifiedText({...newClip(track.id),start:frameTime(timeRef.current,p.fps),textStyle:style,captionStyle:textCaptionStyle(style),y:style==='title'||style==='neon'?0:p.height*.32,fontSize:clamp(Math.round(p.height*(style==='title'?.08:.052)),4,1000),text:'텍스트',animation:'none',color:style==='neon'?'#76fbe0':'#ffffff'} as Clip);
     clip.name=clip.text!;change(v=>settleOverlaps({...v,tracks:v.tracks.some(t=>t.id===track!.id)?v.tracks:[...v.tracks,track!],clips:[...v.clips,clip]},[clip.id]));setSelected([clip.id]);setTab('text');
   };
   const insertCaptionAppearance=(appearance:CaptionAppearance)=>{

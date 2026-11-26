@@ -7,7 +7,7 @@ import {applyCaptionAppearance,builtInCaptionAppearance,captureCaptionAppearance
 import {unsupportedCaptionGlyphs} from '../src/captions/glyphs';
 import {newClip,newProject,splitClip} from '../shared/project';
 import {assertProject} from '../shared/validation';
-import {assertCaptionStyle,textCaptionStyle} from '../shared/captions';
+import {assertCaptionStyle,legacyCaptionAnimation,textCaptionStyle} from '../shared/captions';
 const store=()=>{const values=new Map<string,string>();return {getItem:(key:string)=>values.get(key)??null,setItem:(key:string,value:string)=>{values.set(key,value);}};};
 test('named caption presets are bounded validated independent appearance snapshots',()=>{
   const storage=store(),clip={...newClip('text-1'),...builtInCaptionAppearance('line',48)},appearance=captureCaptionAppearance(clip),saved=saveCaptionPreset('  검증 스타일  ',appearance,storage);appearance.captionStyle.activeColor='#ff0000';
@@ -19,9 +19,10 @@ test('bundled glyph coverage accepts Korean, combining Latin and supported emoji
   for(const text of ['한국어 ABC {\\} é e\u0301','👩‍💻 👨‍👩‍👧‍👦 👍🏽 ❤️ 🇰🇷 1️⃣','가나다\n한글 123'])assert.deepEqual(unsupportedCaptionGlyphs(text),[],text);
   assert.ok(unsupportedCaptionGlyphs('العربية').length);assert.ok(unsupportedCaptionGlyphs('עברית').length);assert.ok(unsupportedCaptionGlyphs('A\u200dB').length);
 });
-test('style application clears absent rich animation, captures legacy animation, and preserves content and unchanged effect phase',()=>{
+test('style application turns an old entry effect into entry/exit settings and preserves content and unchanged effect phase',()=>{
   const source={...newClip('text-1'),...builtInCaptionAppearance('line',48),animation:'slide' as const,captionAnimation:undefined},appearance=captureCaptionAppearance(source),target={...newClip('text-1'),...builtInCaptionAppearance('plain',64),text:'유지할 문구',captionWords:[{from:0,to:3,start:0,end:.3,timing:'manual' as const}],x:100,start:7,sourceClipOffset:.2,sourceClipDuration:5};
-  const applied=applyCaptionAppearance(target,JSON.parse(JSON.stringify(appearance)));assert.equal(applied.animation,'slide');assert.equal(applied.captionAnimation,undefined);assert.equal(applied.sourceClipOffset,undefined);assert.equal(applied.text,target.text);assert.equal(applied.captionWords,target.captionWords);assert.equal(applied.start,7);assert.equal(applied.x,100);
+  const applied=applyCaptionAppearance(target,JSON.parse(JSON.stringify(appearance)));assert.equal(applied.animation,'slide');assert.deepEqual(applied.captionAnimation,legacyCaptionAnimation('slide'));
+  const {captionAnimation:_dropped,...savedBeforeEntryExit}=JSON.parse(JSON.stringify(appearance));assert.deepEqual(applyCaptionAppearance(target,savedBeforeEntryExit).captionAnimation,legacyCaptionAnimation('slide'),'A preset saved without entry/exit settings applies its old effect as entry/exit settings');assert.equal(applied.sourceClipOffset,undefined);assert.equal(applied.text,target.text);assert.equal(applied.captionWords,target.captionWords);assert.equal(applied.start,7);assert.equal(applied.x,100);
   const unchanged=applyCaptionAppearance(target,{...captureCaptionAppearance(target),color:'#ff0000'});assert.equal(unchanged.sourceClipOffset,.2);assert.equal(unchanged.sourceClipDuration,5);appearance.captionStyle.radius=150;assert.notEqual(applied.captionStyle?.radius,150);
   const unusedLegacyChange=applyCaptionAppearance({...target,animation:'fade'},{...captureCaptionAppearance(target),animation:'none',color:'#00ff00'});assert.equal(unusedLegacyChange.sourceClipOffset,.2);assert.equal(unusedLegacyChange.sourceClipDuration,5,'An unused legacy animation field must not restart rich caption fades');
 });

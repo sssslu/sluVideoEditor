@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {newClip,newProject} from '../shared/project';
-import {assertCaptionStyle,captionAnimationState,captionEffectPad,captionJoins,captionShadowOffset,defaultCaptionAnimation,defaultCaptionStyle,editCaptionText,joinedCaption,resizeCaptionStyle} from '../shared/captions';
+import {assertCaptionStyle,captionAnimationState,captionEffectPad,captionJoins,captionShadowOffset,defaultCaptionAnimation,defaultCaptionStyle,editCaptionText,joinedCaption,legacyCaptionAnimation,legacyTextCaptionStyle,resizeCaptionStyle,unifiedText,unifyTextClips} from '../shared/captions';
 import {builtInCaptionAppearance,readCaptionPresets,saveCaptionPreset} from '../src/captions/presets';
 import {assertProject} from '../shared/validation';
 import {assertTextRuns,clearTextRunProperties,joinTextRuns,normalizeTextRuns,remapTextRuns,setTextRunStyle,sliceTextRuns,textRunAt,textRunFonts} from '../shared/text-runs';
@@ -160,4 +160,28 @@ test('back-to-back captions on one track do not fade between each other',()=>{
   assert.ok(captionAnimationState(joinedCaption(p,a),.01).opacity<1);assert.equal(captionAnimationState(joinedCaption(p,a),1.99).opacity,1);
   assert.equal(captionAnimationState(joinedCaption(p,b),.01).opacity,1);assert.ok(captionAnimationState(joinedCaption(p,b),1.99).opacity<1);
   assert.equal(joinedCaption(p,c),c);
+});
+test('text and captions are one kind: older text gets a style and entry/exit that match its old look',()=>{
+  const old=(id:string,extra:Partial<Clip>)=>({...newClip('text-1'),id,text:id,start:0,duration:2,captionStyle:undefined,captionAnimation:undefined,...extra}) as Clip;
+  const minimal=old('minimal',{textStyle:'minimal',animation:'fade'}),bold=old('bold',{textStyle:'bold',animation:'slide'}),box=old('box',{textStyle:'box',animation:'none'}),neon=old('neon',{textStyle:'neon',animation:'pop',color:'#ff00aa'}),title=old('title',{textStyle:'title',animation:'fade'});
+  const video={...newClip('video-1'),id:'v',text:undefined,mediaId:'m'} as Clip,styled=caption('styled','새 자막',0,2,{captionAnimation:defaultCaptionAnimation()});
+  const p={...project([minimal,bold,box,neon,title,video,styled]),version:10 as const},unified=unifyTextClips(p);
+  assert.equal(unified.clips[5],video);assert.equal(unified.clips[6],styled);assert.equal(unifyTextClips(unified),unified,'Converting twice changes nothing');
+  for(const clip of unified.clips.filter(c=>c.text!==undefined)){assert.ok(clip.captionStyle&&clip.captionAnimation,clip.id);assertCaptionStyle(clip.captionStyle);}
+  assert.doesNotThrow(()=>assertProject(JSON.parse(JSON.stringify({...unified,clips:unified.clips.filter(c=>c.text!==undefined)}))));
+  const get=(id:string)=>unified.clips.find(c=>c.id===id)!;
+  // The old drop shadows: straight down for 기본, down-right for 외곽선.
+  assert.deepEqual(captionShadowOffset(get('minimal').captionStyle!),{x:captionShadowOffset(get('minimal').captionStyle!).x,y:2});assert.ok(Math.abs(captionShadowOffset(get('minimal').captionStyle!).x)<1e-9);
+  const down=captionShadowOffset(get('bold').captionStyle!);assert.ok(down.x>2&&down.y>2);assert.ok(get('bold').captionStyle!.outlineWidth>0);
+  assert.equal(get('box').captionStyle!.background,'box');assert.equal(get('neon').captionStyle!.shadowColor,'#ff00aa');assert.equal(get('title').captionStyle!.letterSpacing,1.5);
+  assert.deepEqual(get('minimal').captionAnimation,{entry:'fade',exit:'fade',entrySeconds:.25,exitSeconds:.2,easing:'linear'});
+  assert.equal(get('bold').captionAnimation!.entry,'slide');assert.equal(get('neon').captionAnimation!.entry,'pop');
+  assert.deepEqual([get('box').captionAnimation!.entry,get('box').captionAnimation!.exit],['none','none']);
+  // The converted fade plays like the old one, and joined text no longer blinks.
+  for(const t of [.05,.2,1,1.85,1.95])assert.ok(Math.abs(captionAnimationState(get('minimal'),t).opacity-captionAnimationState(minimal,t).opacity)<1e-9,`opacity at ${t}`);
+  const a=old('a',{textStyle:'minimal',animation:'fade',start:0,duration:2}),b=old('b',{textStyle:'minimal',animation:'fade',start:2,duration:2}),joined={...project([a,b]),version:10 as const},both=unifyTextClips(joined);
+  assert.equal(captionAnimationState(joinedCaption(both,both.clips[0]),1.99).opacity,1);assert.equal(captionAnimationState(joinedCaption(both,both.clips[1]),.01).opacity,1);
+  // A clip that already has a style keeps it and only gains the entry/exit it was playing.
+  const half=unifiedText({...styled,captionAnimation:undefined,animation:'slide'});assert.equal(half.captionStyle,styled.captionStyle);assert.deepEqual(half.captionAnimation,legacyCaptionAnimation('slide'));
+  assert.deepEqual(legacyTextCaptionStyle(minimal),get('minimal').captionStyle);
 });

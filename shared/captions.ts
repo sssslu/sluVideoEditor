@@ -71,6 +71,30 @@ export function textCaptionStyle(kind:Clip['textStyle']):CaptionStyle {
   if(kind==='neon')Object.assign(style,{outlineWidth:1,shadowBlur:8,shadowColor:'#76fbe0'});
   return style;
 }
+/** The style an older plain text clip gets, close to how it used to be drawn. */
+export function legacyTextCaptionStyle(clip:Clip):CaptionStyle {
+  const style=textCaptionStyle(clip.textStyle);
+  if(clip.textStyle==='minimal')Object.assign(style,{shadowBlur:0,shadowColor:'#080910',shadowDistance:2,shadowAngle:90,shadowOpacity:1});
+  if(clip.textStyle==='bold')Object.assign(style,{shadowColor:'#080910',shadowDistance:3,shadowAngle:45,shadowOpacity:1});
+  if(clip.textStyle==='title')style.letterSpacing=1.5;
+  if(clip.textStyle==='neon')style.shadowColor=clip.color;
+  return style;
+}
+/** The entry and exit an older `animation` value played: 0.25 s in, 0.2 s out. */
+export function legacyCaptionAnimation(kind:Clip['animation']):CaptionAnimation {
+  if(kind==='none')return {...defaultCaptionAnimation(),entry:'none',exit:'none'};
+  return {entry:kind==='pop'?'pop':kind==='slide'?'slide':'fade',exit:'fade',entrySeconds:.25,exitSeconds:.2,easing:kind==='pop'?'ease-out':'linear'};
+}
+/** Text and captions are one kind of clip: every text clip carries a style and an entry/exit, so
+ * all of them get the same controls, joined-caption handling and export path. */
+export function unifiedText(clip:Clip):Clip {
+  if(clip.text===undefined||(clip.captionStyle&&clip.captionAnimation))return clip;
+  return {...clip,captionStyle:clip.captionStyle??legacyTextCaptionStyle(clip),captionAnimation:clip.captionAnimation??legacyCaptionAnimation(clip.animation)};
+}
+export function unifyTextClips(project:Project):Project {
+  const clips=project.clips.map(unifiedText);
+  return clips.every((clip,i)=>clip===project.clips[i])?project:{...project,clips};
+}
 export function resizeCaptionStyle(style:CaptionStyle|undefined,factor:number):CaptionStyle|undefined {
   if(!style)return undefined;
   const bounded=(v:number,max:number,min=0)=>Math.max(min,Math.min(max,v*factor));
