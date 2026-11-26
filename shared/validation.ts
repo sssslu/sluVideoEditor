@@ -4,6 +4,7 @@ import {assertTransitions} from './transitions';
 import {assertCaptionWords,assertCaptionStyle,assertCaptionAnimation,MAX_PROJECT_CAPTION_WORDS} from './captions';
 import {assertColorGrade,assertColorLut,MAX_PROJECT_LUT_VALUES} from './color';
 import {assertAudioEQ} from './audio-eq';
+import {assertTextRuns} from './text-runs';
 import {assertProjectMotion} from './motion-validation';
 import {assertProjectFiles} from './project-files';
 const finite = (v:unknown,min:number,max:number) => typeof v==='number'&&Number.isFinite(v)&&v>=min&&v<=max;
@@ -55,6 +56,7 @@ export function assertProject(value:unknown):asserts value is Project {
     if(c.audioEQ!==undefined){if(p.version<6||c.text!==undefined||p.media.find(m=>m.id===c.mediaId)?.kind==='image')throw new Error('EQ는 오디오·영상 클립과 프로젝트 형식 6이 필요합니다.');assertAudioEQ(c.audioEQ);}
     if(c.colorGrade?.hsl!==undefined&&p.version<10)throw new Error('HSL 보정은 프로젝트 형식 10 이상이 필요합니다.');
     if(c.colorGrade!==undefined){if(p.version<5||c.text!==undefined||p.media.find(m=>m.id===c.mediaId)?.kind==='audio')throw new Error('색 보정은 영상·이미지 클립과 프로젝트 형식 5가 필요합니다.');assertColorGrade(c.colorGrade,lutIds);}
+    if(c.textRuns!==undefined){if(c.text===undefined)throw new Error('부분 글자 스타일은 텍스트 클립에만 쓸 수 있습니다.');assertTextRuns(c.text,c.textRuns);}
     if(c.captionWords!==undefined||c.captionStyle!==undefined||c.captionAnimation!==undefined){
       if(p.version<4||c.text===undefined)throw new Error('단어 자막은 텍스트 클립과 프로젝트 형식 4가 필요합니다.');
       if(c.captionWords!==undefined){assertCaptionWords(c.text,c.captionWords,0,c.duration);captionWords+=c.captionWords.length;if(captionWords>MAX_PROJECT_CAPTION_WORDS)throw new Error('프로젝트의 자막 단어가 너무 많습니다.');}

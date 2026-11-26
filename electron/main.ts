@@ -10,7 +10,10 @@ import { promisify } from 'node:util';
 import { probeMedia, enrichMedia, THUMBNAIL_SUFFIX, createProxy, detectEncoders, renderProject, CancelledError, type EngineContext, type ProgressCallback } from './media';
 import { installSpeechModel, transcribeMedia, parseSrt, decodeSubtitleText, formatSrt, modelReady, SPEECH_MODELS, type ServiceContext } from './services';
 import {parseCube,MAX_LUT_BYTES} from '../shared/color';
-import { installSpeechEngine,speechCudaReady } from './speech';
+import { installSpeechEngine,speechCudaReady,recognizeAudioFile } from './speech';
+import { speechAudioProject,refineWordTimes } from '../shared/caption-timing';
+import { speechEnvelope } from './speech-envelope';
+import { projectDuration as timelineDuration } from '../shared/project';
 import {stabilizeMedia} from './stabilization';
 import {reverseMedia,type ReverseOptions} from './reverse';
 import {trackMedia} from './tracking';
@@ -460,6 +463,27 @@ function setupIPC(){
   handler('model:install',async(model:SpeechModelId='base')=>({jobId:startJob('model',async(signal,progress)=>{await installSpeechModel(services,progress,signal,model);return {message:'음성 모델 설치 완료'};})}));
   handler('speech:install',async()=>({jobId:startJob('model',async(signal,progress)=>{await installSpeechEngine(services,progress,signal);return {message:'CUDA 음성 엔진 설치 완료'};})}));
   handler('media:transcribe',async(media:MediaAsset,language:string,options:SpeechOptions={})=>{checkMedia(media);if(!media.hasAudio&&media.kind!=='audio')throw new Error('오디오가 없는 미디어입니다.');return {jobId:startJob('transcribe',async(signal,progress)=>{const revision=await requireSourceRevision(media.path,media.sourceRevision),cues=await transcribeMedia(media,language,services,progress,signal,options);await requireSourceRevision(media.path,revision);return {cues,message:'자막 생성 완료'};})};});
+  // 자막 싱크: render the audible timeline between start and end to a WAV and recognize it once.
+  // Words come back in timeline time; the renderer aligns the caption text to them.
+  handler('captions:sync',async(project:Project,range:{start:number;end:number},language:string,options:SpeechOptions={})=>{
+    await prepareProject(project);
+    if(!range||![range.start,range.end].every(Number.isFinite)||range.start<0||range.end<=range.start||range.end>86400)throw new Error('싱크할 구간이 올바르지 않습니다.');
+    if(typeof language!=='string'||!/^(auto|[a-z]{2,3})$/.test(language))throw new Error('지원하지 않는 언어 코드입니다.');
+    const input=speechAudioProject(project,range.start,range.end);
+    if(!input.clips.length)throw new Error('자막 구간에 들리는 영상·오디오가 없습니다. 음소거·숨김 트랙을 확인하세요.');
+    const duration=timelineDuration(input),model=options?.model,device=options?.device;
+    return {jobId:startJob('caption-sync',async(signal,progress)=>{
+      const work=path.join(cacheDir,`caption-sync-${randomUUID()}`);await fs.mkdir(work,{recursive:true});
+      try{
+        const wav=path.join(work,'timeline.wav');
+        await renderProject(input,{width:input.width,height:input.height,fps:input.fps,format:'wav',codec:'h264',encoder:'cpu',quality:'high',intermediate:true,outputPath:wav},engine,p=>progress(p*.2,'타임라인 오디오 준비 중'),signal);
+        const recognized=await recognizeAudioFile(wav,duration,language,services,(p,message)=>progress(.2+p*.78,message),signal,{model,device});
+        progress(.98,'말소리 경계 확인 중');
+        const words=refineWordTimes(recognized,await speechEnvelope(wav,engine.ffmpeg,signal));
+        return {words:words.map(w=>({start:w.start+range.start,end:w.end+range.start,text:w.text})),message:`음성 단어 ${words.length}개 인식`};
+      }finally{await fs.rm(work,{recursive:true,force:true}).catch(()=>{});}
+    })};
+  });
   handler('subtitles:import',async()=>{const r=await dialog.showOpenDialog(win!,{title:'자막 가져오기',filters:[{name:'자막',extensions:['srt','vtt']}],properties:['openFile']});if(r.canceled)return null;const stat=await fs.stat(r.filePaths[0]);if(stat.size>10*1024*1024)throw new Error('자막 파일이 너무 큽니다.');return parseSrt(decodeSubtitleText(await fs.readFile(r.filePaths[0])));});
   handler('subtitles:export',async(cues:SubtitleCue[])=>{if(!Array.isArray(cues)||cues.length>50000||cues.some(c=>!c||typeof c.text!=='string'||c.text.length>20000||!Number.isFinite(c.start)||!Number.isFinite(c.end)))throw new Error('잘못된 자막 정보입니다.');let file=await chooseSave('자막.srt',['srt']);if(!file)return null;if(path.extname(file).toLowerCase()!=='.srt')file+='.srt';await atomicWrite(file,formatSrt(cues));allow(file);return file;});
 }

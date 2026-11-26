@@ -1,0 +1,13 @@
+.caption-tools{display:flex;flex-direction:column;gap:7px;padding:10px 0 4px;border-top:1px solid #2b333c;margin-top:8px}
+.caption-tools .section-label{margin:0}
+.caption-tools-row{display:flex;align-items:center;gap:8px}
+.caption-tools-row label{display:flex;align-items:center;gap:5px;flex:1;min-width:0;font-size:12px;color:#aab4bf;white-space:nowrap}
+.caption-tools-row input{width:52px;min-width:0}
+.caption-tools-row .button{flex:none;display:inline-flex;align-items:center;gap:5px}
+.caption-tools .field-note{margin:2px 0 0}
+.text-run-scope{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.text-run-scope.active{color:#9fe3cf}
+/* With the caption tools above it, a short window scrolls the whole panel instead of crushing the list. */
+.library-panel .captions-library{overflow:auto}
+.captions-library .caption-list-viewport{min-height:86px;flex:1 0 86px}
+.caption-tools .field-note{font-size:11px;line-height:1.4}

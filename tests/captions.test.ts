@@ -19,11 +19,10 @@ test('caption spans require grapheme boundaries, ordered positive timings and bo
   assertCaptionWords(text,[words[0],words[2]],0,3); // Partial coverage is legitimate.
   assert.throws(()=>assertCaptionWords(text,Array.from({length:2049},()=>words[0]),0,3));
 });
-test('word highlight uses half-open intervals, real silence and explicit estimate opt-in',()=>{
+test('the spoken word uses half-open intervals, real silence and explicit estimate opt-in',()=>{
   const clip=fixture();assert.equal(activeCaptionWord(clip,.1),0);assert.equal(activeCaptionWord(clip,.6),-1);assert.equal(activeCaptionWord(clip,.8),1);assert.equal(activeCaptionWord(clip,3),-1);
   const estimated={...clip,captionWords:clip.captionWords!.map(w=>({...w,timing:'estimated' as const}))};
-  assert.equal(activeCaptionWord(estimated,.3),-1);assert.equal(activeCaptionWord({...estimated,captionStyle:{...estimated.captionStyle!,highlightEstimated:true}},.3),0);
-  assert.equal(activeCaptionWord({...clip,captionStyle:{...clip.captionStyle!,highlight:false}},.3),-1);
+  assert.equal(activeCaptionWord(estimated,.3),-1);assert.equal(activeCaptionWord(estimated,.3,true),0);
   const boundary={...clip,captionWords:[{from:0,to:2,start:.1,end:.2,timing:'measured' as const}]};assert.equal(activeCaptionWord(boundary,.3-.2),0);assert.equal(activeCaptionWord(boundary,.4-.2),-1);assert.equal(activeCaptionWord(boundary,.1-1e-8),-1);
 });
 test('repeated trim and split preserve absolute word and animation phase including a crossing word',()=>{

@@ -10,12 +10,14 @@ import {CPUCompositor} from './fallback';
 import {ensureCaptionFonts,captionFontsReady} from './text';
 import {captionGlyphError} from '../captions/glyphs';
 import {captionFontError} from '../captions/font';
+import {textRunFonts} from '../../shared/text-runs';
 import {PreviewAudioEQ} from './audio-eq';
 import {PreviewAudioPlan} from './audio-plan';
 import {toPreviewTime,fromPreviewTime,previewClockOffset,needsPreviewProxy,previewSourceKey,previewMediaPath,usesPreviewProxy} from '../../shared/media-clock';
 
 export interface PreviewStats {mode:'WebGL2'|'CPU';fps:number;renderMs:number;p95Ms:number;renderedFrames:number;missedFrames:number;droppedVideoFrames:number;totalVideoFrames:number;decoders:number;width:number;height:number;time:number;playing:boolean;seeking:boolean;waitingProxySources:string[];audioContext:string;maxGain:number;maxSourceLagSeconds:number}
-export interface RuntimeCallbacks {onTime:(time:number)=>void;onEnded:()=>void;onStats:(stats:PreviewStats)=>void;onIssue:(media:MediaAsset|undefined,message:string)=>void;onMediaReady?:(media:MediaAsset)=>void}
+/** onFrame: the playback position on every displayed frame while playing (onTime is throttled). */
+export interface RuntimeCallbacks {onFrame?:(time:number)=>void;onTime:(time:number)=>void;onEnded:()=>void;onStats:(stats:PreviewStats)=>void;onIssue:(media:MediaAsset|undefined,message:string)=>void;onMediaReady?:(media:MediaAsset)=>void}
 /** Overlay size in CSS pixels, the frame's offset inside it, and CSS pixels per project pixel. */
 export interface PreviewViewport {width:number;height:number;left:number;top:number;scale:number}
 export interface PreviewTarget {clip:Clip;state:Keyframe;time:number;geometry:Geometry;dragScale:number;transition:boolean;locked:boolean;handle?:Handle}
@@ -161,10 +163,11 @@ export class PreviewRuntime {
       if(decoding&&this.running&&!this.force&&this.draws>0){this.held++;}else{
       const visuals:VisualRenderNode[]=visualNodesAt(this.transitions!,time).flatMap<VisualRenderNode>(node=>{if(node.type==='clip'){const frame=frames.get(node.clip.id);return frame?[frame]:[];}return [{type:'transition' as const,transition:node.transition,from:frames.get(node.from.id),to:frames.get(node.to.id),progress:node.progress}];});
       const order=(a:Clip,b:Clip)=>this.project!.tracks.findIndex(t=>t.id===a.trackId)-this.project!.tracks.findIndex(t=>t.id===b.trackId)||a.start-b.start;
-      const texts=this.project.clips.filter(c=>{const sample=time+(c.captionStyle?1e-9:0);if(c.text===undefined||sample<c.start||sample>=c.start+c.duration||!visualEnabled(this.project!,this.project!.tracks.find(t=>t.id===c.trackId)))return false;if(!c.captionStyle)return true;if(this.captionFontState!=='ready')return false;const error=captionFontError(c.captionStyle.font,c.captionStyle.weight)||captionGlyphError(c.text);if(error){const key=c.id+':'+c.text+':'+c.captionStyle.font+':'+c.captionStyle.weight;if(!this.captionIssues.has(key)){this.captionIssues.add(key);if(this.captionIssues.size>64)this.captionIssues.delete(this.captionIssues.values().next().value!);this.callbacks.onIssue(undefined,error);}return false;}return true;}).sort(order).flatMap(c=>{const resolved=this.motion.resolve(this.project!,c,time);return resolved?[resolved]:[];});
+      const texts=this.project.clips.filter(c=>{const sample=time+(c.captionStyle?1e-9:0);if(c.text===undefined||sample<c.start||sample>=c.start+c.duration||!visualEnabled(this.project!,this.project!.tracks.find(t=>t.id===c.trackId)))return false;if(!c.captionStyle)return true;if(this.captionFontState!=='ready')return false;const error=textRunFonts(c).map(f=>captionFontError(f.font,f.weight)).find(Boolean)||captionGlyphError(c.text);if(error){const key=c.id+':'+c.text+':'+c.captionStyle.font+':'+c.captionStyle.weight;if(!this.captionIssues.has(key)){this.captionIssues.add(key);if(this.captionIssues.size>64)this.captionIssues.delete(this.captionIssues.values().next().value!);this.callbacks.onIssue(undefined,error);}return false;}return true;}).sort(order).flatMap(c=>{const resolved=this.motion.resolve(this.project!,c,time);return resolved?[resolved]:[];});
       const started=performance.now();try{this.renderer.draw(this.project,time,visuals,texts);this.drawSelection();}catch(error){if(this.renderer.mode==='WebGL2'){this.fallback();this.reportStats(now,false);return;}else this.callbacks.onIssue(undefined,error instanceof Error?error.message:String(error));}
       this.renderTimes.push(performance.now()-started);if(this.renderTimes.length>120)this.renderTimes.shift();this.draws++;if(this.running&&this.lastRenderFrame>=0&&frameIndex>this.lastRenderFrame+1)this.missed+=frameIndex-this.lastRenderFrame-1;this.lastRenderFrame=frameIndex;this.dirty=false;this.force=false;
     }}
+    if(this.running&&!this.waitingToStart)this.callbacks.onFrame?.(time);
     if(this.running&&now-this.lastReported>=100){this.lastReported=now;this.callbacks.onTime(this.time());}
     if(now-this.lastStats>=1000||!this.running)this.reportStats(now,ready);
     if(this.running)this.wake();

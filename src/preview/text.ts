@@ -1,10 +1,9 @@
 import type {Clip,Project} from '../../shared/types';
-import {activeCaptionWord} from '../../shared/captions';
 import {captionLayout,captionLayoutSignature} from '../captions/layout';
 import {clipState} from './math';
 export {ensureCaptionFonts,captionFontsReady} from '../captions/font';
 export interface TextFrame {canvas:HTMLCanvasElement;width:number;height:number;padding:number;signature:string;version?:number}
-export function textSignature(clip:Clip,project:Project,ratio:number,localTime=0){return clip.captionStyle?JSON.stringify([captionLayoutSignature(clip,project),clip.color,clip.textBackground,ratio,activeCaptionWord(clip,localTime)]):JSON.stringify([clip.text,clip.fontFamily,clip.fontSize,clip.color,clip.textBackground,clip.textStyle,clip.align,project.width,ratio]);}
+export function textSignature(clip:Clip,project:Project,ratio:number,_localTime=0){return clip.captionStyle?JSON.stringify([captionLayoutSignature(clip,project),clip.color,clip.textBackground,ratio]):JSON.stringify([clip.text,clip.fontFamily,clip.fontSize,clip.color,clip.textBackground,clip.textStyle,clip.align,project.width,ratio]);}
 export function rasterText(clip:Clip,project:Project,ratio:number):TextFrame{
   const canvas=document.createElement('canvas'),context=canvas.getContext('2d')!;
   const bold=clip.textStyle==='minimal'?'400':'700';
@@ -41,10 +40,11 @@ export function rasterText(clip:Clip,project:Project,ratio:number):TextFrame{
 
 const richFrames=new Map<string,TextFrame>();let richBytes=0,frameVersion=0;
 const MAX_FRAME_BYTES=48*1024*1024,MAX_FRAME_STATES=32,MAX_RASTER_PIXELS=4*1024*1024;
-/** Full-line glyphs are shaped exactly once; highlighting recolors their alpha mask. */
-export function rasterCaption(clip:Clip,project:Project,ratio:number,localTime=0):TextFrame{
+/** Outlines and shadows go on one layer and fills on another, so a later glyph's outline never
+ * covers an earlier glyph's fill. Lines with per-character styles are drawn piece by piece. */
+export function rasterCaption(clip:Clip,project:Project,ratio:number,_localTime=0):TextFrame{
   if(!clip.captionStyle)return rasterText(clip,project,ratio);
-  const signature=textSignature(clip,project,ratio,localTime),cached=richFrames.get(signature);if(cached){richFrames.delete(signature);richFrames.set(signature,cached);return cached;}
+  const signature=textSignature(clip,project,ratio),cached=richFrames.get(signature);if(cached){richFrames.delete(signature);richFrames.set(signature,cached);return cached;}
   const layout=captionLayout(clip,project),{width,height,style}=layout;
   const boundedRatio=Math.max(.000001,Math.min(ratio,4096/width,4096/height,Math.sqrt(MAX_RASTER_PIXELS/(width*height))));
   const canvas=document.createElement('canvas');canvas.width=Math.max(2,Math.ceil(width*boundedRatio));canvas.height=Math.max(2,Math.ceil(height*boundedRatio));
@@ -55,19 +55,14 @@ export function rasterCaption(clip:Clip,project:Project,ratio:number,localTime=0
   if(style.background==='box')box(layout.inkPad,layout.inkPad,width-layout.inkPad*2,height-layout.inkPad*2);
   if(style.background==='line')for(const line of layout.lines)if(line.text.trim())box(line.x-style.paddingX,line.top-style.paddingY,line.width+style.paddingX*2,line.height+style.paddingY*2);
   context.strokeStyle=style.outlineColor;context.lineWidth=style.outlineWidth*2;context.shadowColor=style.shadowColor;context.shadowBlur=style.shadowBlur*boundedRatio;
-  const active=activeCaptionWord(clip,localTime),activeRects=active>=0?layout.wordRects[active]||[]:[];let highlight:HTMLCanvasElement|undefined;
   for(const line of layout.lines){
-    if(style.outlineWidth)context.strokeText(line.text,line.x,line.baseline);else if(style.shadowBlur){context.fillStyle=clip.color;context.fillText(line.text,line.x,line.baseline);}
-    const rects=activeRects.filter(rect=>rect.y===line.top);
-    if(!rects.length){ink.fillStyle=clip.color;ink.fillText(line.text,line.x,line.baseline);continue;}
-    // Isolate this complete line so a tall glyph/overlapping line never recolors
-    // another line, and changing color never reshapes or doubles glyph alpha.
-    highlight??=document.createElement('canvas');highlight.width=canvas.width;highlight.height=canvas.height;const tint=highlight.getContext('2d')!;
-    tint.scale(boundedRatio,boundedRatio);tint.font=layout.font;tint.fontKerning='normal';tint.letterSpacing=layout.letterSpacing;tint.textBaseline='alphabetic';tint.fillStyle=clip.color;tint.fillText(line.text,line.x,line.baseline);
-    tint.globalCompositeOperation='source-atop';tint.fillStyle=style.activeColor;for(const rect of rects)tint.fillRect(rect.x,0,rect.width,height);
-    ink.save();ink.setTransform(1,0,0,1,0,0);ink.drawImage(highlight,0,0);ink.restore();
+    for(const piece of line.pieces??[{text:line.text,x:line.x,font:layout.font,color:undefined}]){
+      if(context.font!==piece.font)context.font=piece.font;if(ink.font!==piece.font)ink.font=piece.font;
+      const color=piece.color??clip.color;
+      if(style.outlineWidth)context.strokeText(piece.text,piece.x,line.baseline);else if(style.shadowBlur){context.fillStyle=color;context.fillText(piece.text,piece.x,line.baseline);}
+      ink.fillStyle=color;ink.fillText(piece.text,piece.x,line.baseline);
+    }
   }
-  if(highlight){highlight.width=0;highlight.height=0;}
   context.setTransform(1,0,0,1,0,0);context.shadowColor='transparent';context.shadowBlur=0;context.drawImage(fill,0,0);fill.width=0;fill.height=0;
   const frame:TextFrame={canvas,width,height,padding:layout.padding,signature,version:++frameVersion};richFrames.set(signature,frame);richBytes+=canvas.width*canvas.height*4;
   while(richFrames.size>MAX_FRAME_STATES||richBytes>MAX_FRAME_BYTES){const [key,old]=richFrames.entries().next().value!;richFrames.delete(key);richBytes-=old.canvas.width*old.canvas.height*4;}

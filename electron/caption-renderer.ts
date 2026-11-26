@@ -3,7 +3,6 @@ import {ensureCaptionFonts} from '../src/captions/font';
 import {drawCaption,rasterCaption} from '../src/preview/text';
 import type {CaptionRasterBounds,CaptionRasterRequest,CaptionRasterResponse} from './caption-raster-types';
 import {clipState} from '../src/preview/math';
-import {activeCaptionWord} from '../shared/captions';
 import {CAPTION_FONT_MISSING,isMissingCaptionFont} from '../shared/caption-font-error';
 
 let project:Project,settings:ExportSettings;
@@ -40,7 +39,7 @@ async function handle(message:CaptionRasterRequest):Promise<CaptionRasterRespons
   const {bounds}=group;
   const time=message.globalFrame/settings.fps,ratio=Math.max(settings.width/project.width,settings.height/project.height);
   const active=group.clips.filter(clip=>time+1e-9>=clip.start&&time+1e-9<clip.start+clip.duration);
-  const signature=JSON.stringify(active.map(clip=>{const state=clipState(clip,time);return [clip.id,state.x,state.y,state.scale,state.opacity,state.rotation,activeCaptionWord(clip,time-clip.start)];}));
+  const signature=JSON.stringify(active.map(clip=>{const state=clipState(clip,time);return [clip.id,state.x,state.y,state.scale,state.opacity,state.rotation];}));
   if(message.reuse===signature)return {id:message.id,signature,reused:true};
   // Keep the same device-space origin as preview while drawing. Moving the
   // canvas origin to a crop can change a rotated Skia edge by one byte because

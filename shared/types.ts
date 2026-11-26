@@ -23,6 +23,9 @@ export interface CaptionStyle {
   background:'none'|'box'|'line';paddingX:number;paddingY:number;radius:number;maxWidth:number;
   highlight:boolean;activeColor:string;highlightEstimated?:boolean;
 }
+/** Styling for one span of a text clip's characters (UTF-16 offsets on grapheme boundaries).
+ * An omitted property falls back to the clip's own font, weight, size or color. */
+export interface TextRun {from:number;to:number;font?:CaptionStyle['font'];weight?:CaptionStyle['weight'];size?:number;color?:string}
 export interface CaptionAnimation {entry:'none'|'fade'|'pop'|'slide';exit:'none'|'fade'|'pop'|'slide';entrySeconds:number;exitSeconds:number;easing:Easing}
 export interface ColorPoint {x:number;y:number}
 export type ColorChannel='master'|'red'|'green'|'blue';
@@ -43,6 +46,8 @@ export interface Clip {
   text?:string; fontSize:number; fontFamily:string; color:string; textBackground:string; textStyle:TextStyle; align:'left'|'center'|'right';
   animation:'none'|'fade'|'pop'|'slide'; keyframes:Keyframe[];
   captionWords?:CaptionWord[];captionStyle?:CaptionStyle;captionAnimation?:CaptionAnimation;
+  /** Per-character styling inside one text clip; drawn with the caption style (captionStyle). */
+  textRuns?:TextRun[];
   colorGrade?:ColorGrade;
   audioEQ?:AudioEQ;
   motionBinding?:MotionBinding;
@@ -62,6 +67,8 @@ export interface TimelineMarker { id:string; time:number; label:string; color:st
 export interface Transition {id:string;fromClipId:string;toClipId:string;kind:'dissolve'|'wipe'|'slide'|'zoom';durationFrames:number;easing?:Easing;direction?:'left'|'right'|'up'|'down';audio?:'linear'|'equal-power'|'none'}
 export interface Project { version:1|2|3|4|5|6|7|8|9|10; id:string; name:string; width:number; height:number; fps:number; background:string; media:MediaAsset[]; tracks:Track[]; clips:Clip[]; updatedAt:string; markers?:TimelineMarker[];transitions?:Transition[];colorLuts?:ColorLut[];motionPaths?:MotionAnalysis[];fileReferences?:ProjectFileReference[] }
 export interface SubtitleCue { start:number; end:number; text:string;words?:CaptionWord[] }
+/** One recognized word on the project timeline (seconds). */
+export interface SpeechWord {start:number;end:number;text:string}
 export type SpeechModelId='base'|'small'|'turbo';
 export interface SpeechOptions {model?:SpeechModelId;device?:'auto'|'cpu'|'cuda';start?:number;duration?:number;maxChars?:number;maxDuration?:number}
 export interface StabilizationOptions {start?:number;duration?:number;smoothing?:number;accuracy?:number;shakiness?:number;crop?:'auto'|'black';zoom?:number}
@@ -79,8 +86,8 @@ export interface ReverseOptions {start?:number;duration?:number}
 export interface ExportSettings { width:number; height:number; fps:number; format:'mov'|'mp4'|'webm'|'gif'|'wav'; codec:'h264'|'hevc'|'av1'; encoder:'auto'|'cpu'|'nvenc'|'qsv'|'amf'; quality:'draft'|'standard'|'high'; outputPath?:string; transitionProcessing?:'auto'|'cpu';
   /** Internal render of combined clips: transparent FFV1 video and 32-bit float PCM, no limiter. */
   intermediate?:boolean }
-export type JobType = 'export'|'combine'|'proxy'|'transcribe'|'model'|'stabilize'|'range'|'freeze'|'reverse'|'track'|'collect'|'relink'|'cutout'|'enhance'|'enhancement-install'|'loudness';
-export interface JobEvent { id:string; type:JobType; status:'running'|'complete'|'error'|'cancelled'; progress:number; message:string; path?:string; media?:MediaAsset; cues?:SubtitleCue[];tracking?:MotionAnalysis;trackingReconnect?:import('./tracking-reconnect').TrackingReconnectResult;preview?:boolean;loudness?:import('./loudness').LoudnessResult }
+export type JobType = 'export'|'combine'|'proxy'|'transcribe'|'model'|'stabilize'|'range'|'freeze'|'reverse'|'track'|'collect'|'relink'|'cutout'|'enhance'|'enhancement-install'|'loudness'|'caption-sync';
+export interface JobEvent { id:string; type:JobType; status:'running'|'complete'|'error'|'cancelled'; progress:number; message:string; path?:string; media?:MediaAsset; cues?:SubtitleCue[];words?:SpeechWord[];tracking?:MotionAnalysis;trackingReconnect?:import('./tracking-reconnect').TrackingReconnectResult;preview?:boolean;loudness?:import('./loudness').LoudnessResult }
 export interface SystemInfo { version:string; ffmpegVersion:string; gpu:string; encoders:string[]; hardwareAcceleration:boolean; modelReady:boolean; modelDirectory:string; cacheDirectory:string; speechModels?:{id:SpeechModelId;name:string;bytes:number;installed:boolean}[];speechCuda?:boolean }
 export type PreviewStatusEvent = {media:Pick<MediaAsset,'id'|'path'|'sourceRevision'>;attemptId:string}&(
   {status:'preparing'}|{status:'failed';message:string}
@@ -117,6 +124,8 @@ export interface StudioAPI {
   reconnectTracking(project:Project,analysisId:string):Promise<{jobId:string}|null>;
   analyzeVideoRange(media:MediaAsset):Promise<MediaAsset>;
   transcribe(media:MediaAsset,language:string,options?:SpeechOptions):Promise<{jobId:string}>;
+  /** Recognizes the timeline's mixed audio between start and end; the job returns words in timeline time. */
+  syncCaptions(project:Project,range:{start:number;end:number},language:string,options?:SpeechOptions):Promise<{jobId:string}>;
   installModel(model?:SpeechModelId):Promise<{jobId:string}>;
   installSpeechEngine():Promise<{jobId:string}>;
   getSystemInfo():Promise<SystemInfo>;

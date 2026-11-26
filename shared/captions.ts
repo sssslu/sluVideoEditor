@@ -1,5 +1,6 @@
 import type {CaptionAnimation,CaptionStyle,CaptionWord,Clip} from './types';
 import {ease} from './effects';
+import {remapTextRuns} from './text-runs';
 
 export const MAX_CAPTION_WORDS=2048;
 export const MAX_PROJECT_CAPTION_WORDS=200000;
@@ -24,10 +25,11 @@ export function trimCaptionWords(words:readonly CaptionWord[]|undefined,from:num
   if(words===undefined)return undefined;
   return words.flatMap(word=>{const start=Math.max(from,word.start),end=Math.min(to,word.end);return end>start?[{...word,start:start-from,end:end-from}]:[];});
 }
-/** Changing characters invalidates recognition alignment in the same undo operation. */
+/** Changing characters invalidates recognition alignment in the same undo operation;
+ * per-character styles stay with their characters. */
 export function editCaptionText(clip:Clip,text:string):Clip {
   if(text===clip.text)return clip;
-  return {...clip,text,name:text.replace(/\n/g,' ').slice(0,36)||'자막',captionWords:undefined};
+  return {...clip,text,name:text.replace(/\n/g,' ').slice(0,36)||'자막',captionWords:undefined,textRuns:remapTextRuns(clip.text??'',text,clip.textRuns)};
 }
 /** Explicit opt-in uniform estimates; never run automatically for imported SRT. */
 export function estimateCaptionWords(clip:Clip):CaptionWord[] {
@@ -36,15 +38,15 @@ export function estimateCaptionWords(clip:Clip):CaptionWord[] {
   if(parts.length>MAX_CAPTION_WORDS)throw new Error('한 자막에는 최대 2,048개 단어를 지정할 수 있습니다.');
   return parts.map((part,index)=>({from:part.index,to:part.index+part.segment.length,start:Math.min(clip.duration,clip.duration*index/parts.length),end:index===parts.length-1?clip.duration:Math.min(clip.duration,clip.duration*(index+1)/parts.length),timing:'estimated'}));
 }
-/** Half-open intervals: pauses show base color and one boundary activates only one word. */
-export function activeCaptionWord(clip:Clip,localTime:number):number {
-  if(!clip.captionStyle?.highlight)return -1;
+/** The word being spoken at a local time (-1 in pauses). Half-open intervals: one boundary belongs
+ * to one word. Estimated (evenly placed) times count only when asked for. */
+export function activeCaptionWord(clip:Clip,localTime:number,includeEstimated=false):number {
   // Arithmetic such as .3-.2 must land on the same .1 boundary after a trim.
   // One nanosecond absorbs IEEE754 roundoff even near the 24-hour limit.
   const sample=localTime+1e-9,words=clip.captionWords||[];let lo=0,hi=words.length;
   while(lo<hi){const mid=(lo+hi)>>>1;if(words[mid].start<=sample)lo=mid+1;else hi=mid;}
   const index=lo-1,word=words[index];
-  return word&&sample<word.end&&(word.timing!=='estimated'||clip.captionStyle.highlightEstimated)?index:-1;
+  return word&&sample<word.end&&(word.timing!=='estimated'||includeEstimated)?index:-1;
 }
 export const CAPTION_FONT_WEIGHTS:Record<CaptionStyle['font'],readonly CaptionStyle['weight'][]>={
   'noto-sans-kr':[400,500,600,700,800],
@@ -59,7 +61,7 @@ export function assertCaptionAnimation(value:unknown):asserts value is CaptionAn
   const a=value as CaptionAnimation,kinds=['none','fade','pop','slide'];
   if(!object(a)||!kinds.includes(a.entry)||!kinds.includes(a.exit)||!finite(a.entrySeconds,0,86400)||!finite(a.exitSeconds,0,86400)||!['linear','ease-in','ease-out','ease-in-out','hold'].includes(a.easing))throw new Error('잘못된 자막 애니메이션입니다.');
 }
-export const defaultCaptionStyle=():CaptionStyle=>({font:'noto-sans-kr',weight:700,lineHeight:1.25,letterSpacing:0,outlineWidth:3,outlineColor:'#101219',shadowBlur:0,shadowColor:'#101219',background:'none',paddingX:14,paddingY:8,radius:10,maxWidth:.86,highlight:true,activeColor:'#f4d35e'});
+export const defaultCaptionStyle=():CaptionStyle=>({font:'noto-sans-kr',weight:700,lineHeight:1.25,letterSpacing:0,outlineWidth:3,outlineColor:'#101219',shadowBlur:0,shadowColor:'#101219',background:'none',paddingX:14,paddingY:8,radius:10,maxWidth:.86,highlight:false,activeColor:'#f4d35e'});
 export const defaultCaptionAnimation=():CaptionAnimation=>({entry:'fade',exit:'fade',entrySeconds:.18,exitSeconds:.14,easing:'ease-out'});
 export function textCaptionStyle(kind:Clip['textStyle']):CaptionStyle {
   const style={...defaultCaptionStyle(),highlight:false,outlineWidth:0};

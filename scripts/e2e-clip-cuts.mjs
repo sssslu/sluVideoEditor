@@ -48,12 +48,13 @@ try{
     const seeking=event=>{const node=[...r.nodes.values()].find(n=>n.element===event.target);if(node?.active&&!node.audioOnly&&r.running&&!r.waitingToStart)seen.activeSeeks.push({clip:node.clip.id,at:+r.time().toFixed(3),to:+event.target.currentTime.toFixed(3)});};
     document.addEventListener('seeking',seeking,true);
     // Piece 3's first frame arrives 120 ms late, as from a slow disk: the previous picture must stay up meanwhile.
-    const frameFor=r.frameFor;r.frameFor=function(node){return node.clip.id==='piece-2'&&performance.now()-node.activatedAt<120?undefined:frameFor.call(this,node);};let draws=r.draws;const until=performance.now()+9000;
-    while(performance.now()<until&&(r.running||r.time()<.1)){const t=r.time();if(r.draws!==draws&&!r.waitingToStart&&t>.05){seen.frames++;const ids=r.renderer.hitRegions.map(h=>h.clip.id);if(!ids.length)seen.blank.push(+t.toFixed(3));for(const id of ids)seen.pieces[id]=(seen.pieces[id]||0)+1;}draws=r.draws;await new Promise(f=>requestAnimationFrame(f));}
+    const frameFor=r.frameFor;r.frameFor=function(node){return node.clip.id==='piece-2'&&performance.now()-node.activatedAt<120?undefined:frameFor.call(this,node);};let draws=r.draws;const until=performance.now()+9000,head=document.querySelector('.playhead');seen.playhead={moves:0,backwards:0,last:-Infinity,text:''};
+    while(performance.now()<until&&(r.running||r.time()<.1)){const t=r.time();if(r.draws!==draws&&!r.waitingToStart&&t>.05){seen.frames++;const ids=r.renderer.hitRegions.map(h=>h.clip.id);if(!ids.length)seen.blank.push(+t.toFixed(3));for(const id of ids)seen.pieces[id]=(seen.pieces[id]||0)+1;}draws=r.draws;const shift=head?.style.transform||'';if(shift!==seen.playhead.text){const x=parseFloat(shift.replace('translateX(',''));if(x<seen.playhead.last-.01)seen.playhead.backwards++;seen.playhead.last=x;seen.playhead.text=shift;seen.playhead.moves++;}await new Promise(f=>requestAnimationFrame(f));}
     document.removeEventListener('seeking',seeking,true);r.frameFor=frameFor;return {...seen,held:r.held,end:r.time(),stats:r.stats()};});
   if(await page.getByTitle('일시 정지 (Space)',{exact:true}).count())await page.getByTitle('일시 정지 (Space)',{exact:true}).click();
   check('playback reaches the end of the last piece',observed.end>5.9,observed);
   check('every piece is drawn',[0,1,2,3].every(i=>observed.pieces[`piece-${i}`]>10),observed.pieces);
+  check('the timeline playhead moves on every frame, never backwards',observed.playhead.moves>observed.end*25&&observed.playhead.backwards===0,observed.playhead);
   check('no frame shows the background between pieces',observed.frames>100&&observed.blank.length===0,observed);
   check('a piece whose first frame is late keeps the previous picture up',observed.held>0,observed.held);
   check('a prerolled piece starts without being sought again',observed.activeSeeks.length===0,observed.activeSeeks);

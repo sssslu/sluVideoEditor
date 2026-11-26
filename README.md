@@ -29,7 +29,7 @@ AI에 화면 조작을 맡길 때는 [AI·Computer Use 안내](docs/AI_GUIDE.md)
 
 - 다중 트랙 편집, 분할·트리밍, 속도 커브, 역재생, 정지 프레임, 키프레임 그래프
 - 전환, 크롭·마스크·크로마키, HSL·RGB 곡선·LUT
-- Whisper 자동 자막, 단어 강조, SRT/VTT 가져오기, Noto Sans KR·Gmarket Sans와 로컬 리틱체
+- Whisper 자동 자막, 음성 싱크 맞추기·자막 나누기/합치기, 글자별 글꼴·크기·색, SRT/VTT 가져오기, Noto Sans KR·Gmarket Sans와 로컬 리틱체
 - 오디오 볼륨·페이드·6밴드 EQ, 파형 표시
 - 인물 배경 제거, 객체 추적, 흔들림 보정, 선택형 2×·4× AI 화질 향상
 - GPU 미리보기, 지원되는 GPU 인코더 출력, 프로젝트 모아 저장·복구

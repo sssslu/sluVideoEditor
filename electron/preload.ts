@@ -32,6 +32,7 @@ const api:StudioAPI={
   reconnectTracking:(project,id)=>ipcRenderer.invoke('tracking:reconnect',project,id),
   analyzeVideoRange:(media)=>ipcRenderer.invoke('media:video-range',media),
   transcribe:(media,language,options)=>ipcRenderer.invoke('media:transcribe',media,language,options),
+  syncCaptions:(project,range,language,options)=>ipcRenderer.invoke('captions:sync',project,range,language,options),
   installModel:(model)=>ipcRenderer.invoke('model:install',model),
   installSpeechEngine:()=>ipcRenderer.invoke('speech:install'),
   getSystemInfo:()=>ipcRenderer.invoke('system:info'),
