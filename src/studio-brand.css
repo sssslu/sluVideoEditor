@@ -211,11 +211,11 @@ input[type=range] {
   color: var(--slu-ink);
 }
 
-.text-template,.effect-card,.caption-row,.caption-library-card,.caption-style-tile,.keyframe-list > div,.recovery-list > button{
+.effect-card,.caption-row,.caption-library-card,.caption-style-tile,.keyframe-list > div,.recovery-list > button{
   background: var(--slu-raised);
   border-color: var(--slu-line);
 }
-.text-template > div:last-child,.hsl-controls,.caption-style-editor .inspector-section{
+.hsl-controls,.caption-style-editor .inspector-section{
   border-color: var(--slu-line);
 }
 .media-thumb {
@@ -231,7 +231,7 @@ input[type=range] {
   background: var(--slu-selected);
   border-color: var(--slu-selected-line);
 }
-.media-card:hover .media-thumb,.text-template:hover,.effect-card:hover,.effect-card.active,.caption-style-tile:hover,.transition-library-grid > button:hover:not(:disabled),.transition-kind-grid > button:hover:not(:disabled),.keyframe-list > div.active{
+.media-card:hover .media-thumb,.effect-card:hover,.effect-card.active,.caption-style-tile:hover,.transition-library-grid > button:hover:not(:disabled),.transition-kind-grid > button:hover:not(:disabled),.keyframe-list > div.active{
   border-color: var(--slu-selected-line);
 }
 .effect-card.active {
@@ -245,7 +245,7 @@ input[type=range] {
   border-color: var(--slu-line-strong);
   color: var(--slu-muted);
 }
-.caption-time,.text-template span,.text-template > div:last-child > svg{
+.caption-time{
   color: var(--slu-muted);
 }
 

@@ -86,7 +86,9 @@ export function useHistory() {
     const migrated=unifyTextClips({...next,version:10 as const});past.current=[]; future.current=[];coalesced.current=undefined;sources.current.clear();for(const asset of migrated.media)sources.current.set(asset.path,{asset,seen:new Set([asset.sourceRevision])});rebasedAssets.current=new WeakMap();current.current=migrated;setState(migrated);setRevision(r=>r+1);setTransitionNotice(null);
   }, []);
   const undo = useCallback(() => {
-    let next=past.current.pop();while(next&&next===current.current)next=past.current.pop();if(!next)return;const restored=rebase(next);coalesced.current=undefined;
+    const now=current.current,content=(p:Project)=>JSON.stringify({...p,updatedAt:''});let same:string|undefined;
+    // A step that holds what is on screen now (a drag that ended where it began, a value typed back) is skipped.
+    let next=past.current.pop();while(next&&(next===now||(same??=content(now))===content(next)))next=past.current.pop();if(!next){setRevision(r=>r+1);return;}const restored=rebase(next);coalesced.current=undefined;
     future.current.push(current.current);current.current=restored.project;setState(current.current);setRevision(r=>r+1);
     if(restored.detached.length||restored.enhancements.length)setTransitionNotice({count:restored.detached.length,enhancements:restored.enhancements.length});
   }, [rebase]);
@@ -125,9 +127,9 @@ export function cuesToClips(cues:SubtitleCue[],trackId:string,project:Project,of
 }
 function retimeClip(clip:Clip,rawDuration:number,fps:number):Clip {
   const duration=Math.max(minClipDuration(fps),rawDuration),factor=duration/clip.duration;
-  if(rawDuration+1e-10<minClipDuration(fps))throw new Error('이 속도에서는 클립이 최소 길이보다 짧아집니다. 속도를 낮추거나 클립을 늘리세요.');
-  if(clip.start+duration>86400||[clip.fadeIn*factor,clip.fadeOut*factor,(clip.sourceClipOffset??0)*factor,(clip.sourceClipDuration??0)*factor].some(v=>v>86400))throw new Error('이 속도에서는 클립 또는 효과 구간이 24시간을 넘습니다.');
-  return {...clip,duration,fadeIn:clip.fadeIn*factor,fadeOut:clip.fadeOut*factor,keyframes:clip.keyframes.map(k=>({...k,time:k.time*factor})),captionWords:clip.captionWords?.map(word=>({...word,start:word.start*factor,end:word.end*factor})),sourceClipOffset:clip.sourceClipOffset===undefined?undefined:clip.sourceClipOffset*factor,sourceClipDuration:clip.sourceClipDuration===undefined?undefined:clip.sourceClipDuration*factor};
+  if(rawDuration+1e-10<minClipDuration(fps))throw new Error(`'${clip.name}' 클립이 이 속도에서는 최소 길이보다 짧아집니다. 속도를 낮추거나 클립을 늘리세요.`);
+  if(clip.start+duration>86400||[clip.fadeIn*factor,clip.fadeOut*factor,(clip.sourceClipOffset??0)*factor,(clip.sourceClipDuration??0)*factor].some(v=>v>86400))throw new Error(`'${clip.name}' 클립이 이 속도에서는 24시간을 넘습니다.`);
+  return {...clip,duration,fadeIn:clip.fadeIn*factor,fadeOut:clip.fadeOut*factor,keyframes:clip.keyframes.map(k=>({...k,time:k.time*factor})),captionWords:trimCaptionWords(clip.captionWords?.map(word=>({...word,start:word.start*factor,end:word.end*factor})),0,duration),sourceClipOffset:clip.sourceClipOffset===undefined?undefined:clip.sourceClipOffset*factor,sourceClipDuration:clip.sourceClipDuration===undefined?undefined:clip.sourceClipDuration*factor};
 }
 export function changeClipSpeed(clip:Clip,speed:number,fps:number):Clip {
   if(!Number.isFinite(speed)||speed<MIN_SPEED||speed>MAX_SPEED)throw new Error('재생 속도는 10~50000%여야 합니다.');
@@ -222,5 +224,5 @@ export function mergeAsset(base:MediaAsset,update?:Partial<MediaAsset>):MediaAss
 }
 export function resizeProject(p:Project,width:number,height:number):Project {
   const sx=width/p.width,sy=height/p.height;
-  return {...p,width,height,clips:p.clips.map(c=>({...c,x:clamp(c.x*sx,-16384,16384),y:clamp(c.y*sy,-16384,16384),fontSize:clamp(c.fontSize*sy,4,1000),captionStyle:resizeCaptionStyle(c.captionStyle,sy),...(c.motionBinding?{motionBinding:resizeMotionBinding(c.motionBinding,p,width,height)}:{}),keyframes:c.keyframes.map(k=>({...k,x:clamp(k.x*sx,-16384,16384),y:clamp(k.y*sy,-16384,16384)}))}))};
+  return {...p,width,height,clips:p.clips.map(c=>({...c,x:clamp(c.x*sx,-16384,16384),y:clamp(c.y*sy,-16384,16384),fontSize:clamp(c.fontSize*sy,4,1000),...(c.textRuns?{textRuns:c.textRuns.map(run=>run.size===undefined?run:{...run,size:clamp(run.size*sy,4,1000)})}:{}),captionStyle:resizeCaptionStyle(c.captionStyle,sy),...(c.motionBinding?{motionBinding:resizeMotionBinding(c.motionBinding,p,width,height)}:{}),keyframes:c.keyframes.map(k=>({...k,x:clamp(k.x*sx,-16384,16384),y:clamp(k.y*sy,-16384,16384)}))}))};
 }

@@ -103,8 +103,12 @@ export interface StudioAPI {
   saveProject(project:Project,path?:string,saveAs?:boolean):Promise<string|null>;
   collectProject(project:Project):Promise<{jobId:string;path:string}|null>;
   autosave(project:Project):Promise<void>;
+  /** Tells the main process whether closing the window would lose changes that are in no project file. */
+  setProjectDirty(dirty:boolean):Promise<void>;
+  /** The project file this project was last saved to or opened from, if it still exists. */
+  knownProjectPath(id:string):Promise<string|null>;
   recoverProject():Promise<Project|null>;
-  listRecoveries():Promise<{id:string;name:string;updatedAt:string;clips:number}[]>;
+  listRecoveries():Promise<{id:string;name:string;updatedAt:string;clips:number;media:number}[]>;
   loadRecovery(id:string):Promise<Project|null>;
   exportProject(project:Project,settings:ExportSettings):Promise<{jobId:string;path:string}|null>;
   cancelJob(id:string):Promise<void>;

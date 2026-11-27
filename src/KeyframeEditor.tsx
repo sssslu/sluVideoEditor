@@ -90,7 +90,7 @@ export default function KeyframeEditor(props:Props){
     };
     cleanup.current=finish;window.addEventListener('pointermove',move);window.addEventListener('pointerup',finish,{once:true});window.addEventListener('pointercancel',finish,{once:true});window.addEventListener('keydown',historyKey,true);
   };
-  return <Section title="키프레임" action={<div className="toolbar-group">
+  return <Section key={keys.length?'keys':'none'} initialOpen={keys.length>0} title="키프레임" action={<div className="toolbar-group">
     <button className="icon-button small" title="이전 키프레임" disabled={!keys.some(key=>key.time<local-.5/fps)} onClick={()=>{const previous=[...keys].reverse().find(key=>key.time<local-.5/fps);if(previous)select(keys.indexOf(previous));}}><ChevronLeft size={13}/></button>
     <button className={`icon-button small ${atKey>=0?'active':''}`} title={atKey>=0?(place==='현재 위치'?'현재 키프레임 삭제':`${place} 키프레임 삭제`):`${place}에 키프레임 추가`} disabled={disabled||(atKey<0&&keys.length>=1000)} onClick={toggle}><Diamond size={12} fill={atKey>=0?'currentColor':'none'}/></button>
     <button className="icon-button small" title="다음 키프레임" disabled={!keys.some(key=>key.time>local+.5/fps)} onClick={()=>{const next=keys.findIndex(key=>key.time>local+.5/fps);if(next>=0)select(next);}}><ChevronRight size={13}/></button>

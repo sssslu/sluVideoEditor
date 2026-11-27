@@ -24,5 +24,5 @@ test('no match, identical text and empty search keep the same project; deletion 
 test('an oversized replacement fails atomically before publishing any edited project',()=>{
   const clip={...newClip('video-1'),text:'a'},project={...newProject(),clips:[clip,{...clip,id:'long',text:'a'.repeat(20000)}]},before=structuredClone(project);
   assert.throws(()=>replaceCaptionText(project,'a','bb'),/20,000자/);assert.deepEqual(project,before);
-  assert.throws(()=>replaceCaptionText(project,'a','\0'),/널 문자/);assert.deepEqual(project,before);
+  assert.throws(()=>replaceCaptionText(project,'a','\0'),/20,000자 이내/);assert.deepEqual(project,before);
 });

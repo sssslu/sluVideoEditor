@@ -1,4 +1,7 @@
-.caption-tools{display:flex;flex-direction:column;gap:7px;padding:10px 0 4px;border-top:1px solid #2b333c;margin-top:8px}
+.caption-tools{display:flex;flex-direction:column;gap:7px;padding:10px 0 0;border-top:1px solid #2b333c;margin-top:8px}
+.caption-tools details{border:1px solid var(--slu-line);border-radius:5px;background:var(--slu-surface)}
+.caption-tools summary{padding:8px 10px;color:var(--slu-muted);font-size:11px;cursor:pointer}
+.caption-tools-body{display:flex;flex-direction:column;gap:7px;padding:0 10px 10px}
 .caption-tools .section-label{margin:0}
 .caption-tools .button{white-space:normal;min-width:0}
 .caption-tools-row{display:flex;align-items:center;gap:8px}

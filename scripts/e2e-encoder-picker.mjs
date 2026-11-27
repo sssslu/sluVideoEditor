@@ -65,6 +65,7 @@ try {
   let captures=0,caseNumber=0;
   async function open(capabilities) {
     if(await page.getByRole('dialog',{name:'내보내기',exact:true}).count())await page.keyboard.press('Escape');
+    await page.evaluate(()=>localStorage.removeItem('slu-export-settings'));
     const label=`Capability fixture ${++caseNumber}`;
     await app.evaluate(({ipcMain,app},{capabilities,label})=>{
       ipcMain.removeHandler('system:info');
@@ -146,9 +147,9 @@ try {
       assert.equal(await encoder.count(),0);
       await submitted({format:'webm',codec:'h264',encoder:'cpu'});
       await format.selectOption('mp4');
-      assert.equal(await codec.inputValue(),'h264');
-      assert.equal(await encoder.inputValue(),'cpu');
-      checks.push(`${backend}: supported codec switches, GIF/WAV roundtrips and WebM CPU reset preserve existing policy`);
+      assert.equal(await codec.inputValue(),'av1');
+      assert.equal(await encoder.inputValue(),backend);
+      checks.push(`${backend}: supported codec switches and GIF/WAV roundtrips keep the choice; WebM uses CPU H.264 only while selected`);
     }
   }
   await captureElectron(app,{path:path.join(directory,'export-dialog.png')});

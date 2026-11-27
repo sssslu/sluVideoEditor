@@ -52,8 +52,8 @@ export async function saveRecovery(root:string,project:Project){
 }
 export async function listRecoveries(root:string){
   const directory=path.join(root,'recoveries');const entries=await readdir(directory).catch(()=>[]);
-  const results: {id:string;name:string;updatedAt:string;clips:number}[]=[];
-  for(const entry of entries){if(!/^[a-f0-9]{64}\.sluproj$/.test(entry))continue;try{const file=path.join(directory,entry);if((await stat(file)).size>50*1024*1024)continue;const project=JSON.parse(await readFile(file,'utf8'));assertProject(project);results.push({id:project.id,name:project.name,updatedAt:project.updatedAt,clips:project.clips.length});}catch{/* A malformed recovery must not prevent other recoveries from opening. */}}
+  const results: {id:string;name:string;updatedAt:string;clips:number;media:number}[]=[];
+  for(const entry of entries){if(!/^[a-f0-9]{64}\.sluproj$/.test(entry))continue;try{const file=path.join(directory,entry);if((await stat(file)).size>50*1024*1024)continue;const project=JSON.parse(await readFile(file,'utf8'));assertProject(project);results.push({id:project.id,name:project.name,updatedAt:project.updatedAt,clips:project.clips.length,media:project.media.length});}catch{/* A malformed recovery must not prevent other recoveries from opening. */}}
   return results.sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).slice(0,100);
 }
 export async function loadRecovery(root:string,id:string):Promise<Project|null>{

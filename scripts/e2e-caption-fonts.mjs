@@ -162,16 +162,13 @@ try {
   checks.push('Track locking disables both font controls and preset saving without changing the caption');
 
   await page.locator('.tool-rail').getByRole('button',{name:'텍스트',exact:true}).click();
-  for(const [label,expected] of [['기본','noto-sans-kr'],['굵은 제목','gmarket-sans'],['외곽선','gmarket-sans']]) {
-    await page.locator('.text-template-grid').getByRole('button',{name:new RegExp(label)}).click();
-    const project=await snapshot(project=>project.clips.length===2);
-    const inserted=project.clips.find(clip=>clip.id!==main.id);
-    assert.equal(inserted.captionStyle.font,expected);
-    assert.equal(project.version,10);
-    await undo();
-    await snapshot(project=>project.clips.length===1);
-  }
-  checks.push('Normal text insertion maps basic text to Noto and outline/title templates to Gmarket, with undo');
+  // 텍스트 추가 gives the same look as an imported or recognised caption; the old template grid is gone.
+  assert.equal(await page.locator('.text-template-grid').count(),0);
+  await page.getByRole('button',{name:'텍스트 추가',exact:true}).click();
+  {const project=await snapshot(project=>project.clips.length===2),inserted=project.clips.find(clip=>clip.id!==main.id);
+    assert.equal(inserted.captionStyle.font,'noto-sans-kr');assert.equal(inserted.captionStyle.weight,700);assert.equal(inserted.captionStyle.outlineWidth,3);assert.equal(project.version,10);
+    await undo();await snapshot(project=>project.clips.length===1);}
+  checks.push('텍스트 추가 inserts text in the default caption style (Noto Sans KR 700, outlined), with undo; no separate template grid');
 
   await select();
   await fs.writeFile(path.join(work,'font-faces-before.json'),JSON.stringify(await page.evaluate(()=>[...document.fonts].map(face=>({family:face.family,weight:face.weight,status:face.status}))),null,2));

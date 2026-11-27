@@ -177,7 +177,7 @@ function parseTimestamp(text: string): number | undefined {
   return hours * 3600 + minutes * 60 + seconds + Number(match[4].padEnd(3, '0')) / 1000;
 }
 function subtitleText(value: string): string {
-  return value.replace(/<[^>]*>/g, '').replace(/\{\\[^}]*\}/g, '').replace(/&(?:amp|lt|gt|quot|apos|nbsp);/g, entity => ({ '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'", '&nbsp;': ' ' }[entity] || entity)).trim();
+  return value.replace(/<\/?(?:i|b|u|s|font|c|v|ruby|rt|lang)(?:[\s.][^<>]*)?>|<\d{1,2}:\d{2}(?::\d{2})?[.,]\d{1,3}>/gi, '').replace(/\{\\[^}]*\}/g, '').replace(/&(?:amp|lt|gt|quot|apos|nbsp);/g, entity => ({ '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'", '&nbsp;': ' ' }[entity] || entity)).trim();
 }
 
 /** Subtitle files arrive in several encodings. Honor a byte-order mark, accept

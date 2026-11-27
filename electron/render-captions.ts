@@ -21,7 +21,7 @@ export class CaptionWindowStreams {
   constructor(private raster:CaptionRasterSession,private fail:(error:Error)=>void,private signal?:AbortSignal){}
   async add(clips:Clip[]){
     const group=await this.raster.prepare(clips);this.frameBytes+=group.width*group.height*4;
-    if(this.frameBytes>256*1024*1024){await this.raster.release(group);throw new Error('동시에 겹친 고급·기존 자막의 렌더 버퍼가 256 MB를 초과합니다. 일부 자막 스타일을 통일하거나 해상도를 줄여 주세요.');}
+    if(this.frameBytes>256*1024*1024){await this.raster.release(group);throw new Error('같은 시간에 겹친 자막이 너무 많습니다. 겹친 자막을 줄이거나 해상도를 낮추세요.');}
     const bridge=new RawStreamBridge(this.fail);this.streams.push({group,bridge});await bridge.open(this.signal);return {group,url:bridge.consumerUrl};
   }
   start(firstFrame:number,frames:number){

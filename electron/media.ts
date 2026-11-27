@@ -81,7 +81,7 @@ export function runProcess(executable:string,args:string[],options:ProcessOption
     child.on('close',code=>{
       if(timer)clearTimeout(timer);options.signal?.removeEventListener('abort',abort);
       if(failure){reject(failure);return;}
-      if(code!==0){reject(new Error(`미디어 처리에 실패했습니다 (${code}).\n${stderr.trim()}`));return;}
+      if(code!==0){reject(new Error(`미디어 처리에 실패했습니다 (오류 코드 ${code}). 파일이 손상되었거나 지원하지 않는 형식일 수 있습니다.\n${stderr.trim()}`));return;}
       resolve({stdout:Buffer.concat(chunks),stderr});
     });
   });
@@ -618,7 +618,11 @@ export async function renderProjectDirect(project:Project,settings:ExportSetting
           const rotatedWidth=Math.ceil((trackingScale!==undefined?diagonal:Math.min(diagonal,width+2*maxX))/2)*2;
           const rotatedHeight=Math.ceil((trackingScale!==undefined?diagonal:Math.min(diagonal,height+2*maxY))/2)*2;
           if(trackingScale!==undefined&&rotatedWidth*rotatedHeight>64_000_000)throw new Error('추적 확대·회전 결과가 너무 큽니다. 확대율을 줄이거나 출력 해상도를 낮춰 주세요.');
-          chain.push(`rotate=angle='(${keyframeExpression(c,'rotation',localClock)})*PI/180':ow=${rotatedWidth}:oh=${rotatedHeight}:fillcolor=none:bilinear=1`);
+          // fillcolor=none makes rotate skip clearing its output, so every pixel outside the rotated
+          // source kept whatever the pooled buffer held (earlier frames at other angles): a frame
+          // depended on what its render window had drawn before it, and a rotating layer left trails.
+          // Clearing to transparent makes each frame depend only on its own input.
+          chain.push(`rotate=angle='(${keyframeExpression(c,'rotation',localClock)})*PI/180':ow=${rotatedWidth}:oh=${rotatedHeight}:fillcolor=0x00000000:bilinear=1`);
         }
         if(movingScale||movingRotation)chain.push(...alphaUnpremultiply);
         const alphaShift=range.visualFrom<0?Math.ceil(-range.visualFrom*fps)+1:0,opacity=alphaExpression(c,alphaShift||phase?`(T-${alphaShift}/${dec(fps)}-${phase})`:'T');

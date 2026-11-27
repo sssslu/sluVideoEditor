@@ -1,4 +1,4 @@
-import type {Clip,ColorGrade,ColorLut,HslAdjustment,HslBand,Project} from './types';
+import type {Clip,ColorChannel,ColorGrade,ColorLut,HslAdjustment,HslBand,Project} from './types';
 import {assertColorGrade,assertColorLut,MAX_PROJECT_LUT_VALUES} from './color';
 import {walkClips} from './clip-tree';
 export function patchColorGrades(project:Project,ids:ReadonlySet<string>,patch:Partial<ColorGrade>|null):Project {
@@ -8,7 +8,8 @@ export function patchColorGrades(project:Project,ids:ReadonlySet<string>,patch:P
     // Curves and HSL merge per channel and per value, so editing several clips changes only what was
     // touched and keeps each clip's other channels and bands.
     if(grade&&patch?.hsl){const hsl={...clip.colorGrade?.hsl};for(const [band,values] of Object.entries(patch.hsl) as [HslBand,Partial<HslAdjustment>][])hsl[band]={hue:0,saturation:0,lightness:0,...hsl[band],...values};grade.hsl=hsl;}
-    if(grade&&patch?.curves)grade.curves={...clip.colorGrade?.curves,...patch.curves};
+    // A channel patched to undefined is reset: it is removed instead of merged back in.
+    if(grade&&patch?.curves){const curves={...clip.colorGrade?.curves,...patch.curves};for(const channel of Object.keys(curves) as ColorChannel[])if(curves[channel]===undefined)delete curves[channel];if(Object.keys(curves).length)grade.curves=curves;else delete grade.curves;}
     if(grade)assertColorGrade(grade,new Set(project.colorLuts?.map(l=>l.id)));
     return {...clip,colorGrade:grade};
   });

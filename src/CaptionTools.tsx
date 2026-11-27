@@ -5,18 +5,22 @@ import {Modal} from './Dialogs';
 import './caption-tools.css';
 
 /** 자막 정리 in the captions tab: sync captions to the speech, and re-break them shorter or longer.
- * Each acts on the selected captions, or on every caption on unlocked tracks. */
+ * Each acts on the selected captions, or on every caption on unlocked tracks. The tools are used a
+ * few times per project, so they stay folded away and leave the room to the caption list. */
 export default function CaptionTools({scope,count,syncBusy,onSync,onSplit,onMerge,onSelectAll}:{scope:'selected'|'all';count:number;syncBusy:boolean;onSync:()=>void;onSplit:(maxChars:number)=>void;onMerge:(maxChars:number)=>void;onSelectAll?:()=>void}){
   const [short,setShort]=useState(()=>Number(localStorage.getItem('slu-caption-split'))||14),[long,setLong]=useState(()=>Number(localStorage.getItem('slu-caption-merge'))||30);
+  const [open,setOpen]=useState(()=>localStorage.getItem('slu-caption-tools-open')==='1');
   const remember=(key:string,value:number)=>{try{localStorage.setItem(key,String(value));}catch{/* optional */}};
   const valid=(v:number)=>Number.isFinite(v)&&v>=4&&v<=120;
   return <section className="caption-tools" aria-label="자막 정리">
-    <div className="section-label">자막 정리 · {scope==='selected'?`선택한 자막 ${count}개`:`전체 자막 ${count}개`}</div>
-    {onSelectAll&&<button type="button" className="button secondary full" onClick={onSelectAll}>자막 전체 선택</button>}
-    <button type="button" className="button secondary full" disabled={!count||syncBusy} onClick={onSync}>{syncBusy?<LoaderCircle size={14} className="spin"/>:<AudioWaveform size={14}/>}음성에 싱크 맞추기</button>
-    <div className="caption-tools-row"><label><span>최대</span><input type="number" aria-label="나눌 때 자막당 최대 글자" min={4} max={120} value={short} onChange={e=>{const v=Math.round(+e.target.value);setShort(v);if(valid(v))remember('slu-caption-split',v);}}/><span>자</span></label><button type="button" className="button secondary" disabled={!count||!valid(short)} onClick={()=>onSplit(short)}><Split size={13}/>짧게 나누기</button></div>
-    <div className="caption-tools-row"><label><span>최대</span><input type="number" aria-label="합칠 때 자막당 최대 글자" min={4} max={120} value={long} onChange={e=>{const v=Math.round(+e.target.value);setLong(v);if(valid(v))remember('slu-caption-merge',v);}}/><span>자</span></label><button type="button" className="button secondary" disabled={count<2||!valid(long)} onClick={()=>onMerge(long)}><Combine size={13}/>길게 합치기</button></div>
-    <p className="field-note">싱크는 설치한 음성 인식 모델로 타임라인 소리를 듣고 자막 문장을 말하는 위치에 맞춥니다. 나누기는 문장부호·쉼·어미에서 끊고, 싱크를 맞춘 자막은 나눈 조각도 말하는 시점에 맞춰집니다.</p>
+    {onSelectAll&&<button type="button" className="button secondary full" title="잠기지 않은 자막을 모두 선택합니다. 속성에서 글꼴·크기·위치를 한꺼번에 바꿀 수 있습니다." onClick={onSelectAll}>자막 전체 선택</button>}
+    <details open={open} onToggle={e=>{const next=e.currentTarget.open;setOpen(next);remember('slu-caption-tools-open',next?1:0);}} onKeyDown={event=>{if(event.key===' '||event.key==='Enter')event.stopPropagation();}}>
+    <summary>자막 정리 · {scope==='selected'?`선택한 ${count}개`:`전체 ${count}개`}</summary><div className="caption-tools-body">
+    <button type="button" className="button secondary full" disabled={!count||syncBusy} title={!count?'자막이 없습니다.':syncBusy?'싱크를 맞추는 중입니다.':undefined} onClick={onSync}>{syncBusy?<LoaderCircle size={14} className="spin"/>:<AudioWaveform size={14}/>}음성에 싱크 맞추기</button>
+    <div className="caption-tools-row"><label><span>최대</span><input type="number" aria-label="나눌 때 자막당 최대 글자" min={4} max={120} value={short} onChange={e=>{const v=Math.round(+e.target.value);setShort(v);if(valid(v))remember('slu-caption-split',v);}}/><span>자</span></label><button type="button" className="button secondary" disabled={!count||!valid(short)} title={!count?'자막이 없습니다.':!valid(short)?'최대 글자는 4–120 사이로 입력하세요.':undefined} onClick={()=>onSplit(short)}><Split size={13}/>짧게 나누기</button></div>
+    <div className="caption-tools-row"><label><span>최대</span><input type="number" aria-label="합칠 때 자막당 최대 글자" min={4} max={120} value={long} onChange={e=>{const v=Math.round(+e.target.value);setLong(v);if(valid(v))remember('slu-caption-merge',v);}}/><span>자</span></label><button type="button" className="button secondary" disabled={count<2||!valid(long)} title={count<2?'자막이 2개 이상 있어야 합칠 수 있습니다.':!valid(long)?'최대 글자는 4–120 사이로 입력하세요.':undefined} onClick={()=>onMerge(long)}><Combine size={13}/>길게 합치기</button></div>
+    <p className="field-note">싱크는 음성을 듣고 자막을 말하는 위치로 옮깁니다. 나누기는 문장부호·쉼·어미에서 끊습니다.</p>
+    </div></details>
   </section>;
 }
 

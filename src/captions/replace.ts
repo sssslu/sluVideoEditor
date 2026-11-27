@@ -6,7 +6,7 @@ export interface CaptionReplaceReport {changedClips:number;occurrences:number;lo
 export function replaceCaptionText(project:Project,find:string,replacement:string):CaptionReplaceReport&{project:Project}{
   const report:CaptionReplaceReport={changedClips:0,occurrences:0,lockedMatches:0};
   if(!find||find===replacement)return {project,...report};
-  if(find.length>20000||replacement.length>20000||replacement.includes('\0'))throw new Error('찾거나 바꿀 내용은 널 문자 없이 20,000자 이내로 입력하세요.');
+  if(find.length>20000||replacement.length>20000||replacement.includes('\0'))throw new Error('찾을 내용과 바꿀 내용은 20,000자 이내로 입력하세요.');
   const locked=new Set(project.tracks.filter(track=>track.locked).map(track=>track.id));
   const clips=project.clips.map(clip=>{
     const text=clip.text;if(text===undefined)return clip;

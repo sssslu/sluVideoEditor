@@ -11,7 +11,7 @@ for(const color of ['red','blue','short'])await run(path.resolve('resources/bin/
 const executable=process.env.SLU_TEST_EXE?path.resolve(process.env.SLU_TEST_EXE):null,env={...process.env,SLU_USER_DATA:profile};delete env.ELECTRON_RUN_AS_NODE;
 const app=await launchTestElectron({...(executable?{executablePath:executable,args:electronTestArgs(true)}:{args:electronTestArgs()}),env,timeout:90000}),page=await app.firstWindow(),checks=[],findings=[],errors=[];let version;
 page.on('pageerror',e=>errors.push(String(e)));page.on('dialog',d=>d.accept());const recovery=path.join(profile,'recovery.sluproj');
-async function state(){await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));await page.getByText('자동 저장됨',{exact:true}).waitFor({timeout:20000});return JSON.parse(await fs.readFile(recovery,'utf8'));}
+async function state(){await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));await page.locator('.project-title [data-autosaved="true"]').waitFor({timeout:20000});return JSON.parse(await fs.readFile(recovery,'utf8'));}
 async function clean(){await dismissToasts(page);}
 async function choose(file){await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},file);}
 async function freshProject(){await page.getByRole('button',{name:'프로젝트',exact:true}).click();await page.getByRole('button',{name:/^새 프로젝트/}).click();return state();}

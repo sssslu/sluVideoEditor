@@ -117,6 +117,17 @@ function pumpAnalysis(){
 }
 const key=pathKey;
 function allow(p?:string){if(p)allowedFiles.add(key(p));}
+/** Project id -> the .sluproj it was last saved to or opened from. A project brought back from
+ * autosave has no file of its own; this lets Ctrl+S go to the file it came from. */
+const knownPathsFile=()=>path.join(app.getPath('userData'),'project-paths.json');
+async function rememberProjectPath(id:string,file:string){
+  try{let all:Record<string,unknown>={};try{all=JSON.parse(await fs.readFile(knownPathsFile(),'utf8'));}catch{/* First use. */}
+    const kept=Object.entries(all).filter(([known,value])=>known!==id&&typeof value==='string').slice(-199);
+    await atomicWrite(knownPathsFile(),JSON.stringify(Object.fromEntries([...kept,[id,file]])));
+  }catch{/* A convenience only: the save or open itself has already succeeded. */}
+}
+/** True while the editor holds changes that are not in a project file; the window asks before closing. */
+let unsavedWork=false;
 function register(m:MediaAsset){allow(m.path);allow(m.thumbnail);allow(m.proxyPath);if(m.kind==='audio'&&m.codec==='mp3'&&path.extname(m.path).toLowerCase()==='.mp3')mp3PreviewFiles.add(key(m.path));else mp3PreviewFiles.delete(key(m.path));return m;}
 function checkMedia(m:MediaAsset){assertMedia(m);if(!localFilePath(m.path)||!allowedFiles.has(key(m.path)))throw new Error('먼저 미디어 파일을 가져오세요.');}
 /** FFV1 is an editing intermediate, not a Chromium playback codec. Publish a
@@ -315,7 +326,7 @@ function setupIPC(){
     if(!file||saveAs)file=await chooseSave(`${project.name.replace(/[<>:"/\\|?*]/g,'_')}.sluproj`,['sluproj'])||undefined;
     if(!file)return null;if(path.extname(file).toLowerCase()!=='.sluproj')file+='.sluproj';
     await assertOutputNotSource(file,[...project.media.map(m=>m.path),...(project.motionPaths||[]).map(a=>a.path)]);
-    await saveProjectWithAssets(project,file,{registry:trackingFiles,warning:message=>{if(win&&!win.isDestroyed()&&!win.webContents.isDestroyed())win.webContents.send('project:warning',message);}});allow(file);return file;
+    await saveProjectWithAssets(project,file,{registry:trackingFiles,warning:message=>{if(win&&!win.isDestroyed()&&!win.webContents.isDestroyed())win.webContents.send('project:warning',message);}});allow(file);await rememberProjectPath(project.id,file);return file;
   }));
   handler('project:collect',(project:Project)=>new Promise<{jobId:string;path:string}|null>((resolve,reject)=>{
     // Hold the same queue as ordinary saves until copying AND publication have
@@ -332,7 +343,7 @@ function setupIPC(){
   handler('project:open',async()=>{
     const r=await dialog.showOpenDialog(win!,{filters:[{name:'SLU Studio 프로젝트',extensions:['sluproj']}],properties:['openFile']});if(r.canceled)return null;
     const file=r.filePaths[0],stat=await fs.stat(file);if(stat.size>50*1024*1024)throw new Error('프로젝트 파일이 너무 큽니다.');
-    const saved=await readProject(file),serialized=JSON.stringify(saved);let project=await prepareProject(await resolveProjectAssets(saved,file,path.join(app.getPath('userData'),'tracking-derived')),true);const relinked=new Set<string>();
+    const derived=(key:string,value:unknown)=>key==='thumbnail'||key==='proxyPath'?undefined:value,saved=await readProject(file),serialized=JSON.stringify(saved,derived);let project=await prepareProject(await resolveProjectAssets(saved,file,path.join(app.getPath('userData'),'tracking-derived')),true);const relinked=new Set<string>();
     const reconnect=async(id:string,replacement:string)=>{
       const candidate=await relocateProjectSources(project,new Map([[id,replacement]]),path.join(app.getPath('userData'),'tracking-derived'));
       const index=candidate.media.findIndex(m=>m.id===id),media=candidate.media[index];
@@ -344,9 +355,15 @@ function setupIPC(){
       if(choice.response===0){const pick=await dialog.showOpenDialog(win!,{title:`${m.name} 다시 연결`,properties:['openFile'],filters:[{name:'미디어',extensions:[...mediaExtensions].map(e=>e.slice(1))}]});if(!pick.canceled)await reconnect(m.id,pick.filePaths[0]);}
     }else{if(m.proxyPath&&!existsSync(m.proxyPath))delete m.proxyPath;if(m.thumbnail&&!existsSync(m.thumbnail))delete m.thumbnail;register(m);}}
     project=await refreshChangedProject(project,relinked);trackingFiles.approveProject(project,true);for(const media of project.media)if(existsSync(media.path))queueAnalysis(media);
-    allow(file);return {project,path:file,missing:project.media.filter(m=>!existsSync(m.path)).map(m=>m.path),modified:JSON.stringify(project)!==serialized};
+    allow(file);await rememberProjectPath(project.id,file);return {project,path:file,missing:project.media.filter(m=>!existsSync(m.path)).map(m=>m.path),modified:JSON.stringify(project,derived)!==serialized};
   });
   handler('project:autosave',queueAutosave);
+  handler('project:dirty',async(value:boolean)=>{unsavedWork=value===true;});
+  handler('project:known-path',async(id:string)=>{
+    try{if(typeof id!=='string'||!id||id.length>128)return null;const file=JSON.parse(await fs.readFile(knownPathsFile(),'utf8'))?.[id];
+      if(typeof file!=='string'||!localFilePath(file)||path.extname(file).toLowerCase()!=='.sluproj'||!existsSync(file))return null;allow(file);return file;
+    }catch{return null;}
+  });
   handler('project:recoveries',async()=>{await flushAutosave();return listRecoveries(app.getPath('userData'));});
   handler('project:load-recovery',async(id:string)=>{
     await flushAutosave();
@@ -362,9 +379,13 @@ function setupIPC(){
   });
   handler('project:export',async(project:Project,settings:ExportSettings)=>{
     await prepareProject(project);if(!project.clips.length)throw new Error('타임라인에 클립을 추가해 주세요.');
-    if(!settings||!['mov','mp4','webm','gif','wav'].includes(settings.format))throw new Error('지원하지 않는 출력 형식');
+    if(!settings||!['mov','mp4','webm','gif','wav'].includes(settings.format))throw new Error('지원하지 않는 파일 형식입니다.');
+    if([...jobs.values()].some(j=>j.type==='export'))throw new Error('내보내기가 진행 중입니다. 완료 후 다시 시도하세요.');
+    if(jobs.size>=4)throw new Error('최대 4개 작업까지 동시에 실행할 수 있습니다. 진행 중인 작업을 기다려 주세요.');
     const output=await chooseSave(`${project.name.replace(/[<>:"/\\|?*]/g,'_')}.${settings.format}`,[settings.format]);if(!output)return null;
-    const finalPath=path.extname(output).toLowerCase()===`.${settings.format}`?output:`${output}.${settings.format}`;
+    // A name typed with another video extension (강의.mp4 while exporting MOV) gets the right one instead of two.
+    const typed=path.extname(output).toLowerCase(),finalPath=typed===`.${settings.format}`?output:['.mov','.mp4','.webm','.gif','.wav'].includes(typed)?`${output.slice(0,-typed.length)}.${settings.format}`:`${output}.${settings.format}`;
+    if(finalPath!==output&&existsSync(finalPath)){const answer=await dialog.showMessageBox(win!,{type:'question',buttons:['덮어쓰기','취소'],defaultId:1,cancelId:1,message:`${path.basename(finalPath)} 파일이 이미 있습니다. 덮어쓸까요?`});if(answer.response!==0)return null;}
     await assertOutputNotSource(finalPath,[...project.media.map(m=>m.path),...(project.motionPaths||[]).map(a=>a.path)]);
     const jobId=startJob('export',async(signal,progress)=>{const result=await renderProject(project,{...settings,outputPath:finalPath},engine,progress,signal);allow(result);return {path:result,message:'내보내기가 완료되었습니다.'};});return {jobId,path:finalPath};
   });
@@ -518,7 +539,8 @@ if(!single)app.quit();else{
     win.on('page-title-updated',event=>event.preventDefault());
     win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',event=>event.preventDefault());
     win.once('ready-to-show',()=>{if(!backgroundTest)win?.show();});
-    win.on('close',event=>{if(jobs.size){const result=dialog.showMessageBoxSync(win!,{type:'question',buttons:['계속 작업','작업 취소 후 종료'],defaultId:0,cancelId:0,message:'진행 중인 작업이 있습니다. 종료할까요?'});if(result===0){event.preventDefault();return;}for(const j of jobs.values())j.controller.abort();}});
+    win.on('close',event=>{if(jobs.size){const result=dialog.showMessageBoxSync(win!,{type:'question',buttons:['계속 작업','작업 취소 후 종료'],defaultId:0,cancelId:0,message:'진행 중인 작업이 있습니다. 종료할까요?'});if(result===0){event.preventDefault();return;}for(const j of jobs.values())j.controller.abort();}
+      if(unsavedWork&&!process.env.SLU_USER_DATA){const result=dialog.showMessageBoxSync(win!,{type:'question',buttons:['계속 편집','저장하지 않고 종료'],defaultId:0,cancelId:0,message:'프로젝트 파일에 저장하지 않은 변경 사항이 있습니다.',detail:'지금 종료해도 자동 저장본은 남아서 다음에 켤 때 "작업 이어서 열기"로 이어갈 수 있습니다. 프로젝트 파일에 남기려면 "계속 편집"을 누른 뒤 Ctrl+S로 저장하세요.'});if(result===0){event.preventDefault();return;}}});
     win.on('closed',()=>{win=null;analysisQueue.length=0;for(const controller of analysisControllers)controller.abort();});
     if(!app.isPackaged&&process.env.SLU_DEV_URL)await win.loadURL('http://127.0.0.1:5173');else await win.loadURL('slu-app://studio/index.html');
     void getSystemInfo();

@@ -11,6 +11,8 @@ import {publishRuntimeDirectory} from './project-store';
 import {requireSourceRevision} from './source-revision';
 import {assertCaptionWords,captionGraphemes} from '../shared/captions';
 import {ffmpegSeconds} from './ffmpeg-time';
+import {speechEnvelope} from './speech-envelope';
+import {refineWordTimes} from '../shared/caption-timing';
 
 const CUDA={version:'1.8.7',url:'https://github.com/ggml-org/whisper.cpp/releases/download/v1.8.7/whisper-cublas-12.4.0-bin-x64.zip',sha256:'ce5e66c7e45985f497e3a81c9d33723f19b3118993b47f53b8351df5cbb20402'};
 const cudaDirectory=(ctx:ServiceContext)=>path.join(ctx.modelDir,`whisper-cuda-${CUDA.version}`);
@@ -145,7 +147,10 @@ export function groupCaptionWords(words:TimedText[],maxChars=28,maxDuration=4):S
     if(!current)current={start:w.start,end:w.end,text:w.text,...(annotation?{words:[annotation]}:{})};
     else{current.text+=' '+w.text;current.end=Math.max(current.end,w.end);if(annotation)(current.words??=[]).push(annotation);}
   }
-  finish();for(let i=0;i<cues.length-1;i++)cues[i].end=Math.min(cues[i].end,cues[i+1].start);
+  finish();
+  // No overlap; a gap too short to read as a pause is closed (it showed as a 2–4 frame blink); and a
+  // caption stays up at least 0.4 s when there is room. Caption sync applies the same two rules.
+  for(let i=0;i<cues.length;i++){const next=cues[i+1]?.start??Infinity;cues[i].end=Math.min(cues[i].end,next);if(next-cues[i].end<.3)cues[i].end=next;if(cues[i].end-cues[i].start<.4)cues[i].end=Math.min(next,cues[i].start+.4);}
   return cues.filter(c=>c.end>c.start).map(cropCueWords);
 }
 
@@ -170,7 +175,7 @@ export async function extractSpeechAudio(source:string,start:number,duration:num
 
 /** Whisper over [start,start+duration) of an audio or video file, in 10-minute chunks with a second of
  * overlap. Each chunk's words (in the file's own time) go to `take`; `check` runs between steps. */
-async function recognizeChunks(file:string,start:number,duration:number,language:string,ctx:ServiceContext,progress:ServiceProgress,signal:AbortSignal|undefined,options:SpeechOptions,check:()=>Promise<void>,take:(words:TimedText[])=>void){
+async function recognizeChunks(file:string,start:number,duration:number,language:string,ctx:ServiceContext,progress:ServiceProgress,signal:AbortSignal|undefined,options:SpeechOptions,check:()=>Promise<void>,take:(words:TimedText[])=>void,tighten=false){
   const modelId=options.model??'base',device=options.device??'auto';
   if(!Object.hasOwn(SPEECH_MODELS,modelId)||!['auto','cpu','cuda'].includes(device))throw new Error('음성 인식 구간 또는 모델 설정 오류');
   if(!await modelReady(ctx,modelId))throw new Error('선택한 음성 모델을 먼저 설치하세요.');
@@ -195,18 +200,23 @@ async function recognizeChunks(file:string,start:number,duration:number,language
       try{await execute();}catch(error){abort(signal);if(device==='auto'&&useCuda){useCuda=false;progress(offset/duration,'CUDA 실행 실패 · CPU로 재시도');await execute();}else throw error;}
       await check();abort(signal);
       const json=await readFile(out+'.json','utf8').catch(error=>{if(error?.code==='ENOENT')throw new Error(`음성 인식 엔진이 ${Math.round(start+chunkStart)}초 구간의 결과를 만들지 못했습니다. 오디오를 읽지 못했을 수 있습니다.`);throw error;});
-      const words=selectOwnedWhisperWords(parseWhisperWords(JSON.parse(json)),chunkStart,offset,ownershipEnd,start);
-      take(words);
+      const owned=selectOwnedWhisperWords(parseWhisperWords(JSON.parse(json)),chunkStart,offset,ownershipEnd,start);
+      take(tighten?tightenWords(owned,await speechEnvelope(wav,ctx.ffmpeg,signal),start+chunkStart):owned);
     }
     await check();abort(signal);
   }finally{await rm(work,{recursive:true,force:true}).catch(()=>{});}
+}
+/** Word times moved onto the speech that is actually heard, kept in order and inside their own slot. */
+export function tightenWords(words:TimedText[],envelope:Float32Array,offset:number):TimedText[]{
+  const refined=refineWordTimes(words,envelope,offset) as TimedText[];let previousEnd=-Infinity;
+  return refined.map((word,i)=>{const limit=i+1<words.length?words[i+1].start:Infinity,from=Math.max(word.start,previousEnd),to=Math.min(Math.max(word.end,from+.01),limit),kept=to>from?{...word,start:from,end:to}:words[i];previousEnd=kept.end;return kept;});
 }
 export async function transcribeWithCLI(media:MediaAsset,language:string,ctx:ServiceContext,progress:ServiceProgress,signal:AbortSignal|undefined,options:SpeechOptions):Promise<SubtitleCue[]>{
   const start=options.start??0,duration=options.duration??(media.duration-start),maxChars=options.maxChars??28,maxDuration=options.maxDuration??4;
   if(![start,duration].every(Number.isFinite)||start<0||duration<=0||start+duration>media.duration+.15)throw new Error('음성 인식 구간 또는 모델 설정 오류');
   groupCaptionWords([],maxChars,maxDuration);abort(signal);const sourceRevision=await requireSourceRevision(media.path,media.sourceRevision);
   const result:SubtitleCue[]=[];
-  await recognizeChunks(media.path,start,duration,language,ctx,progress,signal,options,async()=>{await requireSourceRevision(media.path,sourceRevision);},words=>result.push(...groupCaptionWords(words,maxChars,maxDuration)));
+  await recognizeChunks(media.path,start,duration,language,ctx,progress,signal,options,async()=>{await requireSourceRevision(media.path,sourceRevision);},words=>result.push(...groupCaptionWords(words,maxChars,maxDuration)),true);
   progress(1,`자막 ${result.length}개`);return result;
 }
 /** Recognized words of a whole audio file (e.g. the timeline mix for caption sync), in file time. */

@@ -52,6 +52,14 @@ export function createTrack(tracks:readonly Track[],type:Track['type']):Track {
   while(names.has(`${kindName(type)} ${n}`))n++;
   return {id:uid(),type,name:`${kindName(type)} ${n}`,muted:false,hidden:false,locked:false};
 }
+/** A clip that got longer in place: the clips after it on its track move back by what it would now
+ * cover, the same as dragging its right edge on the timeline. */
+export function pushFollowers(clips:Clip[],before:Clip,duration:number):Clip[]{
+  const end=before.start+before.duration,followers=clips.filter(c=>c.trackId===before.trackId&&c.id!==before.id&&c.start>=end-1e-6);if(!followers.length)return clips;
+  const shift=before.start+duration-Math.min(...followers.map(c=>c.start));if(shift<=1e-9)return clips;
+  if(Math.max(...followers.map(c=>c.start+c.duration))+shift>86400)throw new Error('뒤 클립을 밀면 타임라인이 24시간을 넘습니다. 길이를 줄여 주세요.');
+  const ids=new Set(followers.map(c=>c.id));return clips.map(c=>ids.has(c.id)?{...c,start:c.start+shift}:c);
+}
 /** Like CapCut, a track holds one clip per spot. Clips in `ids` that overlap another clip on
  * their track move together to another track of the same kind (for audio, further down):
  * - 'stack' (new clips): the next free track up, else a new one at the top of that run of

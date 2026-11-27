@@ -5,7 +5,9 @@ import {trimCaptionWords} from './captions';
 export const uid = () => globalThis.crypto.randomUUID();
 /** Easing interval bounds; trimming must not round them past the validator's [0,1]. */
 const unit=(n:number)=>Math.min(1,Math.max(0,n));
-export function newProject():Project {return {version:10,id:uid(),name:'제목 없는 프로젝트',width:1920,height:1080,fps:30,background:'#08090e',media:[],tracks:[{id:'video-1',name:'영상 1',type:'video',muted:false,hidden:false,locked:false},{id:'audio-1',name:'오디오 1',type:'audio',muted:false,hidden:false,locked:false},{id:'text-1',name:'자막 · 텍스트',type:'text',muted:false,hidden:false,locked:false}],clips:[],updatedAt:new Date().toISOString()};}
+/** The name a project has until it is saved to a file, whose name it then takes. */
+export const DEFAULT_PROJECT_NAME='제목 없는 프로젝트';
+export function newProject():Project {return {version:10,id:uid(),name:DEFAULT_PROJECT_NAME,width:1920,height:1080,fps:30,background:'#08090e',media:[],tracks:[{id:'video-1',name:'영상 1',type:'video',muted:false,hidden:false,locked:false},{id:'audio-1',name:'오디오 1',type:'audio',muted:false,hidden:false,locked:false},{id:'text-1',name:'자막 · 텍스트',type:'text',muted:false,hidden:false,locked:false}],clips:[],updatedAt:new Date().toISOString()};}
 export function newClip(trackId:string,media?:MediaAsset,start=0):Clip {return {id:uid(),trackId,mediaId:media?.id,name:media?.name || '텍스트',start,duration:media?.kind==='image'?5:media?.duration||3,in:0,speed:1,volume:1,fadeIn:0,fadeOut:0,opacity:1,scale:1,x:0,y:0,rotation:0,fit:'contain',flipH:false,flipV:false,brightness:0,contrast:1,saturation:1,blur:0,preset:'none',text:media?undefined:'텍스트',fontSize:64,fontFamily:'Malgun Gothic',color:'#ffffff',textBackground:'#171923',textStyle:'bold',align:'center',keyframes:[]};}
 /** What the editor opens with: one picture track, like CapCut's main track. Other tracks appear as clips need them. */
 export function startingProject():Project {const p=newProject();return {...p,tracks:p.tracks.filter(t=>t.type==='video')};}
@@ -19,10 +21,31 @@ const TRANSFORM_RANGE={x:[-16384,16384],y:[-16384,16384],scale:[.01,8],opacity:[
  * moves its whole animation (offset; scale by ratio) so its motion keeps its shape. */
 export function shiftTransform(clip:Clip,values:TransformValues,localTime:number):Partial<Clip>{
   const now=interpolate(clip,localTime),entries=Object.entries(values).filter(([,v])=>v!==undefined) as [keyof TransformValues,number][];
-  const move=(key:keyof TransformValues,value:number,target:number)=>{const [low,high]=TRANSFORM_RANGE[key],next=key==='scale'?value*target/Math.max(.01,now.scale):value+target-now[key];return Math.min(high,Math.max(low,next));};
+  const bound=(key:keyof TransformValues,value:number)=>Math.min(TRANSFORM_RANGE[key][1],Math.max(TRANSFORM_RANGE[key][0],value));
+  const move=(key:keyof TransformValues,value:number,target:number)=>bound(key,key==='scale'?value*target/Math.max(.01,now.scale):value+target-now[key]);
   const out:Partial<Clip>={};
-  for(const [key,target] of entries)out[key]=clip.keyframes.length?move(key,clip[key],target):target;
+  for(const [key,target] of entries)out[key]=clip.keyframes.length?move(key,clip[key],target):bound(key,target);
   if(clip.keyframes.length)out.keyframes=clip.keyframes.map(k=>{const next={...k};for(const [key,target] of entries)next[key]=move(key,k[key],target);return next;});
+  return out;
+}
+/** What a clip is when several are edited at once: text, picture (video or image) or audio. */
+export function clipKind(project:Project,clip:Clip):'text'|'picture'|'audio'{return clip.text!==undefined?'text':project.media.find(m=>m.id===clip.mediaId)?.kind==='audio'||project.tracks.find(t=>t.id===clip.trackId)?.type==='audio'?'audio':'picture';}
+/** The selected clips an edit on `clip` applies to as well: the same kind, on unlocked tracks. */
+export function editPeers(project:Project,selected:readonly string[],clip:Clip):Clip[]{
+  const kind=clipKind(project,clip),ids=new Set(selected),locked=new Set(project.tracks.filter(t=>t.locked).map(t=>t.id));
+  return project.clips.filter(c=>ids.has(c.id)&&!locked.has(c.trackId)&&clipKind(project,c)===kind);
+}
+/** A preview drag on several selected clips: clip `id` gets `values` at `time`, and every other clip
+ * in `ids` moves by the same amount (scale: by the same ratio), so their layout is kept. All are
+ * measured from `base`, the project when the drag began, so the calls of one drag don't add up. */
+export function dragTogether(base:Project,ids:readonly string[],id:string,values:TransformValues,time:number):Map<string,Partial<Clip>>{
+  const lead=base.clips.find(c=>c.id===id),out=new Map<string,Partial<Clip>>(),wanted=new Set(ids);if(!lead)return out;
+  const local=(c:Clip)=>Math.min(c.duration,Math.max(0,time-c.start)),from=interpolate(lead,local(lead)),entries=Object.entries(values).filter(([,v])=>v!==undefined) as [keyof TransformValues,number][];
+  for(const c of base.clips){
+    if(!wanted.has(c.id))continue;const now=interpolate(c,local(c)),target:TransformValues={};
+    for(const [key,value] of entries)target[key]=c===lead?value:key==='scale'?now.scale*value/Math.max(.01,from.scale):now[key]+value-from[key];
+    out.set(c.id,shiftTransform(c,target,local(c)));
+  }
   return out;
 }
 /** Fade time on the clip as it was before splits and trims, independent of locally rebased keyframes. */

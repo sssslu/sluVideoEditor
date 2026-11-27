@@ -83,8 +83,13 @@ export function unifiedText(clip:Clip):Clip {
   const next={...legacy};delete next.animation;delete next.captionAnimation;
   return clip.text===undefined?next:{...next,captionStyle:clip.captionStyle??legacyTextCaptionStyle(clip)};
 }
+/** `unifiedText` for a clip and, when it is a combined clip, for the clips kept inside it. */
+function unifiedDeep(clip:Clip):Clip {
+  const own=unifiedText(clip),inner=own.compound?.clips;if(!inner)return own;
+  const clips=inner.map(unifiedDeep);return clips.every((c,i)=>c===inner[i])?own:{...own,compound:{...own.compound!,clips}};
+}
 export function unifyTextClips(project:Project):Project {
-  const clips=project.clips.map(unifiedText);
+  const clips=project.clips.map(unifiedDeep);
   return clips.every((clip,i)=>clip===project.clips[i])?project:{...project,clips};
 }
 export function resizeCaptionStyle(style:CaptionStyle|undefined,factor:number):CaptionStyle|undefined {

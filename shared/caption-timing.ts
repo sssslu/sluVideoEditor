@@ -172,7 +172,7 @@ export function splitCaption(clip:Clip,maxChars:number,fps:number):Clip[]{
     starts.push(measured?measured.start:clip.duration*acc/total);
   }
   // Frame grid, increasing, and every piece at least `minimum` long.
-  const edges=[...starts.map(t=>frame(clip.start+t,fps)-clip.start),clip.duration];
+  const edges=[0,...starts.slice(1).map(t=>frame(clip.start+t,fps)-clip.start),clip.duration];
   for(let k=1;k<edges.length-1;k++)edges[k]=Math.max(edges[k],edges[k-1]+minimum);
   for(let k=edges.length-2;k>0;k--)edges[k]=Math.min(edges[k],edges[k+1]-minimum);
   if(edges.some((t,k)=>k>0&&t-edges[k-1]<minimum-1e-9)||edges[1]<=0)return [clip];
@@ -184,7 +184,10 @@ export function splitCaption(clip:Clip,maxChars:number,fps:number):Clip[]{
     return {...piece,id:k?uid():clip.id,text:pieceText,name:pieceText.replace(/\n/g,' ').slice(0,36)||'자막',textRuns:sliceTextRuns(clip.textRuns,from,to,pieceText),captionWords,sourceClipOffset:undefined,sourceClipDuration:undefined};
   });
 }
-const lookKey=(c:Clip)=>JSON.stringify([c.trackId,c.fontSize,c.fontFamily,c.color,c.textBackground,c.textStyle,c.align,c.captionStyle,c.x,c.y,c.scale,c.rotation,c.opacity,c.keyframes.length,c.motionBinding?1:0]);
+/** What decides whether two captions look the same. Left out: values nothing draws (the old font
+ * family and text style, the removed word-highlight settings) and the key order of the style. */
+const drawnStyle=(c:Clip)=>c.captionStyle&&Object.entries(c.captionStyle).filter(([key])=>key!=='highlight'&&key!=='activeColor'&&key!=='highlightEstimated').sort(([a],[b])=>a<b?-1:1);
+const lookKey=(c:Clip)=>JSON.stringify([c.trackId,c.fontSize,c.color,c.textBackground,c.align,drawnStyle(c),c.x,c.y,c.scale,c.rotation,c.opacity,c.keyframes.length,c.motionBinding?1:0]);
 /** Neighbouring captions on one track joined into longer ones: only captions that look the same,
  * follow each other within `maxGap` seconds and fit `maxChars` and `maxDuration` together. A caption
  * ending a sentence only takes a short follower. */
@@ -220,6 +223,7 @@ export function applyCaptionSync(p:Project,texts:Readonly<Record<string,string>>
   const targets=unlockedTexts(p).filter(c=>Object.hasOwn(texts,c.id)&&texts[c.id]===c.text),ids=new Set(targets.map(c=>c.id)),byTrack=new Map<string,Clip[]>();
   for(const c of targets)byTrack.set(c.trackId,[...(byTrack.get(c.trackId)||[]),c]);
   const updates=new Map<string,Clip>();let matched=0,blocked=0;
+  if(!words.some(w=>w.text.trim()&&w.end>w.start))return {project:p,matched:0,total:targets.length,blocked:0};
   for(const [trackId,clips] of byTrack){
     const report=syncCaptionTimes(clips,words,p.fps);matched+=report.matched;
     const others=p.clips.filter(o=>o.trackId===trackId&&!ids.has(o.id));

@@ -12,7 +12,9 @@ export interface CaptionLayout {width:number;height:number;padding:number;lines:
 const layouts=new Map<string,CaptionLayout>();let cachedChars=0;
 const MAX_LAYOUTS=96,MAX_CHARACTERS=200000;
 let measureCanvas:HTMLCanvasElement|undefined;
-export function captionLayoutSignature(clip:Clip,project:Project){return JSON.stringify([CAPTION_FONT_HASH,clip.captionStyle?.font==='gmarket-sans'||clip.textRuns?.some(r=>r.font==='gmarket-sans')?CAPTION_DISPLAY_HASH:undefined,clip.text,clip.fontSize,clip.align,clip.captionStyle,project.width,clip.textRuns?.length?clip.textRuns:undefined]);}
+/** The clip scale the lines are wrapped for: the largest it reaches, so text never grows past the frame. */
+const wrapScale=(clip:Clip)=>Math.max(.01,clip.keyframes?.length?Math.max(...clip.keyframes.map(k=>k.scale)):clip.scale??1);
+export function captionLayoutSignature(clip:Clip,project:Project){return JSON.stringify([wrapScale(clip),CAPTION_FONT_HASH,clip.captionStyle?.font==='gmarket-sans'||clip.textRuns?.some(r=>r.font==='gmarket-sans')?CAPTION_DISPLAY_HASH:undefined,clip.text,clip.fontSize,clip.align,clip.captionStyle,project.width,clip.textRuns?.length?clip.textRuns:undefined]);}
 function measureContext(font:string,spacing:string){measureCanvas??=document.createElement('canvas');const ctx=measureCanvas.getContext('2d')!;ctx.font=font;ctx.letterSpacing=spacing;ctx.fontKerning='normal';ctx.textAlign='left';ctx.textBaseline='alphabetic';return ctx;}
 /** Greedy line breaking on grapheme boundaries, preferring the last space that fits.
  * `widthOf` measures text[from,to) in absolute offsets. */
@@ -37,7 +39,7 @@ function wrapText(text:string,maximum:number,negativeSpacing:boolean,widthOf:(fr
 }
 export function captionLayout(clip:Clip,project:Project):CaptionLayout{
   const style=clip.captionStyle!;if(!style)throw new Error('자막 스타일이 없습니다.');
-  requireCaptionFonts(style.font,style.weight);assertCaptionGlyphs(clip.text||'');
+  requireCaptionFonts(style.font,style.weight);assertCaptionGlyphs(clip.text||'',clip.name);
   if(clip.textRuns?.length)for(const run of clip.textRuns)if(run.font||run.weight)requireCaptionFonts(run.font??style.font,run.weight??style.weight);
   const signature=captionLayoutSignature(clip,project),cached=layouts.get(signature);if(cached){layouts.delete(signature);layouts.set(signature,cached);return cached;}
   // Runs that only change color keep the plain geometry exactly; other runs need mixed-size lines.
@@ -50,7 +52,7 @@ export function captionLayout(clip:Clip,project:Project):CaptionLayout{
 function plainLayout(clip:Clip,project:Project,style:CaptionStyle,signature:string):CaptionLayout{
   const text=clip.text||'',font=`${style.weight} ${clip.fontSize}px ${captionFontStack(style.font)}`,letterSpacing=`${style.letterSpacing}px`,ctx=measureContext(font,letterSpacing),lineHeight=clip.fontSize*style.lineHeight;
   const widthOf=(from:number,to:number)=>{const m=ctx.measureText(text.slice(from,to));return Math.max(Math.abs(m.width),m.actualBoundingBoxLeft+m.actualBoundingBoxRight,0);};
-  const effectPad=captionEffectPad(style),raw=wrapText(text,Math.max(1,project.width*style.maxWidth-2*(style.paddingX+effectPad+2)),style.letterSpacing<0,widthOf);
+  const effectPad=captionEffectPad(style),raw=wrapText(text,Math.max(1,project.width*style.maxWidth/wrapScale(clip)-2*(style.paddingX+effectPad+2)),style.letterSpacing<0,widthOf);
   const metrics=[ctx.measureText('한글Ag'),...raw.map(line=>ctx.measureText(line.text))],ascent=Math.max(clip.fontSize*.8,...metrics.map(m=>m.actualBoundingBoxAscent)),descent=Math.max(clip.fontSize*.2,...metrics.map(m=>m.actualBoundingBoxDescent)),overhang=Math.max(0,...metrics.map(m=>Math.max(m.actualBoundingBoxLeft,m.actualBoundingBoxRight-Math.max(0,m.width))));
   const inkPad=Math.ceil(effectPad+Math.max(overhang,(ascent+descent-lineHeight)/2,0)+2),padding=inkPad+style.paddingX,contentWidth=Math.max(1,...raw.map(l=>l.width)),width=contentWidth+padding*2,height=Math.max(1,raw.length)*lineHeight+2*(inkPad+style.paddingY);
   const lines:CaptionLine[]=raw.map((line,index)=>({...line,x:padding+(clip.align==='center'?(contentWidth-line.width)/2:clip.align==='right'?contentWidth-line.width:0),top:inkPad+style.paddingY+index*lineHeight,height:lineHeight,baseline:inkPad+style.paddingY+index*lineHeight+(lineHeight+ascent-descent)/2}));
@@ -78,7 +80,7 @@ function richLayout(clip:Clip,project:Project,style:CaptionStyle,signature:strin
   const piecesOf=(from:number,to:number)=>spans.flatMap(span=>{const a=Math.max(from,span.from),b=Math.min(to,span.to);return b>a?[{span,from:a,to:b,text:text.slice(a,b)}]:[];});
   const widthOf=(from:number,to:number)=>{const parts=piecesOf(from,to);let total=0;parts.forEach((part,i)=>{const m=measure(part.span.font,part.text);total+=i===parts.length-1?Math.max(advance(m),m.actualBoundingBoxLeft+m.actualBoundingBoxRight):advance(m);});return total;};
   const maxSize=Math.max(clip.fontSize,...spans.map(s=>s.size)),effectPad=captionEffectPad(style);
-  const raw=wrapText(text,Math.max(1,project.width*style.maxWidth-2*(style.paddingX+effectPad+2)),style.letterSpacing<0,widthOf);
+  const raw=wrapText(text,Math.max(1,project.width*style.maxWidth/wrapScale(clip)-2*(style.paddingX+effectPad+2)),style.letterSpacing<0,widthOf);
   let overhang=0,extra=0;
   const rows=raw.map(line=>{
     const parts=piecesOf(line.from,line.to),sizes=parts.length?parts.map(p=>p.span.size):[spans.find(s=>s.from<=line.from&&line.from<=s.to)?.size??clip.fontSize];
