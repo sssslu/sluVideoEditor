@@ -11,7 +11,9 @@ export class RawStreamBridge {
   private consumerReady:Promise<Socket>;
   private resolveConsumer!:(socket:Socket)=>void;
   private rejectConsumer!:(error:Error)=>void;
-  private expected?:{bytes:number;resolve:()=>void;reject:(error:Error)=>void};
+  private expected?:{bytes:number;frameBytes:number;resolve:(padded:number)=>void;reject:(error:Error)=>void};
+  /** The last whole frame sent to the encoder, kept so a window that delivers no frames can repeat it. */
+  private lastFrame?:Buffer;
   private failure?:Error;
   private ended=false;
   private detachAbort?:()=>void;
@@ -48,18 +50,32 @@ export class RawStreamBridge {
     this.peakBufferedBytes=Math.max(this.peakBufferedBytes,socket.writableLength+buffer.length);
     await new Promise<void>((resolve,reject)=>socket.write(buffer,error=>error?reject(error):resolve()));this.totalBytes+=buffer.length;
   }
-  expectProducer(bytes:number):Promise<void>{
+  /** Waits for one render window of `bytes`. With `frameBytes`, a window that ends a few whole frames
+   * early (its worker exited normally but a source ran out) is completed by repeating its last frame,
+   * or the previous window's when it sent none; the promise resolves with the number of frames added.
+   * A worker that fails still fails the export through its own promise. */
+  expectProducer(bytes:number,frameBytes=0):Promise<number>{
     if(this.expected)throw new Error('이전 렌더 구간이 아직 완료되지 않았습니다.');
     if(this.failure)return Promise.reject(this.failure);
-    return new Promise((resolve,reject)=>{this.expected={bytes,resolve,reject};});
+    return new Promise((resolve,reject)=>{this.expected={bytes,frameBytes,resolve,reject};});
   }
   private async acceptProducer(socket:Socket){
     const expected=this.expected;if(!expected||this.producers.size){socket.destroy();this.fail(new Error('예상하지 않은 렌더 스트림 연결입니다.'));return;}
-    this.producers.add(socket);socket.setNoDelay(true);let bytes=0;
+    this.producers.add(socket);socket.setNoDelay(true);let bytes=0,padded=0;
+    // The newest chunks, at least one frame's worth, to recover the last frame without copying every chunk.
+    const recent:Buffer[]=[];let recentBytes=0;
     try{
-      for await(const chunk of socket){const buffer=chunk as Buffer;bytes+=buffer.length;if(bytes>expected.bytes)throw new Error('렌더 구간의 프레임 수가 예상보다 많습니다.');await this.write(buffer);}
+      for await(const chunk of socket){
+        const buffer=chunk as Buffer;bytes+=buffer.length;if(bytes>expected.bytes)throw new Error('렌더 구간의 프레임 수가 예상보다 많습니다.');await this.write(buffer);
+        if(expected.frameBytes){recent.push(buffer);recentBytes+=buffer.length;while(recent.length>1&&recentBytes-recent[0].length>=expected.frameBytes)recentBytes-=recent.shift()!.length;}
+      }
+      const whole=expected.frameBytes>0&&bytes%expected.frameBytes===0;
+      const own=whole&&bytes>=expected.frameBytes?Buffer.concat(recent,recentBytes).subarray(recentBytes-expected.frameBytes):undefined;
+      const frame=own??this.lastFrame;
+      if(whole&&frame)for(;bytes<expected.bytes;bytes+=frame.length,padded++)await this.write(frame);
       if(bytes!==expected.bytes)throw new Error(`렌더 구간이 불완전합니다 (${bytes}/${expected.bytes} 바이트).`);
-      this.expected=undefined;expected.resolve();
+      if(frame&&expected.frameBytes)this.lastFrame=frame;
+      this.expected=undefined;expected.resolve(padded);
     }catch(error){expected.reject(error instanceof Error?error:new Error(String(error)));this.fail(error instanceof Error?error:new Error(String(error)));}
     finally{this.producers.delete(socket);socket.destroy();}
   }

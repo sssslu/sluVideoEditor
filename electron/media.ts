@@ -586,7 +586,13 @@ export async function renderProjectDirect(project:Project,settings:ExportSetting
         chain.push((cudaBase?'':color.prefix)+resize);
         if(first.fit==='cover')chain.push(`crop=${width}:${height}`);
         else chain.push(`pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=${project.background.replace('#','0x')}`);
-        chain.push('setsar=1','format=yuv444p','setparams=range=limited:colorspace=bt709');graph.push(`[${inputIndex.get(first.id)}:V:0]${chain.join(',')}[base]`);
+        chain.push('setsar=1','format=yuv444p','setparams=range=limited:colorspace=bt709');
+        // A file's duration (and so the longest clip) can follow an audio track that outlasts the
+        // video track by a few frames. Hold the last picture to the end of the window, as the
+        // preview does, instead of ending the window short. Padding after the download keeps CUDA
+        // frames out of tpad; the frame cap stops it one cloned frame later when nothing is missing.
+        if(window)chain.push('tpad=stop_mode=clone:stop=-1',`trim=end_frame=${window.frames}`);
+        graph.push(`[${inputIndex.get(first.id)}:V:0]${chain.join(',')}[base]`);
       }else if(settings.intermediate)graph.push(`color=c=black@0:s=${width}x${height}:r=${dec(fps)}:d=${dec(duration)},format=yuva444p,setparams=range=limited:colorspace=bt709[base]`);
       else graph.push(`color=c=${project.background.replace('#','0x')}:s=${width}x${height}:r=${dec(fps)}:d=${dec(duration)},scale=in_color_matrix=bt601:out_color_matrix=bt709,format=yuv444p,setparams=colorspace=bt709[base]`);
       for(let i=nativeBase?1:0;i<visuals.length;i++){
@@ -810,7 +816,8 @@ export async function renderProject(project:Project,settings:ExportSettings,ctx:
       for(let index=0;!directCuda&&index<windows.length;index++){
         if(control.signal.aborted)throw failure||new CancelledError();
         const window=windows[index];ctx.diagnostics?.({event:'window-start',index,...window});progress(window.start/duration,`합성 ${index+1}/${windows.length} · ${window.visualInputs}개 영상 소스`);
-        const received=video?.expectProducer(settings.width*settings.height*rawVideoBytes(settings)*window.frames);if(received)void received.catch(fail);
+        const frameBytes=settings.width*settings.height*rawVideoBytes(settings);
+        const received=video?.expectProducer(frameBytes*window.frames,frameBytes).then(padded=>{if(padded)ctx.diagnostics?.({event:'window-padded',index,frames:padded,of:window.frames});});if(received)void received.catch(fail);
         const motionProject=video?await motion.window(Math.round(window.start*settings.fps),window.frames,settings.fps):project;
         const compose=video?renderProjectDirect(motionProject,settings,{...ctx,gpuProcessing,diagnostics:event=>{if(event.event==='gpu-processing')usedCuda=true;ctx.diagnostics?.({...event,role:'window',index});}},undefined,control.signal,{...window,destination:video.producerUrl,transitionPlan:{...transitionPlan,project:motionProject},captionRaster}):Promise.resolve();
         void compose.catch(fail);
