@@ -12,7 +12,7 @@ const ctx:EngineContext={ffmpeg:path.resolve('resources/bin/ffmpeg.exe'),ffprobe
 const settings=(fps:number,name:string):ExportSettings=>({outputPath:path.join(root,name),width:320,height:180,fps,format:'mp4',codec:'h264',encoder:'cpu',quality:'high'});
 function centiseconds(time:string){const [h,m,s]=time.split(':').map(Number);return Math.round((h*3600+m*60+s)*100);}
 function events(ass:string){return ass.split('\n').filter(line=>line.startsWith('Dialogue:')).map(line=>{const fields=line.split(',');return {start:centiseconds(fields[1]),end:centiseconds(fields[2]),line};});}
-function fixture(fps:number,duration=1,start=0){const p=newProject();p.width=320;p.height=180;p.fps=fps;p.background='#000000';const c=newClip('text-1');c.text='자막 TIMING';c.start=start;c.duration=duration;c.fontSize=30;c.y=0;c.animation='none';c.keyframes=[{time:0,x:-35,y:0,scale:.9,opacity:1,rotation:0,easing:'ease-in-out'},{time:duration,x:35,y:0,scale:1.1,opacity:1,rotation:0}];p.clips=[c];return p;}
+function fixture(fps:number,duration=1,start=0){const p=newProject();p.width=320;p.height=180;p.fps=fps;p.background='#000000';const c=newClip('text-1');c.text='자막 TIMING';c.start=start;c.duration=duration;c.fontSize=30;c.y=0;c.keyframes=[{time:0,x:-35,y:0,scale:.9,opacity:1,rotation:0,easing:'ease-in-out'},{time:duration,x:35,y:0,scale:1.1,opacity:1,rotation:0}];p.clips=[c];return p;}
 
 test('ASS quantization emits contiguous positive intervals at 30, 60 and 120 fps',()=>{
   for(const fps of [30,60,120])for(const [start,duration] of [[0,1],[.003,1.017],[.004,.01],[.009,.011]]){
@@ -24,12 +24,12 @@ test('ASS quantization emits contiguous positive intervals at 30, 60 and 120 fps
   }
 });
 
-test('quantized event states retain the original nonaligned animation and inherited fade clock',()=>{
-  const p=fixture(120,.411,.003),c=p.clips[0];c.animation='pop';c.fadeIn=.7;c.fadeOut=.3;c.sourceClipOffset=.121;c.sourceClipDuration=1.5;
+test('quantized event states retain the original nonaligned keyframes and inherited fade clock',()=>{
+  const p=fixture(120,.411,.003),c=p.clips[0];c.fadeIn=.7;c.fadeOut=.3;c.sourceClipOffset=.121;c.sourceClipDuration=1.5;
   for(const event of events(buildAss(p,settings(120,'phase.mp4')))){
     const state=clipState(c,event.start/100),alpha=Math.round((1-state.opacity)*255),scale=state.scale*100;
     const actualAlpha=parseInt(event.line.match(/\\alpha&H([\dA-F]+)&/)![1],16),actualScale=Number(event.line.match(/\\fscx([\d.]+)/)![1]);
-    assert.equal(actualAlpha,alpha,`Fade phase changed at ${event.start} cs`);assert.ok(Math.abs(actualScale-scale)<.00001,`Pop phase changed at ${event.start} cs`);
+    assert.equal(actualAlpha,alpha,`Fade phase changed at ${event.start} cs`);assert.ok(Math.abs(actualScale-scale)<.00001,`Scale phase changed at ${event.start} cs`);
     assert.ok(event.line.includes(`\\t(0,${(event.end-event.start)*10},`),'Transform duration does not match emitted ASS interval');
   }
 });
@@ -45,7 +45,7 @@ test('real caption pixels remain visible at 30, 60 and 120 fps', {timeout:60000}
 });
 
 test('120 fps eased captions have identical actual frames across one- and six-second export windows', {timeout:120000},async(t)=>{
-  await fs.mkdir(root,{recursive:true});const p=fixture(120,6.123,.003),c=p.clips[0];c.animation='pop';c.fadeIn=.1;c.fadeOut=.12;
+  await fs.mkdir(root,{recursive:true});const p=fixture(120,6.123,.003),c=p.clips[0];c.fadeIn=.1;c.fadeOut=.12;
   const frames:Buffer[]=[];
   for(const windowSize of [1,6]){const output=settings(120,`window-${windowSize}.mp4`);await renderProject(p,output,{...ctx,maxWindowSeconds:windowSize});frames.push((await runProcess(ctx.ffmpeg,['-v','error','-i',output.outputPath!,'-map','0:v:0','-pix_fmt','gray','-f','rawvideo','pipe:1'],{maxOutputBytes:80*1024*1024})).stdout);}
   const frameBytes=320*180,total=Math.ceil((c.start+c.duration)*120);assert.equal(frames[0].length,total*frameBytes);assert.equal(frames[1].length,frames[0].length);

@@ -22,7 +22,7 @@ test('66 second 1080p timeline: dozens of overlapping clips, bounded RAM, exact 
   p.clips=Array.from({length:36},(_,i)=>{const c=newClip('video-1',media,.137+i*1.837);c.duration=2.13;c.in=.073;c.speed=1.27;c.fadeIn=.293;c.fadeOut=.293;c.volume=2.5;if(i%5===0)c.preset='cinematic';return c;});
   for(let i=0;i<7;i++){
     const c=newClip('pip',media,1+i*9);c.duration=2.6;c.volume=0;c.scale=.3;c.x=500;c.y=-240;c.rotation=4;c.fadeIn=.2;c.fadeOut=.25;c.crop={left:.05,top:.02,right:.05,bottom:.02};c.mask={type:i%2?'ellipse':'rect',x:.5,y:.5,width:.9,height:.9,feather:.03,invert:false};c.keyframes=[{time:0,x:440,y:-220,scale:.28,rotation:-4,opacity:.7,easing:'ease-in-out'},{time:2.6,x:500,y:-240,scale:.33,rotation:6,opacity:1}];p.clips.push(c);
-    const caption=newClip('text-1');caption.start=.2+i*9;caption.duration=4;caption.text=`긴 타임라인 검증 ${i+1}\n자막 · 속도 · 전환`;caption.fontSize=54;caption.y=320;caption.animation='slide';caption.textStyle=i%2?'bold':'neon';p.clips.push(caption);
+    const caption=newClip('text-1');caption.start=.2+i*9;caption.duration=4;caption.text=`긴 타임라인 검증 ${i+1}\n자막 · 속도 · 전환`;caption.fontSize=54;caption.y=320;caption.textStyle=i%2?'bold':'neon';p.clips.push(caption);
   }
   const diagnostics:Record<string,unknown>[]=[],owned=new Set<number>();let sampling=true,peakFfmpegBytes=0,peakNodeRss=0,peakProcessCount=0;const samples:Array<Record<string,number>>=[];
   const started=performance.now();

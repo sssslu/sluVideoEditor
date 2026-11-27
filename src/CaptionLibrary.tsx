@@ -10,7 +10,7 @@ function Sample({appearance}:{appearance:CaptionAppearance}){
   const ref=useRef<HTMLCanvasElement>(null),[error,setError]=useState('');
   useEffect(()=>{let active=true;void ensureCaptionFonts().then(()=>{
     if(!active||!ref.current)return;
-    const project={...newProject(),width:400,height:150},clip={...newClip('text-1'),...appearance,text:'하루를 담는 영상',fontSize:32,captionStyle:resizeCaptionStyle(appearance.captionStyle,32/appearance.fontSize),captionAnimation:undefined,animation:'none' as const,captionWords:[{from:0,to:3,start:0,end:1,timing:'manual' as const}]};
+    const project={...newProject(),width:400,height:150},clip={...newClip('text-1'),...appearance,text:'하루를 담는 영상',fontSize:32,captionStyle:resizeCaptionStyle(appearance.captionStyle,32/appearance.fontSize),captionWords:[{from:0,to:3,start:0,end:1,timing:'manual' as const}]};
     const frame=rasterCaption(clip,project,1,.5),canvas=ref.current,ctx=canvas.getContext('2d')!;canvas.width=400;canvas.height=120;ctx.clearRect(0,0,400,120);const scale=Math.min(1,380/frame.width,110/frame.height);ctx.drawImage(frame.canvas,(400-frame.width*scale)/2,(120-frame.height*scale)/2,frame.width*scale,frame.height*scale);setError('');
   }).catch(e=>{if(active)setError(e instanceof Error?e.message:String(e));});return()=>{active=false;};},[appearance]);
   return error?<span className="inline-warning" role="alert">{error}</span>:<canvas ref={ref} aria-label="자막 스타일 미리보기"/>;

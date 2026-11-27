@@ -29,7 +29,7 @@ const settings={format:'mp4',codec:'h264',encoder:'cpu',width:640,height:360,fps
 const template=JSON.parse(await fs.readFile('examples/AURORA.sluproj','utf8'));
 const base=template.clips.find(clip=>clip.text!==undefined);
 const style={font:'reatic',weight:400,lineHeight:1.25,letterSpacing:0,outlineWidth:0,outlineColor:'#101219',shadowBlur:0,shadowColor:'#101219',background:'none',paddingX:14,paddingY:8,radius:10,maxWidth:.86,highlight:false,activeColor:'#f4d35e'};
-const main={...base,id:'reatic-main',name:'리틱체 검증',text:'리틱체 한글 자막 Aa 012\n가나다 아름다운 영상',trackId:'reatic-text',start:0,duration:1,in:0,speed:1,fadeIn:0,fadeOut:0,keyframes:[],sourceClipOffset:undefined,sourceClipDuration:undefined,captionWords:undefined,captionStyle:style,captionAnimation:undefined,animation:'none',textStyle:'minimal',fontSize:38,color:'#ffffff',x:0,y:0,scale:1,rotation:0,opacity:1};
+const main={...base,id:'reatic-main',name:'리틱체 검증',text:'리틱체 한글 자막 Aa 012\n가나다 아름다운 영상',trackId:'reatic-text',start:0,duration:1,in:0,speed:1,fadeIn:0,fadeOut:0,keyframes:[],sourceClipOffset:undefined,sourceClipDuration:undefined,captionWords:undefined,captionStyle:style,textStyle:'minimal',fontSize:38,color:'#ffffff',x:0,y:0,scale:1,rotation:0,opacity:1};
 const fixture={...template,id:'reatic-font-project',name:'REATIC local font',version:10,width:640,height:360,fps:30,background:'#000000',media:[],clips:[main],tracks:[{id:'reatic-text',type:'text',name:'자막',muted:false,hidden:false,locked:false}],transitions:[],colorLuts:[],updatedAt:new Date().toISOString()};
 const get=project=>project.clips.find(clip=>clip.id===main.id);
 let currentApp,currentPage,evidence;

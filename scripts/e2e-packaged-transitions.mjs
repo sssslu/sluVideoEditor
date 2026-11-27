@@ -51,7 +51,7 @@ try{
   const media=await page.evaluate(media=>window.studio.analyzeVideoRange(media),imported);near(media.videoStart,0,.001001);near(media.videoEnd,8,.001001); // Matroska timestamps use a 1 ms time base.
   checks.push('Real media-import and video-range IPC read the packaged-runtime source, stereo audio and exact video handles');
 
-  const base={trackId:'video-1',mediaId:media.id,name:'Packaged video',duration:2,speed:1,volume:.7,fadeIn:0,fadeOut:0,opacity:1,scale:1,x:0,y:0,rotation:0,fit:'contain',flipH:false,flipV:false,brightness:0,contrast:1,saturation:1,blur:0,preset:'none',fontSize:36,fontFamily:'Malgun Gothic',color:'#ffffff',textBackground:'#171923',textStyle:'bold',align:'center',animation:'none',keyframes:[]};
+  const base={trackId:'video-1',mediaId:media.id,name:'Packaged video',duration:2,speed:1,volume:.7,fadeIn:0,fadeOut:0,opacity:1,scale:1,x:0,y:0,rotation:0,fit:'contain',flipH:false,flipV:false,brightness:0,contrast:1,saturation:1,blur:0,preset:'none',fontSize:36,fontFamily:'Malgun Gothic',color:'#ffffff',textBackground:'#171923',textStyle:'bold',align:'center',keyframes:[]};
   const clips=[0,1,2].map(i=>({...base,id:`packaged-clip-${i}`,start:i*2,in:1+i*2,name:`Packaged clip ${i+1}`}));
   clips[0].mask={type:'ellipse',x:.5,y:.5,width:.9,height:.9,feather:.04,invert:false};clips[0].scale=.9;clips[0].rotation=-4;clips[0].fadeIn=.2;
   clips[1].speedCurve=[{position:0,speed:.7},{position:.5,speed:1.3},{position:1,speed:.7}];clips[1].opacity=.8;clips[1].rotation=4;clips[1].scale=.95;clips[2].fadeOut=.3;

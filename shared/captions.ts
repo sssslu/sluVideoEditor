@@ -1,5 +1,4 @@
-import type {CaptionAnimation,CaptionStyle,CaptionWord,Clip,Project} from './types';
-import {ease} from './effects';
+import type {CaptionStyle,CaptionWord,Clip,Project} from './types';
 import {remapTextRuns} from './text-runs';
 
 export const MAX_CAPTION_WORDS=2048;
@@ -57,12 +56,7 @@ export function assertCaptionStyle(value:unknown):asserts value is CaptionStyle 
   const s=value as CaptionStyle;
   if(!object(s)||!['noto-sans-kr','gmarket-sans','reatic'].includes(s.font)||!CAPTION_FONT_WEIGHTS[s.font].includes(s.weight)||!finite(s.lineHeight,.8,3)||!finite(s.letterSpacing,-5,40)||!finite(s.outlineWidth,0,30)||!color(s.outlineColor)||!finite(s.shadowBlur,0,60)||!color(s.shadowColor)||!['none','box','line'].includes(s.background)||!finite(s.paddingX,0,160)||!finite(s.paddingY,0,160)||!finite(s.radius,0,160)||!finite(s.maxWidth,.1,1)||typeof s.highlight!=='boolean'||!color(s.activeColor)||(s.highlightEstimated!==undefined&&typeof s.highlightEstimated!=='boolean')||(s.shadowDistance!==undefined&&!finite(s.shadowDistance,0,100))||(s.shadowAngle!==undefined&&!finite(s.shadowAngle,-360,360))||(s.shadowOpacity!==undefined&&!finite(s.shadowOpacity,0,1)))throw new Error('잘못된 자막 스타일입니다.');
 }
-export function assertCaptionAnimation(value:unknown):asserts value is CaptionAnimation {
-  const a=value as CaptionAnimation,kinds=['none','fade','pop','slide'];
-  if(!object(a)||!kinds.includes(a.entry)||!kinds.includes(a.exit)||!finite(a.entrySeconds,0,86400)||!finite(a.exitSeconds,0,86400)||!['linear','ease-in','ease-out','ease-in-out','hold'].includes(a.easing))throw new Error('잘못된 자막 애니메이션입니다.');
-}
 export const defaultCaptionStyle=():CaptionStyle=>({font:'noto-sans-kr',weight:700,lineHeight:1.25,letterSpacing:0,outlineWidth:3,outlineColor:'#101219',shadowBlur:0,shadowColor:'#101219',background:'none',paddingX:14,paddingY:8,radius:10,maxWidth:.86,highlight:false,activeColor:'#f4d35e'});
-export const defaultCaptionAnimation=():CaptionAnimation=>({entry:'fade',exit:'fade',entrySeconds:.18,exitSeconds:.14,easing:'ease-out'});
 export function textCaptionStyle(kind:Clip['textStyle']):CaptionStyle {
   const style={...defaultCaptionStyle(),highlight:false,outlineWidth:0};
   if(kind==='bold'||kind==='title')Object.assign(style,{font:'gmarket-sans',weight:700,outlineWidth:kind==='bold'?3:1});
@@ -80,16 +74,14 @@ export function legacyTextCaptionStyle(clip:Clip):CaptionStyle {
   if(clip.textStyle==='neon')style.shadowColor=clip.color;
   return style;
 }
-/** The entry and exit an older `animation` value played: 0.25 s in, 0.2 s out. */
-export function legacyCaptionAnimation(kind:Clip['animation']):CaptionAnimation {
-  if(kind==='none')return {...defaultCaptionAnimation(),entry:'none',exit:'none'};
-  return {entry:kind==='pop'?'pop':kind==='slide'?'slide':'fade',exit:'fade',entrySeconds:.25,exitSeconds:.2,easing:kind==='pop'?'ease-out':'linear'};
-}
-/** Text and captions are one kind of clip: every text clip carries a style and an entry/exit, so
- * all of them get the same controls, joined-caption handling and export path. */
+/** Text and captions are one kind of clip: every text clip carries a caption style, so all of them
+ * get the same controls and export path. Older files also hold an entry/exit animation
+ * (`animation`, `captionAnimation`) on clips; it is dropped. */
 export function unifiedText(clip:Clip):Clip {
-  if(clip.text===undefined||(clip.captionStyle&&clip.captionAnimation))return clip;
-  return {...clip,captionStyle:clip.captionStyle??legacyTextCaptionStyle(clip),captionAnimation:clip.captionAnimation??legacyCaptionAnimation(clip.animation)};
+  const legacy=clip as Clip&{animation?:unknown;captionAnimation?:unknown};
+  if(!('animation' in legacy)&&!('captionAnimation' in legacy)&&(clip.text===undefined||clip.captionStyle))return clip;
+  const next={...legacy};delete next.animation;delete next.captionAnimation;
+  return clip.text===undefined?next:{...next,captionStyle:clip.captionStyle??legacyTextCaptionStyle(clip)};
 }
 export function unifyTextClips(project:Project):Project {
   const clips=project.clips.map(unifiedText);
@@ -105,27 +97,4 @@ export function resizeCaptionStyle(style:CaptionStyle|undefined,factor:number):C
 export function captionShadowOffset(style:CaptionStyle){const d=style.shadowDistance??0,a=(style.shadowAngle??45)*Math.PI/180;return d>0?{x:Math.cos(a)*d,y:Math.sin(a)*d}:{x:0,y:0};}
 /** How far a caption's ink can reach past its glyphs: outline, glow and drop shadow. */
 export function captionEffectPad(style:CaptionStyle){const d=style.shadowDistance??0;return Math.max(style.outlineWidth,style.shadowBlur*3,d>0?style.outlineWidth+d+style.shadowBlur*1.5:0);}
-const joins=new WeakMap<Project,Map<string,{start:boolean;end:boolean}>>();
-/** Captions that touch on one track (within a frame) don't animate between each other: the
- * earlier one's exit and the later one's entry are skipped, so back-to-back captions don't blink. */
-export function captionJoins(project:Project){
-  let map=joins.get(project);if(map)return map;map=new Map();
-  const byTrack=new Map<string,Clip[]>();for(const c of project.clips)if(c.text!==undefined)byTrack.set(c.trackId,[...(byTrack.get(c.trackId)||[]),c]);
-  const gap=1/project.fps+1e-6,mark=(id:string,edge:'start'|'end')=>{const v=map!.get(id)||{start:false,end:false};v[edge]=true;map!.set(id,v);};
-  for(const list of byTrack.values()){list.sort((a,b)=>a.start-b.start);for(let i=1;i<list.length;i++){const a=list[i-1],b=list[i];if(Math.abs(b.start-(a.start+a.duration))<=gap){mark(a.id,'end');mark(b.id,'start');}}}
-  joins.set(project,map);return map;
-}
-/** The caption as drawn: its entry/exit animation dropped where it touches a neighbour. */
-export function joinedCaption(project:Project,clip:Clip):Clip{
-  const a=clip.captionAnimation,j=a&&captionJoins(project).get(clip.id);if(!a||!j)return clip;
-  return {...clip,captionAnimation:{...a,...(j.start?{entry:'none' as const}:{}),...(j.end?{exit:'none' as const}:{})}};
-}
-/** Shared text animation clock. Rich effects preserve phase across trimming/splitting. */
-export function captionAnimationState(clip:Clip,localTime:number){
-  if(clip.text===undefined)return {opacity:1,scale:1,y:0};
-  const time=localTime+(clip.sourceClipOffset??0),duration=clip.sourceClipDuration??clip.duration;
-  const a=clip.captionAnimation;
-  if(!a){const entry=Math.max(0,Math.min(1,time/.25)),exit=Math.max(0,Math.min(1,(duration-time)/.2));return {opacity:clip.animation!=='none'?Math.min(entry,exit):1,scale:clip.animation==='pop'?.8+.2*(1-(1-entry)**3):1,y:clip.animation==='slide'?(1-entry)*40:0};}
-  const entry=a.entrySeconds?ease(time/a.entrySeconds,a.easing):1,exit=a.exitSeconds?ease((duration-time)/a.exitSeconds,a.easing):1;
-  return {opacity:Math.min(a.entry==='none'?1:entry,a.exit==='none'?1:exit),scale:(a.entry==='pop'?.8+.2*entry:1)*(a.exit==='pop'?.8+.2*exit:1),y:(a.entry==='slide'?(1-entry)*40:0)+(a.exit==='slide'?-(1-exit)*40:0)};
-}
+

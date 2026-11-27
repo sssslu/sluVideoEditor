@@ -5,7 +5,7 @@ import {clipSourceSpan,clipSourceTime,clipTimelineTime} from '../shared/speed';
 import {motionSource,motionPoint,motionDelta,createMotionBinding,reconcileMotion} from '../shared/motion';
 import {resolveMotionSources,MotionSourceTimeline} from '../shared/motion-sources';
 import {assertProject} from '../shared/validation';
-import {defaultCaptionStyle,defaultCaptionAnimation} from '../shared/captions';
+import {defaultCaptionStyle} from '../shared/captions';
 
 export interface TrackingTarget {projectId:string;width:number;height:number;source:Clip;sourceIndex:number;relatedSources:Clip[];media:MediaAsset;start:number;end:number;time:number;existing?:{clip:Clip;analysis:MotionAnalysis};detached:boolean}
 const clamp=(v:number,a:number,b:number)=>Math.max(a,Math.min(b,v));
@@ -56,7 +56,7 @@ export function applyTracking(project:Project,target:TrackingTarget,apply:Tracki
     if(p.clips.length>=10000)throw new Error('클립은 최대 10,000개입니다.');let track=p.tracks.find(t=>t.type==='text'&&!t.locked);if(!track){if(p.tracks.length>=100)throw new Error('트랙은 최대 100개입니다.');track={id:uid(),name:'추적 텍스트',type:'text',muted:false,hidden:false,locked:false};p={...p,tracks:[...p.tracks,track]};}
     const from=Math.max(target.source.start,target.source.start+clipTimelineTime(target.source,analysis.start)),to=Math.min(target.source.start+target.source.duration,target.source.start+clipTimelineTime(target.source,analysis.end));if(to-from<Math.max(.01,1/p.fps))throw new Error('텍스트를 넣을 추적 구간이 한 프레임보다 짧습니다.');
     const point=motionPoint(p,motionSource(target.source),analysis,sample,time),fontSize=clamp(Math.round(Math.min(p.width,p.height)*.06),16,96),text=apply.text.trim()||'텍스트';
-    c={...newClip(track.id),start:from,duration:to-from,text,name:text.slice(0,100),fontSize,x:point.x-p.width/2,y:point.y-p.height/2-fontSize*1.2,captionStyle:defaultCaptionStyle(),captionAnimation:defaultCaptionAnimation(),animation:'none'};p={...p,clips:[...p.clips,c]};
+    c={...newClip(track.id),start:from,duration:to-from,text,name:text.slice(0,100),fontSize,x:point.x-p.width/2,y:point.y-p.height/2-fontSize*1.2,captionStyle:defaultCaptionStyle()};p={...p,clips:[...p.clips,c]};
   }else c=p.clips.find(c=>c.id===apply.targetId);
   if(!c||c.motionBinding||(c.text===undefined&&p.media.find(m=>m.id===c!.mediaId)?.kind!=='image')||p.tracks.find(t=>t.id===c!.trackId)?.locked)throw new Error('잠기지 않은 자막·이미지를 선택하세요. 이미 연결된 클립은 해당 클립의 추적 검토를 사용하세요.');
   const links=reference.sources.map(({source,sourceClipId})=>({sourceClipId,source:motionSource(source as Clip)})),binding={...createMotionBinding(p,reference.link.source,analysis,sample,time,followScale,reference.link.sourceClipId),...links[0],segments:links.length>1?links.slice(1):undefined},paths=[...(p.motionPaths||[])],existing=paths.find(a=>a.id===analysis.id);if(existing&&JSON.stringify(existing)!==JSON.stringify(analysis))throw new Error('다른 추적 경로에 같은 ID가 있습니다.');if(!existing)paths.push(analysis);

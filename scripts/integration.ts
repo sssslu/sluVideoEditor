@@ -16,7 +16,7 @@ const encoders=await detectEncoders(ctx);console.log('Available encoders:',encod
 const p=newProject();p.name='Integration Korean test';p.width=640;p.height=360;p.media=[media];
 const c=newClip('video-1',media);c.start=.5;c.in=.4;c.duration=2;c.speed=1.5;c.fadeIn=.2;c.fadeOut=.2;c.preset='warm';
 p.clips=[c];
-const t=newClip('text-1');t.start=1;t.duration=1.5;t.text='한글 자막 검증\nSLU STUDIO';t.fontSize=32;t.y=85;t.textStyle='box';t.animation='fade';p.clips.push(t);
+const t=newClip('text-1');t.start=1;t.duration=1.5;t.text='한글 자막 검증\nSLU STUDIO';t.fontSize=32;t.y=85;t.textStyle='box';p.clips.push(t);
 p.tracks.push({id:'video-2',name:'PiP',type:'video',muted:false,hidden:false,locked:false});
 const pip=newClip('video-2',media,1.5);pip.duration=1.5;pip.in=.5;pip.scale=.35;pip.x=175;pip.y=-75;pip.rotation=10;pip.volume=0;pip.keyframes=[{time:0,x:150,y:-75,scale:.3,opacity:.7,rotation:0},{time:1.5,x:175,y:-65,scale:.4,opacity:1,rotation:15}];p.clips.push(pip);
 const common:ExportSettings={width:640,height:360,fps:30,format:'mp4',codec:'h264',encoder:'cpu',quality:'draft'};

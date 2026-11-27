@@ -1,7 +1,7 @@
 import type { Project, MediaAsset,Clip } from './types';
 import {assertSpeedCurve,MIN_SPEED,MAX_SPEED} from './speed';
 import {assertTransitions} from './transitions';
-import {assertCaptionWords,assertCaptionStyle,assertCaptionAnimation,MAX_PROJECT_CAPTION_WORDS} from './captions';
+import {assertCaptionWords,assertCaptionStyle,MAX_PROJECT_CAPTION_WORDS} from './captions';
 import {assertColorGrade,assertColorLut,MAX_PROJECT_LUT_VALUES} from './color';
 import {assertAudioEQ} from './audio-eq';
 import {assertTextRuns} from './text-runs';
@@ -50,18 +50,17 @@ export function assertProject(value:unknown):asserts value is Project {
   if(p.colorLuts!==undefined){if(p.version<5||!Array.isArray(p.colorLuts)||p.colorLuts.length>32)throw new Error('LUT 라이브러리는 프로젝트 형식 5와 최대 32개 항목을 지원합니다.');for(const lut of p.colorLuts){assertColorLut(lut);if(lutIds.has(lut.id))throw new Error('LUT ID가 중복되었습니다.');lutIds.add(lut.id);lutValues+=3*lut.size**3;if(lutValues>MAX_PROJECT_LUT_VALUES)throw new Error('프로젝트의 LUT 데이터가 너무 많습니다.');}}
   const clips=new Set<string>();let captionWords=0;
   for(const c of p.clips){
-    if(!object(c)||!id(c.id)||clips.has(c.id)||!str(c.name,1000)||!tracks.has(c.trackId)||(c.mediaId!==undefined&&(!id(c.mediaId)||!ids.has(c.mediaId)))||(c.text===undefined&&!c.mediaId)||!finite(c.start,0,86400)||!finite(c.duration,.01,86400)||c.start+c.duration>86400.001||!finite(c.in,0,864000)||!finite(c.speed,MIN_SPEED,MAX_SPEED)||!finite(c.volume,0,8)||!finite(c.opacity,0,1)||!finite(c.scale,.01,8)||!finite(c.x,-16384,16384)||!finite(c.y,-16384,16384)||!finite(c.rotation,-3600,3600)||!finite(c.fadeIn,0,86400)||!finite(c.fadeOut,0,86400)||!finite(c.brightness,-1,1)||!finite(c.contrast,0,3)||!finite(c.saturation,0,3)||!finite(c.blur,0,30)||!finite(c.fontSize,4,1000)||!str(c.fontFamily,100)||!color(c.color)||!color(c.textBackground)||!['contain','cover'].includes(c.fit)||!bool(c.flipH)||!bool(c.flipV)||!['none','cinematic','warm','cool','mono','vivid'].includes(c.preset)||!['minimal','bold','box','neon','title'].includes(c.textStyle)||!['left','center','right'].includes(c.align)||!['none','fade','pop','slide'].includes(c.animation)||(c.text!==undefined&&!str(c.text,20000))||!Array.isArray(c.keyframes)||c.keyframes.length>1000)throw new Error('잘못된 클립 설정입니다.');
+    if(!object(c)||!id(c.id)||clips.has(c.id)||!str(c.name,1000)||!tracks.has(c.trackId)||(c.mediaId!==undefined&&(!id(c.mediaId)||!ids.has(c.mediaId)))||(c.text===undefined&&!c.mediaId)||!finite(c.start,0,86400)||!finite(c.duration,.01,86400)||c.start+c.duration>86400.001||!finite(c.in,0,864000)||!finite(c.speed,MIN_SPEED,MAX_SPEED)||!finite(c.volume,0,8)||!finite(c.opacity,0,1)||!finite(c.scale,.01,8)||!finite(c.x,-16384,16384)||!finite(c.y,-16384,16384)||!finite(c.rotation,-3600,3600)||!finite(c.fadeIn,0,86400)||!finite(c.fadeOut,0,86400)||!finite(c.brightness,-1,1)||!finite(c.contrast,0,3)||!finite(c.saturation,0,3)||!finite(c.blur,0,30)||!finite(c.fontSize,4,1000)||!str(c.fontFamily,100)||!color(c.color)||!color(c.textBackground)||!['contain','cover'].includes(c.fit)||!bool(c.flipH)||!bool(c.flipV)||!['none','cinematic','warm','cool','mono','vivid'].includes(c.preset)||!['minimal','bold','box','neon','title'].includes(c.textStyle)||!['left','center','right'].includes(c.align)||(c.text!==undefined&&!str(c.text,20000))||!Array.isArray(c.keyframes)||c.keyframes.length>1000)throw new Error('잘못된 클립 설정입니다.');
     if((c.sourceClipOffset!==undefined||c.sourceClipDuration!==undefined)&&(!finite(c.sourceClipOffset,0,86400)||!finite(c.sourceClipDuration,.01,86400)||c.sourceClipOffset!+c.duration>c.sourceClipDuration!+.002))throw new Error('잘못된 클립 효과 구간입니다.');
     if(c.speedCurve!==undefined){if(p.version<2)throw new Error('속도 곡선은 프로젝트 형식 2 이상이 필요합니다.');assertSpeedCurve(c.speedCurve);}
     if(c.audioEQ!==undefined){if(p.version<6||c.text!==undefined||p.media.find(m=>m.id===c.mediaId)?.kind==='image')throw new Error('EQ는 오디오·영상 클립과 프로젝트 형식 6이 필요합니다.');assertAudioEQ(c.audioEQ);}
     if(c.colorGrade?.hsl!==undefined&&p.version<10)throw new Error('HSL 보정은 프로젝트 형식 10 이상이 필요합니다.');
     if(c.colorGrade!==undefined){if(p.version<5||c.text!==undefined||p.media.find(m=>m.id===c.mediaId)?.kind==='audio')throw new Error('색 보정은 영상·이미지 클립과 프로젝트 형식 5가 필요합니다.');assertColorGrade(c.colorGrade,lutIds);}
     if(c.textRuns!==undefined){if(c.text===undefined)throw new Error('부분 글자 스타일은 텍스트 클립에만 쓸 수 있습니다.');assertTextRuns(c.text,c.textRuns);}
-    if(c.captionWords!==undefined||c.captionStyle!==undefined||c.captionAnimation!==undefined){
+    if(c.captionWords!==undefined||c.captionStyle!==undefined){
       if(p.version<4||c.text===undefined)throw new Error('단어 자막은 텍스트 클립과 프로젝트 형식 4가 필요합니다.');
       if(c.captionWords!==undefined){assertCaptionWords(c.text,c.captionWords,0,c.duration);captionWords+=c.captionWords.length;if(captionWords>MAX_PROJECT_CAPTION_WORDS)throw new Error('프로젝트의 자막 단어가 너무 많습니다.');}
       if(c.captionStyle!==undefined){assertCaptionStyle(c.captionStyle);if(c.captionStyle.font!=='noto-sans-kr'&&p.version<10)throw new Error(`${c.captionStyle.font==='reatic'?'리틱체':'Gmarket Sans'} 자막은 프로젝트 형식 10 이상이 필요합니다.`);}
-      if(c.captionAnimation!==undefined){if(c.captionStyle===undefined)throw new Error('새 자막 애니메이션에는 자막 스타일이 필요합니다.');assertCaptionAnimation(c.captionAnimation);}
     }
     if(c.stabilization!==undefined){if(p.version<2)throw new Error('흔들림 보정에는 프로젝트 형식 2 이상이 필요합니다.');assertStabilization(c.stabilization,ids);}
     if(c.reversal!==undefined){

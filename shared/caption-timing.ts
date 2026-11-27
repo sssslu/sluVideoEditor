@@ -184,7 +184,7 @@ export function splitCaption(clip:Clip,maxChars:number,fps:number):Clip[]{
     return {...piece,id:k?uid():clip.id,text:pieceText,name:pieceText.replace(/\n/g,' ').slice(0,36)||'자막',textRuns:sliceTextRuns(clip.textRuns,from,to,pieceText),captionWords,sourceClipOffset:undefined,sourceClipDuration:undefined};
   });
 }
-const lookKey=(c:Clip)=>JSON.stringify([c.trackId,c.fontSize,c.fontFamily,c.color,c.textBackground,c.textStyle,c.align,c.animation,c.captionStyle,c.captionAnimation,c.x,c.y,c.scale,c.rotation,c.opacity,c.keyframes.length,c.motionBinding?1:0]);
+const lookKey=(c:Clip)=>JSON.stringify([c.trackId,c.fontSize,c.fontFamily,c.color,c.textBackground,c.textStyle,c.align,c.captionStyle,c.x,c.y,c.scale,c.rotation,c.opacity,c.keyframes.length,c.motionBinding?1:0]);
 /** Neighbouring captions on one track joined into longer ones: only captions that look the same,
  * follow each other within `maxGap` seconds and fit `maxChars` and `maxDuration` together. A caption
  * ending a sentence only takes a short follower. */

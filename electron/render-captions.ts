@@ -1,6 +1,5 @@
 import type {Clip,Project} from '../shared/types';
 import {visualTrackEnabled} from '../shared/effects';
-import {joinedCaption} from '../shared/captions';
 import type {CaptionRasterSession,CaptionRasterGroup} from './caption-raster-types';
 import {RawStreamBridge} from './render-stream';
 
@@ -10,7 +9,7 @@ export function captionLayerGroups(project:Project,start:number,end:number,slotO
   const tracks=new Map(project.tracks.map((track,index)=>[track.id,{track,index}]));
   const clips=project.clips.filter(clip=>clip.text!==undefined&&clip.start<end-1e-9&&clip.start+clip.duration>start+1e-9&&visualTrackEnabled(project,tracks.get(clip.trackId)?.track)).sort((a,b)=>tracks.get(a.trackId)!.index-tracks.get(b.trackId)!.index||a.start-b.start);
   const groups:CaptionLayerGroup[]=[];
-  for(const source of clips){const clip=joinedCaption(project,source),rich=!!(clip.captionStyle||clip.motionBinding),slot=slotOf(clip),last=groups.at(-1);if(last&&last.rich===rich&&last.slot===slot)last.clips.push(clip);else groups.push({rich,clips:[clip],slot});}
+  for(const clip of clips){const rich=!!(clip.captionStyle||clip.motionBinding),slot=slotOf(clip),last=groups.at(-1);if(last&&last.rich===rich&&last.slot===slot)last.clips.push(clip);else groups.push({rich,clips:[clip],slot});}
   return groups;
 }
 /** One window owns its loopback inputs. Each producer awaits socket drain

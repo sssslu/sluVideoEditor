@@ -400,7 +400,6 @@
       "textBackground": "#171923",
       "textStyle": "bold",
       "align": "center",
-      "animation": "none",
       "keyframes": []
     },
     {
@@ -434,7 +433,6 @@
       "textBackground": "#171923",
       "textStyle": "title",
       "align": "center",
-      "animation": "fade",
       "keyframes": []
     },
     {
@@ -468,7 +466,6 @@
       "textBackground": "#171923",
       "textStyle": "minimal",
       "align": "center",
-      "animation": "fade",
       "keyframes": []
     },
     {
@@ -502,7 +499,6 @@
       "textBackground": "#171923",
       "textStyle": "bold",
       "align": "center",
-      "animation": "slide",
       "keyframes": []
     },
     {
@@ -536,7 +532,6 @@
       "textBackground": "#171923",
       "textStyle": "minimal",
       "align": "center",
-      "animation": "fade",
       "keyframes": []
     }
   ],

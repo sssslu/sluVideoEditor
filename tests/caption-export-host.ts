@@ -20,7 +20,7 @@ const ctx:EngineContext={ffmpeg:path.resolve('resources/bin/ffmpeg.exe'),ffprobe
 const settings=(fps:number,width=320,height=180):ExportSettings=>({width,height,fps,format:'mp4',codec:'h264',encoder:'cpu',quality:'high',outputPath:path.join(root,`output-${fps}.mp4`)});
 function fixture(fps=120):Project{
   const p=newProject();p.width=320;p.height=180;p.fps=fps;p.background='#000000';
-  const c=newClip('text-1');Object.assign(c,{text:'한글 ABC {\\} 👩‍💻',duration:1.6,start:.003,fontSize:25,y:0,animation:'none',captionStyle:{...defaultCaptionStyle(),background:'line',outlineWidth:1,paddingX:6,paddingY:3,radius:5},captionWords:[{from:0,to:2,start:.101,end:.307,timing:'measured'},{from:3,to:6,start:.307,end:.511,timing:'manual'}],captionAnimation:{entry:'pop',exit:'slide',entrySeconds:.1,exitSeconds:.12,easing:'ease-in-out'},fadeIn:.05,fadeOut:.07,keyframes:[{time:0,x:-25,y:0,scale:.9,opacity:.8,rotation:-5,easing:'ease-in-out'},{time:1.6,x:25,y:0,scale:1.1,opacity:1,rotation:5}]});p.clips=[c];return p;
+  const c=newClip('text-1');Object.assign(c,{text:'한글 ABC {\\} 👩‍💻',duration:1.6,start:.003,fontSize:25,y:0,captionStyle:{...defaultCaptionStyle(),background:'line',outlineWidth:1,paddingX:6,paddingY:3,radius:5},captionWords:[{from:0,to:2,start:.101,end:.307,timing:'measured'},{from:3,to:6,start:.307,end:.511,timing:'manual'}],fadeIn:.05,fadeOut:.07,keyframes:[{time:0,x:-25,y:0,scale:.9,opacity:.8,rotation:-5,easing:'ease-in-out'},{time:1.6,x:25,y:0,scale:1.1,opacity:1,rotation:5}]});p.clips=[c];return p;
 }
 app.on('window-all-closed',()=>{});
 let reference:BrowserWindow|undefined;
@@ -46,16 +46,16 @@ try{
   }
   checks.push('Cropped hidden-renderer RGBA exactly equals full-canvas shared preview raster at 30/60/120 fps, portrait and scaled output');
   {
-    const p=fixture(120),c=p.clips[0];c.start=.1;c.duration=.2;c.keyframes=[];c.captionWords=[];c.captionAnimation=undefined;c.fadeIn=0;c.fadeOut=0;c.animation='none';const s=settings(120),session=await factory(p,s),group=await session.prepare(p.clips);
+    const p=fixture(120),c=p.clips[0];c.start=.1;c.duration=.2;c.keyframes=[];c.captionWords=[];c.fadeIn=0;c.fadeOut=0;const s=settings(120),session=await factory(p,s),group=await session.prepare(p.clips);
     for(const [frame,visible] of [[11,false],[12,true],[35,true],[36,false]] as const){const rgba=await session.frame(group,frame);let alpha=0;for(let i=3;i<rgba.length;i+=4)alpha+=rgba[i];assert.equal(alpha>0,visible,`Fractional caption exposure at frame ${frame}`);}await session.close();
   }
   checks.push('Fractional .1 + .2 second clip exposure has exact half-open output-frame boundaries at120 fps');
   {
     const p=fixture(120),original=p.clips[0],halves=splitClip(original,original.start+.307)!;assert.ok(halves);const s=settings(120),session=await factory(p,s),whole=await session.prepare([original]),parts=await session.prepare(halves);
     const expanded=async(group:typeof whole,frame:number)=>{const data=await session.frame(group,frame),full=Buffer.alloc(s.width*s.height*4);for(let y=0;y<group.height;y++)Buffer.from(data.buffer,data.byteOffset+y*group.width*4,group.width*4).copy(full,((group.y+y)*s.width+group.x)*4);return full;};
-    for(const frame of [1,12,36,37,38,61,180])assert.ok((await expanded(whole,frame)).equals(await expanded(parts,frame)),`Split changed original animation/word clock at ${frame}`);await session.close();
+    for(const frame of [1,12,36,37,38,61,180])assert.ok((await expanded(whole,frame)).equals(await expanded(parts,frame)),`Split changed original fade/word clock at ${frame}`);await session.close();
   }
-  checks.push('Split rich captions preserve complete sentence, active word and original fade/animation/keyframe state pixel-for-pixel');
+  checks.push('Split rich captions preserve complete sentence, active word and original fade/keyframe state pixel-for-pixel');
   {
     const p=fixture(120),c=p.clips[0];c.duration=.6;c.keyframes[1].time=.6;const s=settings(120),frames=Math.ceil((c.start+c.duration)*120-1e-7),rawPath=path.join(root,'reference.rgba'),raw=await fs.open(rawPath,'w');
     await fs.writeFile(path.join(root,'raw-fixture.json'),JSON.stringify({project:p,settings:s,frames},null,2));
@@ -67,7 +67,7 @@ try{
   checks.push('Actual FFmpeg window output exactly matches full-canvas preview raster passed through the same RGB/YUV compositing at every frame');
   {
     const p=fixture(30);p.tracks=[{id:'legacy-bottom',name:'Legacy bottom',type:'text',hidden:false,muted:false,locked:false},{id:'rich-middle',name:'Rich middle',type:'text',hidden:false,muted:false,locked:false},{id:'legacy-top',name:'Legacy top',type:'text',hidden:false,muted:false,locked:false}];
-    const bottom=newClip('legacy-bottom'),rich=newClip('rich-middle'),top=newClip('legacy-top');for(const c of [bottom,rich,top])Object.assign(c,{start:0,duration:.5,x:0,y:0,animation:'none',fadeIn:0,fadeOut:0});
+    const bottom=newClip('legacy-bottom'),rich=newClip('rich-middle'),top=newClip('legacy-top');for(const c of [bottom,rich,top])Object.assign(c,{start:0,duration:.5,x:0,y:0,fadeIn:0,fadeOut:0});
     Object.assign(bottom,{text:'A',fontSize:80,color:'#ffffff'});Object.assign(top,{text:'B',fontSize:50,color:'#00ff00'});Object.assign(rich,{text:' ',fontSize:80,textBackground:'#ff0000',captionStyle:{...defaultCaptionStyle(),outlineWidth:0,background:'box',paddingX:100,paddingY:20,maxWidth:1}});p.clips=[top,bottom,rich];
     const actualPath=path.join(root,'mixed.yuv');await lifecycle.track(renderProjectDirect(p,settings(30),ctx,undefined,lifecycle.signal,{start:0,duration:.5,frames:15,destination:actualPath}));
     const rgb=(await runProcess(ctx.ffmpeg,['-v','error','-f','rawvideo','-pixel_format','yuv420p','-video_size','320x180','-framerate','30','-i',actualPath,'-vf','scale=in_color_matrix=bt709','-frames:v','1','-pix_fmt','rgb24','-f','rawvideo','pipe:1'],{maxOutputBytes:1024*1024})).stdout;

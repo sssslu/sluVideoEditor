@@ -245,7 +245,7 @@ export function validateProject(project:Project,settings:ExportSettings):void {
     validNumber(c.scale,.01,8,'크기');validNumber(c.x,-16384,16384,'X 위치');validNumber(c.y,-16384,16384,'Y 위치');validNumber(c.rotation,-3600,3600,'회전');validNumber(c.opacity,0,1,'불투명도');
     validNumber(c.fadeIn,0,86400,'페이드 인');validNumber(c.fadeOut,0,86400,'페이드 아웃');validNumber(c.brightness,-1,1,'밝기');validNumber(c.contrast,0,3,'대비');validNumber(c.saturation,0,3,'채도');validNumber(c.blur,0,30,'블러');
     if(c.sourceClipOffset!==undefined||c.sourceClipDuration!==undefined){validNumber(c.sourceClipOffset,0,86400,'효과 시작점');validNumber(c.sourceClipDuration,.01,86400,'효과 전체 길이');if(c.sourceClipOffset!+c.duration>c.sourceClipDuration!+.002)throw new Error('클립 효과 구간이 원래 길이를 초과합니다.');}
-    if(!['contain','cover'].includes(c.fit)||!['none','cinematic','warm','cool','mono','vivid'].includes(c.preset)||!['none','fade','pop','slide'].includes(c.animation))throw new Error('클립 효과 설정이 올바르지 않습니다.');
+    if(!['contain','cover'].includes(c.fit)||!['none','cinematic','warm','cool','mono','vivid'].includes(c.preset))throw new Error('클립 효과 설정이 올바르지 않습니다.');
     if(c.text!==undefined){
       if(typeof c.text!=='string'||c.text.length>20000)throw new Error('텍스트는 20,000자 이내로 입력해 주세요.');
       validNumber(c.fontSize,4,1000,'글자 크기');if(!/^#[\da-f]{6}$/i.test(c.color)||!/^#[\da-f]{6}$/i.test(c.textBackground))throw new Error('텍스트 색상이 올바르지 않습니다.');
@@ -287,7 +287,7 @@ function fadeExpression(c:Clip,clock:string){
   const terms=['1'];if(c.fadeIn>0)terms.push(`max(0,${time}/${dec(c.fadeIn)})`);if(c.fadeOut>0)terms.push(`max(0,(${dec(envelope.duration)}-${time})/${dec(c.fadeOut)})`);
   return terms.reduce((a,b)=>`min(${a},${b})`);
 }
-function alphaExpression(c:Clip,clock:string){let alpha=`(${keyframeExpression(c,'opacity',clock)})*(${fadeExpression(c,clock)})`;if(c.text!==undefined&&c.animation!=='none'){const envelope=clipEnvelope(c),time=`(${clock}+${dec(envelope.time)})`;alpha+=`*min(1,min(max(0,${time}/0.25),max(0,(${dec(envelope.duration)}-${time})/0.2)))`;}return alpha;}
+function alphaExpression(c:Clip,clock:string){return `(${keyframeExpression(c,'opacity',clock)})*(${fadeExpression(c,clock)})`;}
 
 function colorFilters(c:Clip,outputScale:number):string[] {
   const filters:string[]=[];
@@ -350,9 +350,8 @@ function tempoFilters(speed:number){const values:string[]=[];while(speed>2){valu
 function assTime(seconds:number){const centis=Math.round(Math.max(0,seconds)*100),hours=Math.floor(centis/360000),minutes=Math.floor(centis/6000)%60,secs=Math.floor(centis/100)%60;return `${hours}:${String(minutes).padStart(2,'0')}:${String(secs).padStart(2,'0')}.${String(centis%100).padStart(2,'0')}`;}
 function assColor(hex:string){return `&H00${hex.slice(5,7)}${hex.slice(3,5)}${hex.slice(1,3)}`.toUpperCase();}
 function assAlpha(opacity:number){return Math.round((1-clamp(opacity,0,1))*255).toString(16).padStart(2,'0').toUpperCase();}
-function textState(c:Clip,time:number){const k=interpolate(c,time),envelope=clipEnvelope(c,time);let opacity=k.opacity*Math.min(1,c.fadeIn?Math.max(0,envelope.time/c.fadeIn):1,c.fadeOut?Math.max(0,(envelope.duration-envelope.time)/c.fadeOut):1);let scale=k.scale,y=k.y;
-  if(c.animation!=='none'){const entry=clamp(envelope.time/.25,0,1),exit=clamp((envelope.duration-envelope.time)/.2,0,1);opacity*=Math.min(entry,exit);if(c.animation==='pop')scale*=.8+.2*(1-Math.pow(1-entry,3));if(c.animation==='slide')y+=(1-entry)*40;}
-  return {...k,opacity,scale,y};
+function textState(c:Clip,time:number){const k=interpolate(c,time),envelope=clipEnvelope(c,time);let opacity=k.opacity*Math.min(1,c.fadeIn?Math.max(0,envelope.time/c.fadeIn):1,c.fadeOut?Math.max(0,(envelope.duration-envelope.time)/c.fadeOut):1);
+  return {...k,opacity};
 }
 
 /** Render one event per motion segment; libass interpolates motion/scale/rotation at output frame rate. */
@@ -369,9 +368,8 @@ export function buildAss(project:Project,settings:ExportSettings,range?:{start:n
     const breaks=new Set([0,c.duration,...c.keyframes.map(k=>k.time)]),envelope=clipEnvelope(c);
     if(c.keyframes.some(k=>k.easing&&k.easing!=='linear'))for(let frame=Math.max(Math.ceil(c.start*settings.fps),range?Math.floor(range.start*settings.fps)-1:0),end=Math.min((c.start+c.duration)*settings.fps,range?Math.ceil(range.end*settings.fps)+1:Infinity);frame<end;frame++)breaks.add(frame/settings.fps-c.start);
     if(c.fadeIn>0)breaks.add(c.fadeIn-envelope.time);if(c.fadeOut>0)breaks.add(envelope.duration-c.fadeOut-envelope.time);
-    if(c.animation!=='none'){breaks.add(.25-envelope.time);breaks.add(envelope.duration-.2-envelope.time);for(let t=.05;t<.25;t+=.05)breaks.add(t-envelope.time);}
     // Product of alpha ramps and keyframes is sampled during ramps for close preview parity.
-    if(c.keyframes.length&&(c.fadeIn||c.fadeOut||c.animation!=='none'))for(let t=.1;t<c.duration;t+=Math.max(.1,c.duration/2000)){const phase=t+envelope.time;if(phase<c.fadeIn||phase>envelope.duration-c.fadeOut||phase<.25||phase>envelope.duration-.2)breaks.add(t);}
+    if(c.keyframes.length&&(c.fadeIn||c.fadeOut))for(let t=.1;t<c.duration;t+=Math.max(.1,c.duration/2000)){const phase=t+envelope.time;if(phase<c.fadeIn||phase>envelope.duration-c.fadeOut)breaks.add(t);}
     const times=[...breaks].filter(t=>t>=0&&t<=c.duration).sort((a,b)=>a-b);
     const literal=(c.text||'').replace(/\\/g,'＼').replace(/\{/g,'｛').replace(/\}/g,'｝').replace(/\r?\n/g,'\\N');
     for(let i=0;i<times.length-1;i++){

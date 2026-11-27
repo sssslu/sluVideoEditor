@@ -29,7 +29,6 @@ export interface CaptionStyle {
 /** Styling for one span of a text clip's characters (UTF-16 offsets on grapheme boundaries).
  * An omitted property falls back to the clip's own font, weight, size or color. */
 export interface TextRun {from:number;to:number;font?:CaptionStyle['font'];weight?:CaptionStyle['weight'];size?:number;color?:string}
-export interface CaptionAnimation {entry:'none'|'fade'|'pop'|'slide';exit:'none'|'fade'|'pop'|'slide';entrySeconds:number;exitSeconds:number;easing:Easing}
 export interface ColorPoint {x:number;y:number}
 export type ColorChannel='master'|'red'|'green'|'blue';
 export type ColorCurves=Partial<Record<ColorChannel,ColorPoint[]>>;
@@ -47,8 +46,8 @@ export interface Clip {
   fadeIn:number; fadeOut:number; opacity:number; scale:number; x:number; y:number; rotation:number; fit:'contain'|'cover'; flipH:boolean; flipV:boolean;
   brightness:number; contrast:number; saturation:number; blur:number; preset:'none'|'cinematic'|'warm'|'cool'|'mono'|'vivid';
   text?:string; fontSize:number; fontFamily:string; color:string; textBackground:string; textStyle:TextStyle; align:'left'|'center'|'right';
-  animation:'none'|'fade'|'pop'|'slide'; keyframes:Keyframe[];
-  captionWords?:CaptionWord[];captionStyle?:CaptionStyle;captionAnimation?:CaptionAnimation;
+  keyframes:Keyframe[];
+  captionWords?:CaptionWord[];captionStyle?:CaptionStyle;
   /** Per-character styling inside one text clip; drawn with the caption style (captionStyle). */
   textRuns?:TextRun[];
   colorGrade?:ColorGrade;

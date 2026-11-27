@@ -71,7 +71,7 @@ try{
     details.push({encoder,output,frames:73,maximumMean,maximumInkMean,maximumPixelsOver16,windows:observed.windows,encoderPid:encoders[0].pid});
     checks.push(`${encoder}: real packaged renderer loads both caption families and emoji offline, exports73 frames at120fps matching source reference within codec tolerance, and closes its sandbox`);
   }
-  const cancelOutput=path.join(root,`cancel-${Date.now()}.mp4`),cancelProject={...fixture.project,width:3840,height:2160,clips:fixture.project.clips.map(c=>({...c,start:0,duration:600,fontSize:200,keyframes:[],captionAnimation:undefined,animation:'none'}))};
+  const cancelOutput=path.join(root,`cancel-${Date.now()}.mp4`),cancelProject={...fixture.project,width:3840,height:2160,clips:fixture.project.clips.map(c=>({...c,start:0,duration:600,fontSize:200,keyframes:[]}))};
   const job=await start(cancelProject,{...fixture.settings,width:3840,height:2160,fps:60,encoder:'nvenc'},cancelOutput,'cancel');
   for(let i=0;i<400;i++){if(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().length>1&&globalThis.captionSpawns.some(s=>s.phase==='cancel'&&s.args.includes('h264_nvenc')&&s.code===undefined)))break;await new Promise(r=>setTimeout(r,25));}
   assert.ok(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().length>1&&globalThis.captionSpawns.some(s=>s.phase==='cancel'&&s.args.includes('h264_nvenc')&&s.code===undefined)),'Cancellation must exercise both a live caption renderer and an actual running encoder');

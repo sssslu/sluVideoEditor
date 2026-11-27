@@ -4,7 +4,7 @@ import { newClip, startingProject, uid } from '../shared/project';
 import {settleOverlaps} from './timeline-model';
 import {assertSpeedCurve,clipSourceSpan,speedCurveMean,MIN_SPEED,MAX_SPEED,MAX_CURVE_SPEED} from '../shared/speed';
 import {reconcileTransitions} from '../shared/transition-edits';
-import {assertCaptionWords,trimCaptionWords,defaultCaptionStyle,defaultCaptionAnimation,resizeCaptionStyle,unifyTextClips} from '../shared/captions';
+import {assertCaptionWords,trimCaptionWords,defaultCaptionStyle,resizeCaptionStyle,unifyTextClips} from '../shared/captions';
 import {previewProxyPath} from '../shared/media-clock';
 import {reconcileMotion,resizeMotionBinding} from '../shared/motion';
 import {reconcileEnhancementSources} from '../shared/processing';
@@ -120,14 +120,14 @@ export function cuesToClips(cues:SubtitleCue[],trackId:string,project:Project,of
     if(end<=start)throw new Error(`${index+1}번째 자막이 선택한 클립 구간을 벗어납니다.`);
     const duration=Math.max(minimum,end-start);start=Math.min(start,upper-duration);
     const captionWords=trimCaptionWords(cue.words?.map(word=>({...word,start:word.start+offset,end:word.end+offset})),start,start+duration);
-    return [{...newClip(trackId),id:uid(),name:cue.text.replace(/\n/g,' ').slice(0,36),text:cue.text,start,duration,y:project.height*.32,fontSize:clamp(Math.round(project.height*.052),4,1000),textStyle:'bold' as const,animation:'fade' as const,captionWords,captionStyle:defaultCaptionStyle(),captionAnimation:defaultCaptionAnimation()}];
+    return [{...newClip(trackId),id:uid(),name:cue.text.replace(/\n/g,' ').slice(0,36),text:cue.text,start,duration,y:project.height*.32,fontSize:clamp(Math.round(project.height*.052),4,1000),textStyle:'bold' as const,captionWords,captionStyle:defaultCaptionStyle()}];
   });
 }
 function retimeClip(clip:Clip,rawDuration:number,fps:number):Clip {
   const duration=Math.max(minClipDuration(fps),rawDuration),factor=duration/clip.duration;
   if(rawDuration+1e-10<minClipDuration(fps))throw new Error('이 속도에서는 클립이 최소 길이보다 짧아집니다. 속도를 낮추거나 클립을 늘리세요.');
   if(clip.start+duration>86400||[clip.fadeIn*factor,clip.fadeOut*factor,(clip.sourceClipOffset??0)*factor,(clip.sourceClipDuration??0)*factor].some(v=>v>86400))throw new Error('이 속도에서는 클립 또는 효과 구간이 24시간을 넘습니다.');
-  return {...clip,duration,fadeIn:clip.fadeIn*factor,fadeOut:clip.fadeOut*factor,keyframes:clip.keyframes.map(k=>({...k,time:k.time*factor})),captionWords:clip.captionWords?.map(word=>({...word,start:word.start*factor,end:word.end*factor})),captionAnimation:clip.captionAnimation?{...clip.captionAnimation,entrySeconds:clip.captionAnimation.entrySeconds*factor,exitSeconds:clip.captionAnimation.exitSeconds*factor}:undefined,sourceClipOffset:clip.sourceClipOffset===undefined?undefined:clip.sourceClipOffset*factor,sourceClipDuration:clip.sourceClipDuration===undefined?undefined:clip.sourceClipDuration*factor};
+  return {...clip,duration,fadeIn:clip.fadeIn*factor,fadeOut:clip.fadeOut*factor,keyframes:clip.keyframes.map(k=>({...k,time:k.time*factor})),captionWords:clip.captionWords?.map(word=>({...word,start:word.start*factor,end:word.end*factor})),sourceClipOffset:clip.sourceClipOffset===undefined?undefined:clip.sourceClipOffset*factor,sourceClipDuration:clip.sourceClipDuration===undefined?undefined:clip.sourceClipDuration*factor};
 }
 export function changeClipSpeed(clip:Clip,speed:number,fps:number):Clip {
   if(!Number.isFinite(speed)||speed<MIN_SPEED||speed>MAX_SPEED)throw new Error('재생 속도는 10~50000%여야 합니다.');

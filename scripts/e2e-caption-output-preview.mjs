@@ -64,6 +64,6 @@ try{
  }
  const sourceFiles=['src/preview/renderer.ts','src/preview/fallback.ts','src/preview/math.ts','src/preview/text.ts','src/captions/layout.ts','src/captions/font.ts','shared/captions.ts'];
  const hash=async file=>createHash('sha256').update(await fs.readFile(file)).digest('hex');
- const report={version:JSON.parse(await fs.readFile('package.json','utf8')).version,executable,width,height,fps,details,sourceHashes:Object.fromEntries(await Promise.all(sourceFiles.map(async file=>[file,await hash(file)]))),fixtureSha256:await hash(fixturePath),actualSha256:await hash(actualPath),checks:['Every actual 120fps export frame compared with WebGL2 preview and CPU preview through the same BT709 4:2:0 conversion','Word boundaries, fractional exposure, easing, pop/slide animation, opacity, translation, scale, rotation and emoji included'],errors};
+ const report={version:JSON.parse(await fs.readFile('package.json','utf8')).version,executable,width,height,fps,details,sourceHashes:Object.fromEntries(await Promise.all(sourceFiles.map(async file=>[file,await hash(file)]))),fixtureSha256:await hash(fixturePath),actualSha256:await hash(actualPath),checks:['Every actual 120fps export frame compared with WebGL2 preview and CPU preview through the same BT709 4:2:0 conversion','Word boundaries, fractional exposure, easing, opacity, translation, scale, rotation and emoji included'],errors};
  await fs.writeFile(path.join(root,'results.json'),JSON.stringify(report,null,2));console.log(JSON.stringify({fps,details,checks:report.checks}));
 }finally{await app.close();}

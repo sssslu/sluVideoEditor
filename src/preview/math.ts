@@ -2,7 +2,6 @@ import type {Clip,MediaAsset,Project,Track} from '../../shared/types';
 import {clipEnvelope,interpolate} from '../../shared/project';
 import {visualTrackEnabled,audioTrackEnabled} from '../../shared/effects';
 import {clipSourceTime} from '../../shared/speed';
-import {captionAnimationState} from '../../shared/captions';
 import {compileTransitions,type ClipExposure,type TransitionPlan} from '../../shared/transitions';
 
 export const clamp=(n:number,a=0,b=1)=>Math.max(a,Math.min(b,n));
@@ -14,7 +13,7 @@ export const EMPTY_CROP:Crop={left:0,top:0,right:0,bottom:0};
 export const EMPTY_MASK:Mask={type:'none',x:.5,y:.5,width:1,height:1,feather:0,invert:false};
 export function hexRgb(hex:string):[number,number,number]{return [parseInt(hex.slice(1,3),16)/255,parseInt(hex.slice(3,5),16)/255,parseInt(hex.slice(5,7),16)/255];}
 export function fadeAt(clip:Clip,local:number){const e=clipEnvelope(clip,local);return Math.min(clip.fadeIn?clamp(e.time/clip.fadeIn):1,clip.fadeOut?clamp((e.duration-e.time)/clip.fadeOut):1);}
-export function clipState(clip:Clip,time:number){const local=time-clip.start,state=interpolate(clip,local),animation=captionAnimationState(clip,local);return {...state,opacity:state.opacity*fadeAt(clip,local)*animation.opacity,scale:state.scale*animation.scale,y:state.y+animation.y};}
+export function clipState(clip:Clip,time:number){const local=time-clip.start,state=interpolate(clip,local);return {...state,opacity:state.opacity*fadeAt(clip,local)};}
 export function fittedSize(sourceWidth:number,sourceHeight:number,project:Pick<Project,'width'|'height'>,fit:Clip['fit'],crop:Crop=EMPTY_CROP){
   const sw=Math.max(1,sourceWidth*(1-crop.left-crop.right)),sh=Math.max(1,sourceHeight*(1-crop.top-crop.bottom));
   const ratio=(fit==='cover'?Math.max:Math.min)(project.width/sw,project.height/sh);
