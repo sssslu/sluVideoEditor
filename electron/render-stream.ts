@@ -1,5 +1,9 @@
 import net, {type Server, type Socket} from 'node:net';
 
+/** The reader of a bridge is the export encoder; losing it is reported as an encoder fault so the
+ * exporter can tell it from a failed render window. */
+const encoderFault=(error:Error)=>Object.assign(error,{exportFault:'encoder' as const});
+
 /** A private loopback stream with bounded Node/OS backpressure. The FFmpeg
  * encoder reads consumerUrl; render workers connect to producerUrl. No raw
  * frame intermediates are written to disk. */
@@ -34,8 +38,8 @@ export class RawStreamBridge {
     };
     const consumer=await listen(socket=>{
       if(this.consumer||this.ended){socket.destroy();return;}
-      this.consumer=socket;socket.setNoDelay(true);socket.on('error',error=>this.fail(error));
-      socket.on('close',()=>{if(!this.ended)this.fail(new Error('인코더가 영상 스트림 연결을 종료했습니다.'));});
+      this.consumer=socket;socket.setNoDelay(true);socket.on('error',error=>this.fail(encoderFault(error)));
+      socket.on('close',()=>{if(!this.ended)this.fail(encoderFault(new Error('인코더가 영상 스트림 연결을 종료했습니다.')));});
       this.resolveConsumer(socket);
     });
     this.consumerServer=consumer.server;this.consumerUrl=consumer.url;
@@ -48,7 +52,7 @@ export class RawStreamBridge {
     if(this.failure)throw this.failure;if(this.ended)throw new Error('영상 스트림이 이미 닫혔습니다.');
     const socket=await this.consumerReady;if(this.failure)throw this.failure;
     this.peakBufferedBytes=Math.max(this.peakBufferedBytes,socket.writableLength+buffer.length);
-    await new Promise<void>((resolve,reject)=>socket.write(buffer,error=>error?reject(error):resolve()));this.totalBytes+=buffer.length;
+    await new Promise<void>((resolve,reject)=>socket.write(buffer,error=>error?reject(encoderFault(error)):resolve()));this.totalBytes+=buffer.length;
   }
   /** Waits for one render window of `bytes`. With `frameBytes`, a window that ends a few whole frames
    * early (its worker exited normally but a source ran out) is completed by repeating its last frame,

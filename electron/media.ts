@@ -5,6 +5,7 @@ import {setMaxListeners} from 'node:events';
 import { createHash, randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import type { Clip, ExportSettings, MediaAsset, Project } from '../shared/types';
 import { clipEnvelope, interpolate, projectDuration } from '../shared/project';
 import {audioTrackEnabled,visualTrackEnabled,ease,clipCrop} from '../shared/effects';
@@ -46,6 +47,24 @@ export function exportAudioArguments(format:ExportSettings['format']):string[]{
 }
 /** Only catches overs. Lossless outputs pass every sample up to full scale untouched;
  * Opus keeps a little headroom because decoded lossy audio overshoots. */
+// Threads of one render-window worker. The worker is the slow half of an export (the encoder mostly
+// waits for it), and the resizes and conversions in its filter graph are what scale with cores:
+// measured on 8 cores with 1440p60 screen recordings, 2 filter threads gave 41 frames a second, 6 or 8
+// gave 66 on the same graph. A second decoder thread per input adds about 6%; more adds nothing.
+const FILTER_THREADS=String(Math.max(2,Math.min(8,os.availableParallelism()-2))),DECODE_THREADS=os.availableParallelism()>=4?'2':'1';
+/** Which part of an export attempt failed first: only these two are worth another attempt. */
+type ExportFault='encoder'|'window';
+const faultOf=(error:unknown):ExportFault|undefined=>(error as {exportFault?:ExportFault}|null|undefined)?.exportFault;
+/** What a failed export attempt may try next. A render window that failed while it used GPU decode,
+ * scale or transitions is redone on the CPU; a GPU encoder that stopped by itself is replaced by the
+ * CPU encoder when the encoder was chosen automatically. Every other failure (a source that changed, a
+ * full disk, a broken filter graph, a missing caption font) would fail again, later, at the same place. */
+export function exportRetry(error:unknown,state:{usedGpuProcessing:boolean;encoder:string;automaticEncoder:boolean}):'cpu-processing'|'cpu-encoder'|undefined{
+  if(isAbort(error)||isMissingCaptionFont(error))return undefined;
+  if(faultOf(error)==='window')return state.usedGpuProcessing?'cpu-processing':undefined;
+  if(faultOf(error)==='encoder')return state.automaticEncoder&&/_nvenc$|_qsv$|_amf$/.test(state.encoder)?'cpu-encoder':undefined;
+  return undefined;
+}
 export const exportLimiter=(format:ExportSettings['format'])=>`alimiter=limit=${format==='webm'?'0.97':'1'}:level=0:latency=1`;
 /** A combined clip's render keeps transparency and every sample as mixed: FFV1 with alpha in
  * 4:4:4 and 32-bit float PCM. The final export limits the mix later, so none is applied here. */
@@ -416,15 +435,30 @@ async function chooseEncoder(settings:ExportSettings,ctx:EngineContext,signal?:A
   return ['nvenc','qsv','amf'].map(s=>`${base}_${s}`).find(e=>supported.includes(e))||cpu;
 }
 
+/** Nothing animates, fades, rotates, recolours, crops or masks the picture: every frame is the opaque
+ * source frame at one fixed size and position. */
+const steadyPicture=(clip:Clip)=>clip.rotation===0&&clip.opacity===1&&!clip.flipH&&!clip.flipV&&clip.fadeIn===0&&clip.fadeOut===0&&!clip.keyframes.length&&clip.preset==='none'&&clip.brightness===0&&clip.contrast===1&&clip.saturation===1&&clip.blur===0&&!hasColorGrade(clip.colorGrade)&&!Object.values(clipCrop(clip)).some(value=>value!==0)&&!clip.chromaKey?.enabled&&!(clip.mask&&clip.mask.type!=='none')&&!clip.motionBinding;
+/** A steady picture that is also neither zoomed nor moved: the source frame fitted to the canvas. */
+const untouchedPicture=(clip:Clip)=>clip.scale===1&&clip.x===0&&clip.y===0&&steadyPicture(clip);
+// Converting an alpha-bearing clip directly to YUV would lose transparency.
+// Inspect the actual source instead of trusting project metadata. Unknown or
+// palette pixel formats conservatively keep the normal compositing path.
+async function opaqueSource(media:MediaAsset,ctx:EngineContext,signal?:AbortSignal):Promise<boolean>{
+  try{const stream=await sourceVideoInfo(media,ctx,signal);return !!stream?.pix_fmt&&!videoHasAlpha(stream);}
+  catch(error){if(isAbort(error))throw error;return false;}
+}
 export async function canUseNativeBase(clip:Clip|undefined,media:MediaAsset|undefined,duration:number,ctx:EngineContext,signal?:AbortSignal):Promise<boolean>{
-  if(!clip||!media||media.kind!=='video'||clip.start!==0||clip.duration<duration||clip.speed!==1||clip.speedCurve||clip.scale!==1||clip.x!==0||clip.y!==0||clip.rotation!==0||clip.opacity!==1||clip.flipH||clip.flipV||clip.fadeIn!==0||clip.fadeOut!==0||clip.keyframes.length||clip.preset!=='none'||clip.brightness!==0||clip.contrast!==1||clip.saturation!==1||clip.blur!==0||hasColorGrade(clip.colorGrade))return false;
-  if(Object.values(clipCrop(clip)).some(value=>value!==0)||clip.chromaKey?.enabled||(clip.mask&&clip.mask.type!=='none'))return false;
-  // Converting an alpha-bearing clip directly to YUV would lose transparency.
-  // Inspect the actual source instead of trusting project metadata. Unknown or
-  // palette pixel formats conservatively keep the normal compositing path.
-  try{
-    const stream=await sourceVideoInfo(media,ctx,signal);return !!stream?.pix_fmt&&!videoHasAlpha(stream);
-  }catch(error){if(isAbort(error))throw error;return false;}
+  if(!clip||!media||media.kind!=='video'||clip.start!==0||clip.duration<duration||clip.speed!==1||clip.speedCurve||!untouchedPicture(clip))return false;
+  return opaqueSource(media,ctx,signal);
+}
+/** A steady video clip (plain cut, or a fixed zoom and position) can be drawn as an opaque YUV layer:
+ * one resize straight to its final size. The RGBA layer path converts at source size, resizes to the
+ * canvas, and for a zoom goes through 16-bit premultiplied RGBA at the zoomed size; on a 1440p screen
+ * recording zoomed 1.5x that ran at 18 frames a second against about 180 here. The decision depends
+ * on the clip alone, never on the render window, so a clip follows one pixel path for its whole length. */
+export async function canDrawOpaque(clip:Clip|undefined,media:MediaAsset|undefined,ctx:EngineContext,signal?:AbortSignal):Promise<boolean>{
+  if(!clip||!media||media.kind!=='video'||!steadyPicture(clip))return false;
+  return opaqueSource(media,ctx,signal);
 }
 
 const cudaAssets=new ProbeCache<boolean>();
@@ -537,10 +571,16 @@ export async function renderProjectDirect(project:Project,settings:ExportSetting
     const colors=new Map(await Promise.all([...new Map(visuals.map(clip=>[clip.mediaId!,assets.get(clip.mediaId!)!])).values()].map(async media=>[media.id,await sourceColor(media,ctx,signal)] as const)));
     const cudaBase=!!nativeBase&&colors.get(first.mediaId!)?.matrix==='bt709'&&await canUseCudaScale(assets.get(first.mediaId!)!,ctx,signal);
     if(cudaBase)ctx.diagnostics?.({event:'gpu-processing',backend:'cuda',operations:['decode','scale'],clipId:first.id});
+    // Steady clips outside transitions skip the RGBA layer path (see canDrawOpaque). The zoomed picture
+    // is made whole before the overlay clips it, so very large zooms keep the bounded RGBA path.
+    const zoomed=(c:Clip)=>({w:Math.max(2,Math.trunc(width*c.scale/2)*2),h:Math.max(2,Math.trunc(height*c.scale/2)*2)}),drawable=(c:Clip)=>{const size=zoomed(c);return size.w*size.h<=Math.max(34_000_000,width*height);};
+    const opaque=new Set<string>();
+    if(format!=='wav'&&!settings.intermediate)for(const c of visuals)if(!(nativeBase&&c===first)&&!transitionClips.has(c.id)&&drawable(c)&&await canDrawOpaque(c,assets.get(c.mediaId||''),ctx,signal))opaque.add(c.id);
+    if(window&&format!=='wav')ctx.diagnostics?.({event:'window-layers',nativeBase:!!nativeBase,opaque:opaque.size,rgba:visuals.length-opaque.size-(nativeBase?1:0)});
     const inputArgs:string[]=[],inputIndex=new Map<string,number>();
     for(const c of inputs){
       const asset=assets.get(c.mediaId!)!;await fs.access(asset.path);inputIndex.set(c.id,inputIndex.size);
-      inputArgs.push('-thread_queue_size','8','-threads','1');
+      inputArgs.push('-thread_queue_size','8','-threads',DECODE_THREADS);
       if(cudaBase&&c.id===first.id)inputArgs.push('-hwaccel','cuda','-hwaccel_output_format','cuda');
       if(asset.kind==='video')inputArgs.push(...videoDecoderArgs(await sourceVideoInfo(asset,ctx,signal)));
       const rawFrom=window?Math.max(asset.kind==='image'?exposure(c).visualFrom:clipTimelineTime(c,0),windowStart-c.start-.5):0,from=window&&asset.kind==='image'?Math.floor(rawFrom*fps+1e-7)/fps:rawFrom,to=window?Math.min(exposure(c).visualTo,windowEnd-c.start+.5):c.duration;
@@ -598,6 +638,16 @@ export async function renderProjectDirect(project:Project,settings:ExportSetting
       for(let i=nativeBase?1:0;i<visuals.length;i++){
         const c=visuals[i],range=exposure(c),phase=clipPhase(c),localClock=phase?`(t-${phase})`:'t',index=inputIndex.get(c.id)!;let layerInput=`${index}:V:0`;
         const color=colors.get(c.mediaId!)!;
+        if(opaque.has(c.id)){
+          // Same resize as the native base, so an untouched clip looks the same wherever it sits; a zoom
+          // is folded into that one resize (same even size and same placement as the RGBA path, which
+          // resizes twice and is a little softer). A picture narrower than the canvas is centred by the
+          // overlay instead of padded, and the overlay clips whatever a zoom pushes outside the canvas.
+          const cover=c.fit==='cover',size=zoomed(c),placed=(axis:'x'|'y')=>`(${axis==='x'?'W-w':'H-h'})/2+(${keyframeExpression(c,axis,`(t+${windowFrame}/${dec(fps)}-${dec(c.start)})`)})*${dec(axis==='x'?width/project.width:height/project.height)}`;
+          graph.push(`[${layerInput}]${[...timing(c),`${color.prefix}scale=${size.w}:${size.h}:force_original_aspect_ratio=${cover?'increase':'decrease'}:force_divisible_by=2:reset_sar=1:flags=bilinear:in_color_matrix=${color.matrix}:in_range=${color.range}:out_color_matrix=bt709:out_range=tv`,...(cover?[`crop=${size.w}:${size.h}`]:[]),'setsar=1','format=yuva444p','setparams=range=limited:colorspace=bt709',`setpts=PTS+${Math.floor(c.start*fps+1e-7)-windowFrame}`].join(',')}[layer${i}]`);
+          draws.push({label:`layer${i}`,x:placed('x'),y:placed('y'),track:project.tracks.findIndex(t=>t.id===c.trackId),start:c.start,enable:enable(c.start,c.start+c.duration)});
+          continue;
+        }
         const chain=[...timing(c),...(assets.get(c.mediaId!)!.kind==='video'?[`${color.prefix}scale=in_color_matrix=${color.matrix}:in_range=${color.range}:out_range=pc`]:[]),'format=rgba',...sourceFilters(c,assets.get(c.mediaId!)!)];
         const fitting=c.fit==='cover'?[`scale=${width}:${height}:force_original_aspect_ratio=increase:reset_sar=1:flags=bilinear`,`crop=${width}:${height}`]:[`scale=${width}:${height}:force_original_aspect_ratio=decrease:reset_sar=1:flags=bilinear`,`pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=0x00000000`];
         const media=assets.get(c.mediaId!)!;chain.push(...(media.hasAlpha||media.kind==='image'||c.chromaKey?.enabled?alphaSpatialFilters(fitting):fitting));
@@ -725,7 +775,7 @@ export async function renderProjectDirect(project:Project,settings:ExportSetting
     await fs.writeFile(path.join(work,'filters.txt'),graph.join(';\n'),'utf8');
     const encoder=window?'':await chooseEncoder(settings,ctx,signal);
     const run=async(selected:string)=>{
-      const args=[...(transitionDevice?['-init_hw_device',transitionDevice,'-filter_hw_device','sluTransition']:[]),'-filter_complex_threads','2',...(window?['-copyts']:[]),...inputArgs,'-filter_complex_script','filters.txt'];
+      const args=[...(transitionDevice?['-init_hw_device',transitionDevice,'-filter_hw_device','sluTransition']:[]),'-filter_complex_threads',FILTER_THREADS,...(window?['-copyts']:[]),...inputArgs,'-filter_complex_script','filters.txt'];
       if(window){args.push('-map','[videoout]','-an','-frames:v',String(window.frames),'-fps_mode','passthrough','-c:v','rawvideo','-pix_fmt',rawVideoFormat(settings),'-f','rawvideo',window.destination);try{await Promise.all([ffmpegProgress(ctx,args,duration,work,onProgress,captionControl.signal),captionStreams?.start(windowFrame,window.frames)]);}catch(error){throw captionFailure||error;}return;}
       if(settings.format!=='wav')args.push('-map','[videoout]','-r',dec(fps),'-fps_mode','cfr');
       if(settings.format!=='gif')args.push('-map','[audioout]');
@@ -776,19 +826,25 @@ export async function renderProject(project:Project,settings:ExportSettings,ctx:
   const temporary=path.join(path.dirname(output),`.${path.basename(output)}.${randomUUID()}.partial.${settings.format}`);
   const encoder=settings.intermediate?'ffv1':await chooseEncoder(settings,ctx,signal),totalSamples=Math.round(duration*AUDIO_RATE);
   const nativeCuda=!settings.intermediate&&!transitionPlan.transitions.length&&/_nvenc$/.test(encoder)?await nativeCudaClip(project,settings,ctx,signal):undefined;
-  ctx.diagnostics?.({event:'render-plan',windowCount:windows.length,maxVisualInputs:Math.max(0,...windows.map(w=>w.visualInputs)),totalFrames:windows.reduce((n,w)=>n+w.frames,0),totalAudioSamples:totalSamples});
-  let usedCuda=false;
+  ctx.diagnostics?.({event:'render-plan',encoder,windowCount:windows.length,maxVisualInputs:Math.max(0,...windows.map(w=>w.visualInputs)),totalFrames:windows.reduce((n,w)=>n+w.frames,0),totalAudioSamples:totalSamples});
+  // While an export is being redone, every progress line says so: a bare percentage that falls back
+  // to zero looked like the export had silently started over.
+  let usedCuda=false,retryNote='',retryDone='';
   const attempt=async(selected:string,gpuProcessing=ctx.gpuProcessing!==false)=>{
     usedCuda=false;
     const directCuda=gpuProcessing&&/_nvenc$/.test(selected)?nativeCuda:undefined;
-    const control=new AbortController();let failure:Error|undefined,encoderPromise:Promise<unknown>|undefined,audioPromise:Promise<void>|undefined,captionRaster:CaptionRasterSession|undefined,lastProgress=0;
+    const control=new AbortController();let failure:Error|undefined,encoderPromise:Promise<unknown>|undefined,audioPromise:Promise<void>|undefined,captionRaster:CaptionRasterSession|undefined,lastProgress=0,stage='';
     setMaxListeners(64,control.signal);
     const fail=(value:unknown)=>{if(!failure&&!signal?.aborted)failure=value instanceof Error?value:new Error(String(value));control.abort();};
+    // Only the part that failed FIRST says whether another attempt can help: an encoder that stops
+    // on its own, or a window worker that fails. Everything after the first failure is fallout.
+    const faulted=(fault:ExportFault)=>(value:unknown)=>{if(!failure&&!control.signal.aborted&&value instanceof Error&&!isAbort(value)&&!faultOf(value))Object.assign(value,{exportFault:fault});fail(value);};
     const abort=()=>control.abort();signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)control.abort();
     const video=settings.format==='wav'||directCuda?undefined:await new RawStreamBridge(fail).open(control.signal);
     const audio=settings.format==='gif'||(settings.intermediate&&!audibleClips(project))?undefined:await new RawStreamBridge(fail).open(control.signal);
     const mixer=audio?new TimelineAudioMixer(project,ctx.ffmpeg,control.signal,event=>ctx.diagnostics?.({...event}),ctx.audioStretch,transitionPlan):undefined;
-    const progress:ProgressCallback=(value,message)=>{lastProgress=Math.max(lastProgress,Math.min(.995,value));onProgress?.(lastProgress,message);};
+    // Percent-only updates keep the last stage text (they used to replace it with a generic "처리 중").
+    const progress:ProgressCallback=(value,message)=>{lastProgress=Math.max(lastProgress,Math.min(.995,value));if(message)stage=message;onProgress?.(lastProgress,[retryNote,stage].filter(Boolean).join(' · ')||undefined);};
     try{
       if(settings.format!=='wav'&&project.clips.some(clip=>clip.text!==undefined&&(clip.captionStyle||clip.motionBinding)&&visualTrackEnabled(project,project.tracks.find(track=>track.id===clip.trackId))))captionRaster=await (ctx.captionRasterFactory||(await import('./caption-raster')).createCaptionRaster)(project,settings,control.signal,ctx.diagnostics);
       const args:string[]=['-threads','2'];
@@ -806,7 +862,7 @@ export async function renderProject(project:Project,settings:ExportSettings,ctx:
       else {args.push(...encoderArguments(selected,settings.quality),...(!directCuda?['-pix_fmt','yuv420p']:[]),'-color_primaries','bt709','-color_trc','bt709','-colorspace','bt709',...exportAudioArguments(settings.format));if(settings.format==='mp4'||settings.format==='mov'){args.push('-movflags','+faststart');if(settings.codec==='hevc')args.push('-tag:v','hvc1');}}
       args.push('-fps_mode','passthrough',temporary);
       progress(0,`구간 렌더링 · ${selected||settings.format.toUpperCase()} · ${windows.length}구간`);
-      encoderPromise=ffmpegProgress({...ctx,diagnostics:event=>ctx.diagnostics?.({...event,role:'encoder'})},args,duration,undefined,progress,control.signal);void encoderPromise.catch(fail);
+      encoderPromise=ffmpegProgress({...ctx,diagnostics:event=>ctx.diagnostics?.({...event,role:'encoder'})},args,duration,undefined,progress,control.signal);void encoderPromise.catch(faulted('encoder'));
       let nextSample=0;
       // Audio and video must advance independently. Waiting for the audio of
       // every short video window deadlocks encoders whose lookahead exceeds
@@ -820,7 +876,7 @@ export async function renderProject(project:Project,settings:ExportSettings,ctx:
         const received=video?.expectProducer(frameBytes*window.frames,frameBytes).then(padded=>{if(padded)ctx.diagnostics?.({event:'window-padded',index,frames:padded,of:window.frames});});if(received)void received.catch(fail);
         const motionProject=video?await motion.window(Math.round(window.start*settings.fps),window.frames,settings.fps):project;
         const compose=video?renderProjectDirect(motionProject,settings,{...ctx,gpuProcessing,diagnostics:event=>{if(event.event==='gpu-processing')usedCuda=true;ctx.diagnostics?.({...event,role:'window',index});}},undefined,control.signal,{...window,destination:video.producerUrl,transitionPlan:{...transitionPlan,project:motionProject},captionRaster}):Promise.resolve();
-        void compose.catch(fail);
+        void compose.catch(faulted('window'));
         await Promise.all([compose,received]);ctx.diagnostics?.({event:'window-end',index,videoBytes:video?.totalBytes||0,audioBytes:audio?.totalBytes||0});
         const disk=await fs.statfs(path.dirname(output));if(disk.bavail*disk.bsize<16*1024*1024)throw new Error('내보내기 중 저장 공간이 부족해 작업을 중단했습니다.');
       }
@@ -831,8 +887,20 @@ export async function renderProject(project:Project,settings:ExportSettings,ctx:
   };
   try{
     try{
-      try{await attempt(encoder);}catch(error){if(signal?.aborted||isMissingCaptionFont(error)||!usedCuda)throw error;ctx.diagnostics?.({event:'gpu-fallback',encoder,reason:error instanceof Error?error.message:String(error)});onProgress?.(0,'GPU 영상 처리를 완료하지 못해 처음부터 CPU 처리로 다시 시도합니다.');await attempt(encoder,false);}
-    }catch(error){if(signal?.aborted||isMissingCaptionFont(error)||settings.encoder!=='auto'||!/_nvenc$|_qsv$|_amf$/.test(encoder))throw error;onProgress?.(0,'GPU 인코딩을 완료하지 못해 CPU로 다시 시도합니다.');await attempt(settings.codec==='av1'?'libsvtav1':settings.codec==='hevc'?'libx265':'libx264',false);}
-    if(signal?.aborted)throw new CancelledError();const stat=await fs.stat(temporary);if(stat.size<32)throw new Error('내보낸 파일이 비어 있습니다.');await sources.verify();if(settings.format!=='wav')await motion.verify();await replaceWithRetry(temporary,output);onProgress?.(1,'내보내기가 완료되었습니다.');return output;
+      try{await attempt(encoder);}catch(error){
+        // A failed GPU decode/scale or GPU transition is worth one more run on the CPU. Anything else
+        // (a source that changed, a full disk, a broken filter graph) would only fail again later.
+        if(signal?.aborted||exportRetry(error,{usedGpuProcessing:usedCuda,encoder,automaticEncoder:settings.encoder==='auto'})!=='cpu-processing')throw error;
+        ctx.diagnostics?.({event:'gpu-fallback',encoder,reason:error instanceof Error?error.message:String(error)});
+        retryNote='GPU 영상 처리 실패 → CPU 처리로 처음부터 다시 내보내는 중';retryDone='GPU 영상 처리에 실패해 CPU 처리로 다시 내보냈습니다.';onProgress?.(0,retryNote);await attempt(encoder,false);
+      }
+    }catch(error){
+      // Only an encoder that stopped by itself is replaced. This branch used to catch every failure of
+      // an export with a GPU encoder, redo the whole export on the CPU and fail again at the same place.
+      if(signal?.aborted||exportRetry(error,{usedGpuProcessing:false,encoder,automaticEncoder:settings.encoder==='auto'})!=='cpu-encoder')throw error;
+      ctx.diagnostics?.({event:'encoder-fallback',encoder,reason:error instanceof Error?error.message:String(error)});
+      retryNote=`GPU 인코더(${encoder}) 실패 → CPU 인코더로 처음부터 다시 내보내는 중`;retryDone='GPU 인코더가 실패해 CPU 인코더로 다시 내보냈습니다.';onProgress?.(0,retryNote);await attempt(settings.codec==='av1'?'libsvtav1':settings.codec==='hevc'?'libx265':'libx264',false);
+    }
+    if(signal?.aborted)throw new CancelledError();const stat=await fs.stat(temporary);if(stat.size<32)throw new Error('내보낸 파일이 비어 있습니다.');await sources.verify();if(settings.format!=='wav')await motion.verify();await replaceWithRetry(temporary,output);onProgress?.(1,retryDone?`내보내기가 완료되었습니다. ${retryDone}`:'내보내기가 완료되었습니다.');return output;
   }finally{await fs.rm(temporary,{force:true}).catch(()=>{});}
 }

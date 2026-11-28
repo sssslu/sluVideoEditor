@@ -15,6 +15,7 @@ import { speechAudioProject,refineWordTimes } from '../shared/caption-timing';
 import { speechEnvelope } from './speech-envelope';
 import { projectDuration as timelineDuration } from '../shared/project';
 import {stabilizeMedia} from './stabilization';
+import {exportLog} from './export-log';
 import {reverseMedia,type ReverseOptions} from './reverse';
 import {trackMedia} from './tracking';
 import {TrackingProcess} from './tracking-process';
@@ -387,7 +388,14 @@ function setupIPC(){
     const typed=path.extname(output).toLowerCase(),finalPath=typed===`.${settings.format}`?output:['.mov','.mp4','.webm','.gif','.wav'].includes(typed)?`${output.slice(0,-typed.length)}.${settings.format}`:`${output}.${settings.format}`;
     if(finalPath!==output&&existsSync(finalPath)){const answer=await dialog.showMessageBox(win!,{type:'question',buttons:['덮어쓰기','취소'],defaultId:1,cancelId:1,message:`${path.basename(finalPath)} 파일이 이미 있습니다. 덮어쓸까요?`});if(answer.response!==0)return null;}
     await assertOutputNotSource(finalPath,[...project.media.map(m=>m.path),...(project.motionPaths||[]).map(a=>a.path)]);
-    const jobId=startJob('export',async(signal,progress)=>{const result=await renderProject(project,{...settings,outputPath:finalPath},engine,progress,signal);allow(result);return {path:result,message:'내보내기가 완료되었습니다.'};});return {jobId,path:finalPath};
+    // The exporter's last line says whether it had to start over (GPU encoder or GPU processing failed);
+    // the export log keeps the reason.
+    const jobId=startJob('export',async(signal,progress)=>{
+      const log=exportLog(app.getPath('userData'),{format:settings.format,codec:settings.codec,encoder:settings.encoder,quality:settings.quality,width:settings.width,height:settings.height,fps:settings.fps,clips:project.clips.length,timelineSeconds:Math.round(timelineDuration(project)*10)/10});
+      let done='내보내기가 완료되었습니다.';
+      try{const result=await renderProject(project,{...settings,outputPath:finalPath},{...engine,diagnostics:log.diagnostics},(value,message)=>{if(value>=1&&message)done=message;progress(value,message);},signal);allow(result);void log.finish('complete',done);return {path:result,message:done};}
+      catch(error){void log.finish(signal.aborted?'cancelled':'failed',error instanceof Error?error.message:String(error));throw error;}
+    });return {jobId,path:finalPath};
   });
   handler('job:cancel',async(id:string)=>{jobs.get(id)?.controller.abort();});
   handler('audio:match-loudness',async(project:Project,ids:string[])=>{
